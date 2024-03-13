@@ -6,17 +6,14 @@
 
 A simple asynchronous runtime for executing deferred queries.
 
-## Why does this crate exist?
+## Why
 
-`bevy_defer` is the asynchronous runtime of `bevy_rectray` with a simple
-premise: given two components `Signals` and `AsyncSystems`, you can
+`bevy_defer` can be used to power UI with a simple premise:
+given two components `Signals` and `AsyncSystems`, you can
 run any query you want in a deferred manner, and communicate with other widgets
 through signals.
 With code defined entirely at the site of Entity construction on top of that!
 No marker components, system functions or `World` access needed.
-
-This also provides a wait mechanism for mechanics like animation or
-dialogue trees, though currently not explored in this crate.
 
 ## How do I use an `AsyncSystem`?
 
@@ -26,7 +23,7 @@ To create an `AsyncSystems`, create an `AsyncSystem` first via a macro:
 
 ```rust
 // Set scale based on received position
-let system = async_system!(|recv: SigRecv<PositionChanged>, transform: Ac<Transform>|{
+let system = async_system!(|recv: Receiver<PositionChanged>, transform: Ac<Transform>|{
     let pos: Vec3 = recv.recv().await;
     transform.set(|transform| transform.scale = pos).await?;
 })
@@ -98,16 +95,17 @@ You can treat this like a loop
 
 ## Supported System Params
 
-| Query Type | Corresponding Bevy/Sync Type | Acronym |
-| ---- | ----- | ---- |
-| `AsyncQuery` | `SystemParam` | `Aq` |
-| `AsyncEntityQuery` | `WorldQuery` | `Aeq` |
-| `AsyncEntityCommands` | `EntityCommands` | -- |
-| `AsyncComponent` | `Component` | `Ac` |
-| `AsyncComponentsReadonly` | Tuple of `Component` | `Acs` |
-| `AsyncResource` | `AsyncResource` | `Ar` |
-| `SigSend` | `Signals` | -- |
-| `SigRecv` | `Signals` | -- |
+| Query Type | Corresponding Bevy/Sync Type |
+| ---- | ----- |
+| `AsyncWorldMut` | `World` / `Commands` |
+| `AsyncEntityMut` | `EntityCommands` |
+| `AsyncQuery` | `WorldQuery` |
+| `AsyncEntityQuery` | `WorldQuery` |
+| `AsyncSystemParam` | `SystemParam` |
+| `AsyncComponent` | `Component` |
+| `AsyncResource` | `Resource` |
+| `SigSend` | `Signals` |
+| `SigRecv` | `Signals` |
 
 Note: you can create your own `AsyncSystemParam` by implementing it.
 
@@ -118,25 +116,13 @@ To poll a signal requires the version number different from the receiver's
 previously recorded version. Therefore a signal is read at most once per
 write for every reader.
 
-## FAQ
+## Implementation Details
 
-### Is there a spawn function? Can I use a runtime dependent async crate?
+The executor does not spawn threads and in fact runs synchronously as a
+part of the schedule. Each future currently only gets polled a fixed number
+of times per frame, therefore `futures::join!` or `futures_lite::future::zip`
+should be used wherever possible for better performance.
 
-No, we only use have a bare bones async runtime with no waking support.
-
-### Can I use a third party async crate?
-
-Depends, a future is polled a fixed number of times per frame, which may
-or may not be ideal.
-
-### Any tips regarding async usage?
-
-You should use `futures::join` whenever you want to wait for multiple
-independent queries, otherwise your systems might take longer to complete.
-
-### Is this crate blazingly fast?
-
-Depends, this crate excels at waiting for events to occur,
-for example when using signals.
-However, as an async executor that runs queries with extra steps,
-things that happen every frame should ideally not run here.
+The `spawn` function can spawn a future like `tokio::spawn`, however
+do keep in mind the execution model might not be great for all
+use cases, like making a web request.

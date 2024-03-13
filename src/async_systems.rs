@@ -4,82 +4,67 @@ use triomphe::Arc;
 use std::fmt::Debug;
 use std::pin::Pin;
 use bevy_ecs::{component::Component, entity::Entity};
-
+use crate::{signals::Signals, AsyncResult};
 use crate::KeepAlive;
+use super::{AsyncQueue, AsyncFailure};
+#[allow(unused)]
+use crate::{AsyncComponent, signals::{Sender, Receiver}};
 
-use super::{async_param::AsyncSystemParam, AsyncExecutor, AsyncFailure, Signals};
-
-/// Macro for simplifying construction of an async system.
+/// Macro for constructing an async system via the [`AsyncEntityParam`] abstraction.
+/// 
+/// # Syntax
+/// 
+/// * Expects an async closure with [`AsyncEntityParam`]s as parameters and returns `()`.
+/// * `?` can be used to propagate [`AsyncFailure`]s.
+/// * Most of this crate's [`AsyncEntityParam`]s, like [`Sender`], [`Receiver`] and [`AsyncComponent`] are automatically 
+/// imported and may shadow external names. 
+/// 
+/// # Example
+/// 
+/// ```
+/// // Set scale based on received position
+/// let system = async_system!(|recv: Receiver<PositionChanged>, transform: AsyncComponent<Transform>|{
+///     let pos: Vec3 = recv.recv().await;
+///     transform.set(|transform| transform.scale = pos).await?;
+/// })
+/// ```
 #[macro_export]
 macro_rules! async_system {
-    (|$($field: ident :$ty: ty),* $(,)?| $body: expr) => {
-        $crate::AsyncSystem::new(move |$($field :$ty),*| async move {
-            let _ = $body;
-            Ok(())
-        })
+    (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
+        {
+            use $crate::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
+            use $crate::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
+            use $crate::signals::{Sender, Receiver};
+            $crate::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::Arc<$crate::AsyncQueue>, signals: &$crate::signals::Signals| {
+                $(let $field = <$ty as $crate::AsyncEntityParam>::fetch_signal(signals)?;)*
+                Some(async move {
+                    $(let $field = <$ty as $crate::AsyncEntityParam>::from_async_context(entity, &executor, $field);)*
+                    let _ = $body;
+                    Ok(())
+                })
+            })
+        }
+        
     };
 }
 
-/// Core trait for an async system function.
-pub trait AsyncSystemFunction<M>: Send + Sync + 'static {
-    fn as_future(
-        &self,
-        entity: Entity,
-        executor: &Arc<AsyncExecutor>,
-        signals: &Signals,
-    ) -> impl Future<Output = Result<(), AsyncFailure>> + Send + Sync + 'static;
-}
-
-
-macro_rules! impl_async_system_fn {
-    () => {};
-    ($head: ident $(,$tail: ident)*) => {
-        impl_async_system_fn!($($tail),*);
-
-        const _: () = {
-
-            impl<F, Fut: Future<Output = Result<(), AsyncFailure>> + Send + Sync + 'static, $head $(,$tail)*>
-                    AsyncSystemFunction<($head, $($tail,)*)> for F where $head: AsyncSystemParam, $($tail: AsyncSystemParam,)*
-                        F: Fn($head $(,$tail)*) -> Fut + Send + Sync + 'static,
-                         {
-                fn as_future(
-                    &self,
-                    entity: Entity,
-                    executor: &Arc<AsyncExecutor>,
-                    signals: &Signals,
-                ) -> impl Future<Output = Result<(), AsyncFailure>> + Send + Sync + 'static {
-                    self(
-                        $head::from_async_context(entity, executor, signals),
-                        $($tail::from_async_context(entity, executor, signals)),*
-                    )
-                }
-            }
-        };
-    };
-}
-
-impl_async_system_fn!(
-    T0, T1, T2, T3, T4,
-    T5, T6, T7, T8, T9,
-    T10, T11, T12, T13, T14
-);
-
+type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + Send + Sync + 'static>>;
 
 /// An async system function.
 pub struct AsyncSystem {
-    pub(crate) function: Box<dyn Fn(
+    pub(crate) function: Box<dyn FnMut(
         Entity,
-        &Arc<AsyncExecutor>,
+        &Arc<AsyncQueue>,
         &Signals,
-    ) -> Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + Send + Sync + 'static>> + Send + Sync> ,
+    ) -> Option<PinnedFut> + Send + Sync> ,
     pub(crate) marker: KeepAlive,
 }
 
 impl AsyncSystem {
-    pub fn new<F, M>(f: F) -> Self where F: AsyncSystemFunction<M>  {
+    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
         AsyncSystem {
             function: Box::new(move |entity, executor, signals| {
-                Box::pin(f.as_future(entity, executor, signals))
+                f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
             }),
             marker: KeepAlive::new()
         }
@@ -116,11 +101,11 @@ impl DerefMut for AsyncSystems {
 
 
 impl AsyncSystems {
-    pub fn new<F, M>(f: F) -> Self where F: AsyncSystemFunction<M>  {
+    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
         AsyncSystems {
             systems: vec![AsyncSystem {
                 function: Box::new(move |entity, executor, signals| {
-                    Box::pin(f.as_future(entity, executor, signals))
+                    f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
                 }),
                 marker: KeepAlive::new()
             }]
@@ -140,15 +125,29 @@ impl AsyncSystems {
         }
     }
 
-    pub fn and<F, M>(mut self, f: F) -> Self where F: AsyncSystemFunction<M>  {
+    pub fn and<F>(mut self, mut f: impl FnMut(Entity, Arc<AsyncQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
         self.systems.push(
             AsyncSystem {
                 function: Box::new(move |entity, executor, signals| {
-                    Box::pin(f.as_future(entity, executor, signals))
+                    f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
                 }),
                 marker: KeepAlive::new()
             }
         );
         self
     }
+}
+
+/// A parameter of an [`AsyncSystem`].
+pub trait AsyncEntityParam<'t>: Sized {
+    type Signal: Send + Sync + 'static;
+
+    /// If not found, log what's missing and return None.
+    fn fetch_signal(signals: &Signals) -> Option<Self::Signal>;
+
+    fn from_async_context(
+        entity: Entity,
+        executor: &'t Arc<AsyncQueue>,
+        signal: Self::Signal,
+    ) -> Self;
 }

@@ -1,4 +1,4 @@
-use crate::{oneshot, BoxedQueryCallback};
+use crate::{signals::Signals, BoxedQueryCallback};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryState, WorldQuery},
@@ -6,32 +6,34 @@ use bevy_ecs::{
     world::World,
 };
 use std::{
-    borrow::{Borrow, Cow},
-    marker::PhantomData,
-    future::Future,
+    borrow::{Borrow, Cow}, future::Future, marker::PhantomData, ops::Deref
 };
 use triomphe::Arc;
-
-use super::{AsyncExecutor, AsyncFailure, AsyncResult, AsyncSystemParam, Signals};
+use futures::channel::oneshot::channel;
+use super::{AsyncQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
 
 #[derive(Debug, Resource)]
 struct ResQueryCache<T: QueryData, F: QueryFilter>(QueryState<T, F>);
 
 pub struct AsyncQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {
-    pub(crate) executor: Cow<'t, Arc<AsyncExecutor>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
 pub struct AsyncEntityQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncExecutor>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
+/// Safety: Safe since `T` and `F` are markers.
 unsafe impl<T: QueryData, F: QueryFilter> Send for AsyncQuery<'_, T, F> {}
+/// Safety: Safe since `T` and `F` are markers.
 unsafe impl<T: QueryData, F: QueryFilter> Sync for AsyncQuery<'_, T, F> {}
 
+/// Safety: Safe since `T` and `F` are markers.
 unsafe impl<T: QueryData, F: QueryFilter> Send for AsyncEntityQuery<'_, T, F> {}
+/// Safety: Safe since `T` and `F` are markers.
 unsafe impl<T: QueryData, F: QueryFilter> Sync for AsyncEntityQuery<'_, T, F> {}
 
 impl<T: QueryData, F: QueryFilter> AsyncQuery<'_, T, F> {
@@ -49,7 +51,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<'_, T, F> {
         &self,
         f: impl FnMut(T::Item<'_>) + Send + Sync + 'static,
     ) -> impl Future<Output = AsyncResult<()>> + 'static {
-        let (sender, receiver) = oneshot::<()>();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
                 Some(mut state) => {
@@ -77,8 +79,14 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<'_, T, F> {
     }
 }
 
-impl<T: QueryData, F: QueryFilter> AsyncSystemParam for AsyncEntityQuery<'_, T, F> {
-    fn from_async_context(entity: Entity, executor: &Arc<AsyncExecutor>, _: &Signals) -> Self {
+impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam<'t> for AsyncEntityQuery<'_, T, F> {
+    type Signal = ();
+    
+    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
+    fn from_async_context(entity: Entity, executor: &Arc<AsyncQueue>, _: ()) -> Self {
         Self {
             entity,
             executor: Cow::Owned(executor.clone()),
@@ -92,7 +100,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
         &self,
         f: impl FnOnce(T::Item<'_>) -> Out + Send + Sync + 'static,
     ) -> impl Future<Output = AsyncResult<Out>> + 'static {
-        let (sender, receiver) = oneshot::<Option<Out>>();
+        let (sender, receiver) = channel();
         let entity = self.entity;
         let query = BoxedQueryCallback::once(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
@@ -127,7 +135,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
         &mut self,
         f: impl Fn(<T as WorldQuery>::Item<'_>) -> Option<U> + Send + Sync + 'static,
     ) -> impl Future<Output = U> + 'static {
-        let (send, recv) = oneshot::<U>();
+        let (send, recv) = channel();
         let entity = self.entity;
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
@@ -150,5 +158,37 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
             lock.push(query);
         }
         async { recv.await.unwrap() }
+    }
+}
+
+/// Add method to [`AsyncQuery`] through deref.
+///
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
+pub trait AsyncQueryDeref: QueryData + Sized {
+    type Target<'t> where Self: 't;
+    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncQuery<'a, Self, F>) -> &'b Self::Target<'a>;
+}
+
+impl<'t, C> Deref for AsyncQuery<'t, C> where C: AsyncQueryDeref{
+    type Target = <C as AsyncQueryDeref>::Target<'t>;
+
+    fn deref(&self) -> &Self::Target {
+        AsyncQueryDeref::async_deref(self)
+    }
+}
+
+/// Add method to [`AsyncEntityQuery`] through deref.
+///
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
+pub trait AsyncEntityQueryDeref: QueryData + Sized {
+    type Target<'t> where Self: 't;
+    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncEntityQuery<'a, Self, F>) -> &'b Self::Target<'a>;
+}
+
+impl<'t, C> Deref for AsyncEntityQuery<'t, C> where C: AsyncEntityQueryDeref{
+    type Target = <C as AsyncEntityQueryDeref>::Target<'t>;
+
+    fn deref(&self) -> &Self::Target {
+        AsyncEntityQueryDeref::async_deref(self)
     }
 }

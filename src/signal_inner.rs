@@ -1,19 +1,21 @@
+use std::task::Waker;
 use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 use triomphe::Arc;
 
 use std::sync::atomic::Ordering;
-use std::future::Future;
+use std::future::{poll_fn, Future};
 use parking_lot::Mutex;
 
 use crate::{AsObject, Object};
 
-use super::TypedSignal;
+use crate::signals::TypedSignal;
 
 /// The data component of a signal.
 #[derive(Debug, Default)]
 pub struct SignalData<T> {
     data: Mutex<T>,
     version: AtomicU32,
+    wakers: Mutex<Vec<Waker>>
 }
 
 /// The shared component of a signal.
@@ -65,7 +67,8 @@ impl<T: Send + Sync + 'static> Signal<T> {
         Self {inner: Arc::new(SignalInner {
             inner: Arc::new(SignalData {
                 data: Mutex::new(value),
-                version: AtomicU32::new(0),
+                version: Default::default(),
+                wakers: Default::default(),
             }),
             version: AtomicU32::new(0),
         })}
@@ -103,7 +106,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         let mut lock = self.inner.data.lock();
         *lock = value;
         self.inner.version.fetch_add(1, Ordering::Relaxed);
-        drop(lock);
+        let mut wakers = self.inner.wakers.lock();
+        wakers.drain(..).for_each(|x| x.wake());
     }
 
     /// Note: This does not increment the read counter.
@@ -111,7 +115,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         let mut lock = self.inner.data.lock();
         if *lock != value {
             *lock = value;
-            drop(lock);
+            let mut wakers = self.inner.wakers.lock();
+            wakers.drain(..).for_each(|x| x.wake());
             self.inner.version.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -121,7 +126,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         let mut lock = self.inner.data.lock();
         *lock = value;
         let version = self.inner.version.fetch_add(1, Ordering::Relaxed);
-        drop(lock);
+        let mut wakers = self.inner.wakers.lock();
+        wakers.drain(..).for_each(|x| x.wake());
         self.version.store(version.wrapping_add(1), Ordering::Relaxed)
     }
 
@@ -132,7 +138,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         if *lock != value {
             *lock = value;
             let version = self.inner.version.fetch_add(1, Ordering::Relaxed);
-            drop(lock);
+            let mut wakers = self.inner.wakers.lock();
+            wakers.drain(..).for_each(|x| x.wake());
             self.version.store(version.wrapping_add(1), Ordering::Relaxed)
         }
     }
@@ -154,12 +161,20 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     }
 
     pub async fn async_read(&self) -> T where T: Clone {
+        let mut first = true;
         loop {
             let version = self.inner.version.load(Ordering::Relaxed);
             if self.version.swap(version, Ordering::Relaxed) != version {
                 return self.inner.data.lock().clone();
+            } else if first {
+                first = false;
+                poll_fn(|ctx|{
+                    let mut lock = self.inner.wakers.lock();
+                    lock.push(ctx.waker().clone());
+                    Poll::<T>::Pending
+                }).await;
             } else {
-                YieldNow::new().await;
+                poll_fn(|_| Poll::<T>::Pending).await;
             }
         }
     }

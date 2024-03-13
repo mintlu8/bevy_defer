@@ -1,14 +1,18 @@
-use std::{borrow::Cow, marker::PhantomData, ops::Deref, future::Future};
+use std::{borrow::Cow, future::Future, marker::PhantomData, ops::Deref};
+use futures::channel::oneshot::channel;
+use futures::executor::LocalSpawner;
+use futures::task::LocalSpawnExt;
+use futures::FutureExt;
 use triomphe::Arc;
 use bevy_ecs::{entity::Entity, query::{QueryData, QueryFilter}, system::{Res, Resource, SystemParam}};
-use crate::{AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParams, ResAsyncExecutor};
+use crate::{AsyncEntityParam, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam, QueryQueue};
 use ref_cast::RefCast;
-use super::AsyncExecutor;
+use super::AsyncQueue;
 
 /// [`SystemParam`] for obtaining an [`AsyncWorldMut`].
 #[derive(SystemParam)]
 pub struct AsyncWorld<'w, 's> {
-    executor: Res<'w, ResAsyncExecutor>,
+    executor: Res<'w, QueryQueue>,
     p: PhantomData<&'s ()>
 }
 
@@ -21,9 +25,12 @@ impl Deref for AsyncWorld<'_, '_> {
 }
 
 scoped_tls::scoped_thread_local!(static ASYNC_WORLD: AsyncWorldMut);
+scoped_tls::scoped_thread_local!(static SPAWNER: LocalSpawner);
 
-pub(crate) fn world_scope<T>(executor: &Arc<AsyncExecutor>, f: impl FnOnce() -> T) -> T{
-    ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), f)
+pub(crate) fn world_scope<T>(executor: &Arc<AsyncQueue>, pool: LocalSpawner, f: impl FnOnce() -> T) -> T{
+    ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), ||{
+        SPAWNER.set(&pool, f)
+    })
 }
 
 /// Spawn a `bevy_defer` compatible future.
@@ -34,11 +41,22 @@ pub(crate) fn world_scope<T>(executor: &Arc<AsyncExecutor>, f: impl FnOnce() -> 
 /// if dropped, the associated future will be dropped by the executor.
 ///
 /// Can only be used inside a `bevy_defer` future.
-pub fn spawn<T: Send + Sync + 'static>(future: impl Future<Output = T> + Send + 'static) -> impl Future<Output = T> {
-    if !ASYNC_WORLD.is_set() {
+pub fn spawn<T: Send + Sync + 'static>(fut: impl Future<Output = T> + Send + 'static) -> impl Future<Output = T> {
+    if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
     }
-    ASYNC_WORLD.with(|w| w.spawn_task(future))
+    let (mut send, recv) = channel();
+    let _ = SPAWNER.with(|s| s.spawn_local(
+        async move {
+            futures::select!(
+                _ = send.cancellation().fuse() => (), 
+                out = fut.fuse() => {
+                    let _ = send.send(out);
+                },
+            )
+        }
+    ));
+    recv.map(|x| x.unwrap())
 }
 
 /// Obtain the [`AsyncWorldMut`] of the currently running `bevy_defer` executor.
@@ -56,7 +74,7 @@ pub fn world<T: Send + Sync + 'static>() -> AsyncWorldMut {
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
 pub struct AsyncWorldMut {
-    pub(crate) executor: Arc<AsyncExecutor>,
+    pub(crate) executor: Arc<AsyncQueue>,
 }
 
 impl AsyncWorldMut {
@@ -89,8 +107,8 @@ impl AsyncWorldMut {
         }
     }
 
-    pub fn system<P: SystemParam>(&self) -> AsyncSystemParams<P> {
-        AsyncSystemParams { 
+    pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
+        AsyncSystemParam { 
             executor: Cow::Borrowed(&self.executor),
             p: PhantomData
         }
@@ -100,7 +118,7 @@ impl AsyncWorldMut {
 /// A fast readonly query for multiple components.
 pub struct AsyncEntityMut<'t> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncExecutor>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
 }
 
 impl Deref for AsyncEntityMut<'_> {
@@ -129,6 +147,59 @@ impl AsyncEntityMut<'_> {
             entity: self.entity,
             executor: Cow::Borrowed(&self.executor),
             p: PhantomData,
+        }
+    }
+}
+
+impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
+    type Signal = ();
+
+    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
+    fn from_async_context(
+        _: Entity,
+        executor: &'t Arc<AsyncQueue>,
+        _: Self::Signal,
+    ) -> Self {
+        AsyncWorldMut{
+            executor: executor.clone()
+        }
+    }
+}
+
+impl<'t> AsyncEntityParam<'t> for &'t AsyncWorldMut {
+    type Signal = ();
+
+    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
+    fn from_async_context(
+        _: Entity,
+        executor: &'t Arc<AsyncQueue>,
+        _: Self::Signal,
+    ) -> Self {
+        AsyncWorldMut::ref_cast(executor)
+    }
+}
+
+impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
+    type Signal = ();
+
+    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
+    fn from_async_context(
+        entity: Entity,
+        executor: &'t Arc<AsyncQueue>,
+        _: Self::Signal,
+    ) -> Self {
+        AsyncEntityMut{
+            entity,
+            executor: Cow::Borrowed(executor)
         }
     }
 }

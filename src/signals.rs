@@ -1,13 +1,14 @@
-use std::{any::{type_name, Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, task::Poll};
-use futures_lite::Future;
+use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, task::Poll};
+use std::future::Future;
 use triomphe::Arc;
 use bevy_ecs::{component::Component, entity::Entity, query::QueryData};
 use bevy_log::debug;
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 use crate::object::{Object, AsObject};
-use super::{AsyncExecutor, AsyncSystemParam, Signal, SignalData, SignalInner, YieldNow};
-
+use crate::{AsyncQueue, AsyncEntityParam};
+use crate::signal_inner::{SignalInner, YieldNow};
+pub use crate::signal_inner::{Signal, SignalData};
 /// A marker type that indicates the type and purpose of a signal.
 pub trait SignalId: Any + Send + Sync + 'static{
     type Data: AsObject;
@@ -32,7 +33,7 @@ macro_rules! signal_ids {
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             $vis enum $name {}
 
-            impl $crate::SignalId for $name{
+            impl $crate::signals::SignalId for $name{
                 type Data = $ty;
             }
         )*
@@ -274,9 +275,9 @@ impl Signals {
 }
 
 /// `AsyncSystemParam` for sending a signal.
-pub struct SigSend<T: SignalId>(Arc<SignalInner<Object>>, PhantomData<T>);
+pub struct Sender<T: SignalId>(Arc<SignalInner<Object>>, PhantomData<T>);
 
-impl<T: SignalId> SigSend<T> {
+impl<T: SignalId> Sender<T> {
     /// Send a value with a signal, can be polled by the same sender.
     pub fn send(self, item: T::Data) -> impl Fn() + Send + Sync + 'static  {
         let obj = Object::new(item);
@@ -303,24 +304,29 @@ impl<T: SignalId> SigSend<T> {
     }
 }
 
-impl <T: SignalId> AsyncSystemParam for SigSend<T>  {
+impl <'t, T: SignalId> AsyncEntityParam<'t> for Sender<T>  {
+    type Signal = Arc<SignalInner<Object>>;
+    
+    fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
+        signals.borrow_sender::<T>()
+    }
+
     fn from_async_context(
             _: Entity,
-            _: &Arc<AsyncExecutor>,
-            signals: &Signals,
+            _: &Arc<AsyncQueue>,
+            signal: Self::Signal,
         ) -> Self {
-        SigSend(
-            signals.borrow_sender::<T>()
-                .unwrap_or_else(|| panic!("Signal sender of type <{}> missing", type_name::<T>())),
+        Sender(
+            signal,
             PhantomData
         )
     }
 }
 
 /// `AsyncSystemParam` for receiving a signal.
-pub struct SigRecv<T: SignalId>(Arc<SignalInner<Object>>, PhantomData<T>);
+pub struct Receiver<T: SignalId>(Arc<SignalInner<Object>>, PhantomData<T>);
 
-impl<T: SignalId> Future for &SigRecv<T> {
+impl<T: SignalId> Future for &Receiver<T> {
     type Output = T::Data;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
@@ -337,7 +343,7 @@ impl<T: SignalId> Future for &SigRecv<T> {
     }
 }
 
-impl<T: SignalId> Future for SigRecv<T> {
+impl<T: SignalId> Future for Receiver<T> {
     type Output = T::Data;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
@@ -354,14 +360,14 @@ impl<T: SignalId> Future for SigRecv<T> {
     }
 }
 
-impl<T: SignalId> SigRecv<T> {
+impl<T: SignalId> Receiver<T> {
     /// Receive a signal.
     pub async fn recv(&self) -> T::Data {
         self.await
     }
 }
 
-impl<T: SignalId<Data = Object>> SigRecv<T> {
+impl<T: SignalId<Data = Object>> Receiver<T> {
     /// Receives and downcasts a signal, discard all invalid typed values.
     pub async fn recv_as<A: AsObject>(&self) -> A {
         loop {
@@ -377,15 +383,20 @@ impl<T: SignalId<Data = Object>> SigRecv<T> {
 }
 
 
-impl <T: SignalId> AsyncSystemParam for SigRecv<T>  {
+impl <'t, T: SignalId> AsyncEntityParam<'t> for Receiver<T>  {
+    type Signal = Arc<SignalInner<Object>>;
+    
+    fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
+        signals.borrow_receiver::<T>()
+    }
+
     fn from_async_context(
             _: Entity,
-            _: &Arc<AsyncExecutor>,
-            signals: &Signals,
+            _: &Arc<AsyncQueue>,
+            signal: Self::Signal,
         ) -> Self {
-        SigRecv(
-            signals.borrow_receiver::<T>()
-                .unwrap_or_else(|| panic!("Signal receiver of type <{}> missing", type_name::<T>())),
+        Receiver(
+            signal,
             PhantomData
         )
     }

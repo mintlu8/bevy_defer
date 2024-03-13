@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy_app::{App, Startup, Update};
 use bevy_ecs::{component::Component, query::With, system::{Commands, Local, Query}};
-use bevy_defer::{async_system, signal_ids, AsyncSystems, DefaultAsyncPlugin, SigRecv, SignalSender, Signals, TypedSignal};
-
+use bevy_defer::{async_system, signal_ids, AsyncSystems, DefaultAsyncPlugin};
+use bevy_defer::signals::{SignalSender, Signals, TypedSignal};
 signal_ids! {
     SigText: &'static str,
 }
@@ -39,7 +39,7 @@ pub fn init(mut commands: Commands) {
         Marker2, 
         Signals::from_receiver::<SigText>(signal.clone()),
         AsyncSystems::from_single(
-            async_system!(|sig: SigRecv<SigText>|{
+            async_system!(|sig: Receiver<SigText>|{
                 let sig = &sig;
                 assert_eq!(sig.await, "hello");
                 assert_eq!(sig.await, "rust");

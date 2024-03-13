@@ -7,41 +7,42 @@ use bevy_ecs::component::Component;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use std::future::Future;
-use async_oneshot::oneshot;
+use futures::channel::oneshot::channel;
+use crate::signals::Signals;
+use crate::AsyncEntityParam;
 
-use super::{AsyncExecutor, AsyncFailure, BoxedQueryCallback, BoxedReadonlyCallback, AsyncResult, Signals};
-
-/// A parameter of an `AsyncSystem`.
-pub trait AsyncSystemParam: Sized {
-    fn from_async_context(
-        entity: Entity,
-        executor: &Arc<AsyncExecutor>,
-        signals: &Signals,
-    ) -> Self;
-}
-
+use super::{AsyncQueue, AsyncFailure, BoxedQueryCallback, BoxedReadonlyCallback, AsyncResult};
 
 /// Async version of [`SystemParam`].
 #[derive(Debug)]
-pub struct AsyncSystemParams<'t, P: SystemParam>{
-    pub(crate) executor: Cow<'t, Arc<AsyncExecutor>>,
+pub struct AsyncSystemParam<'t, P: SystemParam>{
+    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
     pub(crate) p: PhantomData<P>
 }
 
-unsafe impl<P: SystemParam> Send for AsyncSystemParams<'_, P> {}
-unsafe impl<P: SystemParam> Sync for AsyncSystemParams<'_, P> {}
+/// Safety: Safe since `P` is a marker.
+unsafe impl<P: SystemParam> Send for AsyncSystemParam<'_, P> {}
+/// Safety: Safe since `P` is a marker.
+unsafe impl<P: SystemParam> Sync for AsyncSystemParam<'_, P> {}
 
-impl<P: SystemParam> AsyncSystemParam for AsyncSystemParams<'_, P> {
+impl<'t, P: SystemParam> AsyncEntityParam<'t> for AsyncSystemParam<'t, P> {
+    type Signal = ();
+    
+    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
     fn from_async_context(
         _: Entity,
-        executor: &Arc<AsyncExecutor>,
-        _: &Signals,
+        executor: &'t Arc<AsyncQueue>,
+        _: ()
     ) -> Self {
-        AsyncSystemParams {
-            executor: Cow::Owned(executor.clone()),
+        AsyncSystemParam {
+            executor: Cow::Borrowed(executor),
             p: PhantomData
         }
     }
+    
 }
 
 type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'static;
@@ -49,11 +50,11 @@ type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'stati
 #[derive(Debug, Resource)]
 struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
 
-impl<Q: SystemParam + 'static> AsyncSystemParams<'_, Q> {
+impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
     ) -> impl Future<Output = AsyncResult<T>> + Send + Sync + 'static{
-        let (sender, receiver) = oneshot::<T>();
+        let (sender, receiver) = channel::<T>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 let id = match world.get_resource::<ResSysParamId<Q, T>>(){
@@ -86,19 +87,30 @@ impl<Q: SystemParam + 'static> AsyncSystemParams<'_, Q> {
 #[derive(Debug)]
 pub struct AsyncComponent<'t, C: Component>{
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncExecutor>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
     pub(crate) p: PhantomData<C>
 }
 
-impl<C: Component> AsyncSystemParam for AsyncComponent<'_, C> {
+/// Safety: Safe since `C` is a marker.
+unsafe impl<C: Component> Send for AsyncComponent<'_, C> {}
+/// Safety: Safe since `C` is a marker.
+unsafe impl<C: Component> Sync for AsyncComponent<'_, C> {}
+
+impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
+    type Signal = ();
+    
+    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
     fn from_async_context(
         entity: Entity,
-        executor: &Arc<AsyncExecutor>,
-        _: &Signals,
+        executor: &'t Arc<AsyncQueue>,
+        _: ()
     ) -> Self {
         Self {
             entity,
-            executor: Cow::Owned(executor.clone()),
+            executor: Cow::Borrowed(executor),
             p: PhantomData
         }
     }
@@ -108,7 +120,7 @@ impl<C: Component> AsyncComponent<'_, C> {
 
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = oneshot::<Option<Out>>();
+        let (sender, receiver) = channel::<Option<Out>>();
         let entity = self.entity;
         let query = BoxedReadonlyCallback::new(
             move |world: &World| {
@@ -133,7 +145,7 @@ impl<C: Component> AsyncComponent<'_, C> {
 
     pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = oneshot::<Out>();
+        let (sender, receiver) = channel::<Out>();
         let entity = self.entity;
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
@@ -158,7 +170,7 @@ impl<C: Component> AsyncComponent<'_, C> {
 
     pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = oneshot::<Option<Out>>();
+        let (sender, receiver) = channel::<Option<Out>>();
         let entity = self.entity;
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
@@ -185,15 +197,26 @@ impl<C: Component> AsyncComponent<'_, C> {
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
 pub struct AsyncResource<'t, R: Resource>{
-    pub(crate) executor: Cow<'t, Arc<AsyncExecutor>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
     pub(crate) p: PhantomData<R>
 }
 
-impl<R: Resource> AsyncSystemParam for AsyncResource<'_, R> {
+/// Safety: Safe since `R` is a marker.
+unsafe impl<R: Resource> Send for AsyncResource<'_, R> {}
+/// Safety: Safe since `R` is a marker.
+unsafe impl<R: Resource> Sync for AsyncResource<'_, R> {}
+
+impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
+    type Signal = ();
+    
+    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
     fn from_async_context(
         _: Entity,
-        executor: &Arc<AsyncExecutor>,
-        _: &Signals,
+        executor: &Arc<AsyncQueue>,
+        _: ()
     ) -> Self {
         Self {
             executor: Cow::Owned(executor.clone()),
@@ -205,7 +228,7 @@ impl<R: Resource> AsyncSystemParam for AsyncResource<'_, R> {
 impl<R: Resource> AsyncResource<'_, R> {
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = oneshot::<Option<Out>>();
+        let (sender, receiver) = channel::<Option<Out>>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.get_resource::<R>().map(f)
@@ -227,7 +250,7 @@ impl<R: Resource> AsyncResource<'_, R> {
 
     pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = oneshot::<Option<Out>>();
+        let (sender, receiver) = channel::<Option<Out>>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.get_resource_mut::<R>()
@@ -249,9 +272,9 @@ impl<R: Resource> AsyncResource<'_, R> {
     }
 }
 
-/// The standard way to add method to [`AsyncComponent`].
+/// Add method to [`AsyncComponent`] through deref.
 ///
-/// It is recommended to derive [`RefCast`](https://docs.rs/ref-cast/latest/ref_cast/) for this.
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncComponentDeref: Component + Sized {
     type Target<'t>;
     fn async_deref<'a, 'b>(this: &'b AsyncComponent<'a, Self>) -> &'b Self::Target<'a>;
@@ -265,10 +288,9 @@ impl<'t, C> Deref for AsyncComponent<'t, C> where C: AsyncComponentDeref{
     }
 }
 
-
-/// The standard way to add method to [`AsyncResource`].
+/// Add method to [`AsyncResource`] through deref.
 ///
-/// It is recommended to derive [`RefCast`](https://docs.rs/ref-cast/latest/ref_cast/) for this.
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncResourceDeref: Resource + Sized {
     type Target;
     fn async_deref<'t>(this: &'t AsyncResource<Self>) -> &'t Self::Target;

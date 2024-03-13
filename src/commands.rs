@@ -1,16 +1,19 @@
-use std::{cell::OnceCell, time::Duration};
-
-use async_oneshot::oneshot;
+use std::{cell::OnceCell, time::Duration, future::Future};
+use triomphe::Arc;
+use futures::channel::oneshot::channel;
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, State, States}, system::Command, world::World};
 use bevy_time::Time;
-use futures_lite::Future;
-use crate::{AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, KeepAlive, SystemFuture, CHANNEL_CLOSED};
+use rustc_hash::FxHashMap;
+use crate::{signal_inner::SignalData, AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, Object, CHANNEL_CLOSED};
 
+pub struct SignalServer {
+    signals: FxHashMap<String, Arc<SignalData<Object>>>,
+}
 
 impl AsyncWorldMut {
     pub fn apply_command(&self, command: impl Command + Sync) -> impl Future<Output = ()> {
-        let (sender, receiver) = oneshot::<()>();
+        let (sender, receiver) = channel::<()>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 command.apply(world)
@@ -26,28 +29,8 @@ impl AsyncWorldMut {
         }
     }
 
-    pub fn spawn_task<T: Send + Sync + 'static>(&self, future: impl Future<Output = T> + Send + 'static) -> impl Future<Output = T> {
-        let (mut sender, receiver) = oneshot();
-        let alive = KeepAlive::new();
-        let alive2 = alive.clone();
-        {
-            let mut lock = self.executor.spawn_queue.lock();
-            lock.push(SystemFuture{
-                future: Box::pin(async move { 
-                    sender.send(future.await).map_err(|_|AsyncFailure::ChannelClosed)
-                }),
-                alive,
-            });
-        }
-        async move {
-            let result = receiver.await.expect(CHANNEL_CLOSED);
-            drop(alive2);
-            result
-        }
-    }
-
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = Entity> {
-        let (sender, receiver) = oneshot::<Entity>();
+        let (sender, receiver) = channel::<Entity>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.spawn(bundle).id()
@@ -64,7 +47,7 @@ impl AsyncWorldMut {
     }
 
     pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> {
-        let (sender, receiver) = oneshot();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.get_resource_mut::<NextState<S>>()
@@ -84,7 +67,7 @@ impl AsyncWorldMut {
 
 
     pub fn get_state<S: States>(&self) -> impl Future<Output = Option<S>> {
-        let (sender, receiver) = oneshot();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.get_resource::<State<S>>().map(|s| s.get().clone())
@@ -101,7 +84,7 @@ impl AsyncWorldMut {
     }
 
     pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> {
-        let (sender, receiver) = oneshot::<()>();
+        let (sender, receiver) = channel::<()>();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
                 world.get_resource::<State<S>>()
@@ -119,7 +102,7 @@ impl AsyncWorldMut {
     }
 
     pub fn pause<S: States>(&self, duration: Duration) -> impl Future<Output = ()> {
-        let (sender, receiver) = oneshot::<()>();
+        let (sender, receiver) = channel::<()>();
         let time_cell = OnceCell::new();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
@@ -140,7 +123,7 @@ impl AsyncWorldMut {
     }
 
     pub fn asset<A: Asset, T: Send + Sync + 'static>(&self, handle: Handle<A>, f: impl FnOnce(&A) -> T + Send + Sync + 'static) -> impl Future<Output = Option<T>> {
-        let (sender, receiver) = oneshot();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.get_resource::<Assets<A>>()
