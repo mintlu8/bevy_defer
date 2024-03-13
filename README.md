@@ -62,7 +62,7 @@ Which can be done at entity creation site without world access.
 allows easy and robust cross entity communication. Combined with signals,
 `AsyncSystems` allows inter-entity communication with ease.
 
-### How do I use `AsyncSystems`?
+### Example
 
 To create an `AsyncSystems`, create an `AsyncSystem` first via a macro:
 
