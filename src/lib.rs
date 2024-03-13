@@ -66,7 +66,7 @@ macro_rules! run_async_executor {
     () => {
         bevy_ecs::system::IntoSystem::pipe(
             $crate::executor::run_async_queries,
-            $crate::executor::exec_async_executor,
+            $crate::executor::run_async_executor,
         )
     };
 }

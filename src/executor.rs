@@ -150,7 +150,7 @@ impl Deref for QueryQueue {
     }
 }
 
-#[doc(hidden)]
+/// Try resolve queries sent to the queue.
 pub fn run_async_queries(
     w: &mut World,
 ) {
@@ -175,10 +175,8 @@ pub fn run_async_queries(
     }
 }
 
-
-
-#[doc(hidden)]
-pub fn exec_async_executor(
+/// Run [`AsyncExecutor`]
+pub fn run_async_executor(
     queue: Res<QueryQueue>,
     mut executor: NonSendMut<AsyncExecutor>
 ) {
@@ -187,7 +185,6 @@ pub fn exec_async_executor(
     })
 }
 
-#[doc(hidden)]
 pub fn push_async_systems(
     executor: Res<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
