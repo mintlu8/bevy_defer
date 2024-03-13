@@ -1,5 +1,4 @@
-use std::{mem, ops::Deref, pin::Pin};
-use std::future::Future;
+use std::{mem, ops::Deref};
 use bevy_ecs::system::{NonSend, NonSendMut};
 use bevy_ecs::{entity::Entity, system::{Query, Res, Resource}, world::World};
 use bevy_log::trace;
@@ -43,13 +42,6 @@ impl KeepAlive {
     }
 }
 
-
-/// A future representing a running async system.
-pub(crate) struct SystemFuture{
-    pub(crate) future: Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + Send + 'static>>,
-    pub(crate) alive: KeepAlive,
-}
-
 /// A parallelizable query on a `World`.
 pub struct BoxedReadonlyCallback {
     command: Option<Box<dyn FnOnce(&World) + Send + 'static>>
@@ -77,7 +69,6 @@ pub struct BoxedQueryCallback {
 }
 
 impl BoxedQueryCallback {
-
     pub fn fire_and_forget(
         query: impl (FnOnce(&mut World)) + Send + 'static,
     ) -> Self {
@@ -127,17 +118,18 @@ impl BoxedQueryCallback {
     }
 }
 
-/// A simple async executor for `bevy_rectray`.
+/// Queue foe deferred queries applied on the [`World`].
 #[derive(Default)]
-pub struct AsyncQueue {
+pub struct AsyncQueryQueue {
     pub readonly: Mutex<Vec<BoxedReadonlyCallback>>,
     pub queries: Mutex<Vec<BoxedQueryCallback>>,
 }
 
+/// Queue foe deferred queries applied on the [`World`].
 #[derive(Debug, Default)]
-pub struct AsyncExecutor(LocalPool);
+pub struct AsyncExecutor(pub(crate) LocalPool);
 
-impl std::fmt::Debug for AsyncQueue {
+impl std::fmt::Debug for AsyncQueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AsyncExecutor")
             .field("readonly", &self.readonly.lock().len())
@@ -148,10 +140,10 @@ impl std::fmt::Debug for AsyncQueue {
 
 /// Resource containing a reference to an async executor.
 #[derive(Default, Resource)]
-pub struct QueryQueue(pub(crate) Arc<AsyncQueue>);
+pub struct QueryQueue(pub(crate) Arc<AsyncQueryQueue>);
 
 impl Deref for QueryQueue {
-    type Target = AsyncQueue;
+    type Target = AsyncQueryQueue;
 
     fn deref(&self) -> &Self::Target {
         self.0.as_ref()

@@ -6,7 +6,7 @@ use bevy_log::debug;
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 use crate::object::{Object, AsObject};
-use crate::{AsyncQueue, AsyncEntityParam};
+use crate::{AsyncQueryQueue, AsyncEntityParam};
 use crate::signal_inner::{SignalInner, YieldNow};
 pub use crate::signal_inner::{Signal, SignalData};
 /// A marker type that indicates the type and purpose of a signal.
@@ -313,7 +313,7 @@ impl <'t, T: SignalId> AsyncEntityParam<'t> for Sender<T>  {
 
     fn from_async_context(
             _: Entity,
-            _: &Arc<AsyncQueue>,
+            _: &Arc<AsyncQueryQueue>,
             signal: Self::Signal,
         ) -> Self {
         Sender(
@@ -392,7 +392,7 @@ impl <'t, T: SignalId> AsyncEntityParam<'t> for Receiver<T>  {
 
     fn from_async_context(
             _: Entity,
-            _: &Arc<AsyncQueue>,
+            _: &Arc<AsyncQueryQueue>,
             signal: Self::Signal,
         ) -> Self {
         Receiver(
@@ -445,12 +445,14 @@ pub struct SignalReceiver<T: SignalId>{
 }
 
 impl<T: SignalId> SignalReceiverItem<'_, T> {
+    /// Poll an item synchronously.
     pub fn poll_once(&self) -> Option<T::Data> {
         self.signals.as_ref()
             .and_then(|sig| sig.poll_once::<T>())
     }
 
-    pub fn poll_any(&self) -> bool {
+    /// Returns true if content is changed.
+    pub fn poll_change(&self) -> bool {
         self.signals.as_ref()
             .and_then(|sig| sig.poll_once::<T>())
             .is_some()

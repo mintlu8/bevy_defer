@@ -7,7 +7,7 @@ use triomphe::Arc;
 use bevy_ecs::{entity::Entity, query::{QueryData, QueryFilter}, system::{Res, Resource, SystemParam}};
 use crate::{AsyncEntityParam, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam, QueryQueue};
 use ref_cast::RefCast;
-use super::AsyncQueue;
+use super::AsyncQueryQueue;
 
 /// [`SystemParam`] for obtaining an [`AsyncWorldMut`].
 #[derive(SystemParam)]
@@ -27,7 +27,7 @@ impl Deref for AsyncWorld<'_, '_> {
 scoped_tls::scoped_thread_local!(static ASYNC_WORLD: AsyncWorldMut);
 scoped_tls::scoped_thread_local!(static SPAWNER: LocalSpawner);
 
-pub(crate) fn world_scope<T>(executor: &Arc<AsyncQueue>, pool: LocalSpawner, f: impl FnOnce() -> T) -> T{
+pub(crate) fn world_scope<T>(executor: &Arc<AsyncQueryQueue>, pool: LocalSpawner, f: impl FnOnce() -> T) -> T{
     ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), ||{
         SPAWNER.set(&pool, f)
     })
@@ -69,12 +69,14 @@ pub fn world<T: Send + Sync + 'static>() -> AsyncWorldMut {
     ASYNC_WORLD.with(|w| AsyncWorldMut{ executor: w.executor.clone() })
 }
 
+#[allow(unused)]
+use bevy_ecs::{world::World, system::Commands};
 
-
+/// Async version of [`World`] or [`Commands`].
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
 pub struct AsyncWorldMut {
-    pub(crate) executor: Arc<AsyncQueue>,
+    pub(crate) executor: Arc<AsyncQueryQueue>,
 }
 
 impl AsyncWorldMut {
@@ -118,7 +120,7 @@ impl AsyncWorldMut {
 /// A fast readonly query for multiple components.
 pub struct AsyncEntityMut<'t> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
 }
 
 impl Deref for AsyncEntityMut<'_> {
@@ -160,7 +162,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Arc<AsyncQueue>,
+        executor: &'t Arc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut{
@@ -178,7 +180,7 @@ impl<'t> AsyncEntityParam<'t> for &'t AsyncWorldMut {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Arc<AsyncQueue>,
+        executor: &'t Arc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut::ref_cast(executor)
@@ -194,7 +196,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Arc<AsyncQueue>,
+        executor: &'t Arc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncEntityMut{

@@ -1,5 +1,7 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
+use std::pin::Pin;
+
 use bevy_app::{App, Plugin, PreUpdate, Update, PostUpdate, First};
 mod async_world;
 mod async_entity;
@@ -11,11 +13,13 @@ mod signal_inner;
 mod object;
 mod executor;
 mod commands;
+use bevy_ecs::{system::{Command, Commands}, world::World};
 pub use executor::*;
 pub use async_world::*;
 pub use async_systems::*;
 pub use async_values::*;
 pub use async_query::*;
+use futures::{task::SpawnExt, Future};
 pub use object::{Object, AsObject};
 pub use futures::channel::oneshot::channel;
 
@@ -75,5 +79,44 @@ impl Plugin for DefaultAsyncPlugin {
             .add_systems(Update, run_async_executor!())
             .add_systems(PostUpdate, run_async_executor!())
         ;
+    }
+}
+
+/// Extension for spawning tasks for [`World`], [`App`] and [`Commands`].
+pub trait AsyncExtension {
+    /// Spawn a task to be run on the [`AsyncExecutor`].
+    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static);
+}
+
+impl AsyncExtension for World {
+    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static) {
+        let _ = self.non_send_resource::<AsyncExecutor>().0.spawner().spawn(f);
+    }
+}
+
+impl AsyncExtension for App {
+    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static) {
+        let _ = self.world.non_send_resource::<AsyncExecutor>().0.spawner().spawn(f);
+    }
+}
+
+impl AsyncExtension for Commands<'_, '_> {
+    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static) {
+        self.add(Spawn::new(f))
+    }
+}
+
+/// [`Command`] for spawning a task.
+pub struct Spawn(Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>);
+
+impl Spawn {
+    fn new(f: impl Future<Output = ()> + Send + Sync + 'static) -> Self{
+        Spawn(Box::pin(f))
+    }
+}
+
+impl Command for Spawn {
+    fn apply(self, world: &mut World) {
+        world.spawn_task(self.0)
     }
 }

@@ -11,12 +11,12 @@ use futures::channel::oneshot::channel;
 use crate::signals::Signals;
 use crate::AsyncEntityParam;
 
-use super::{AsyncQueue, AsyncFailure, BoxedQueryCallback, BoxedReadonlyCallback, AsyncResult};
+use super::{AsyncQueryQueue, AsyncFailure, BoxedQueryCallback, BoxedReadonlyCallback, AsyncResult};
 
 /// Async version of [`SystemParam`].
 #[derive(Debug)]
 pub struct AsyncSystemParam<'t, P: SystemParam>{
-    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<P>
 }
 
@@ -34,7 +34,7 @@ impl<'t, P: SystemParam> AsyncEntityParam<'t> for AsyncSystemParam<'t, P> {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Arc<AsyncQueue>,
+        executor: &'t Arc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         AsyncSystemParam {
@@ -87,7 +87,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
 #[derive(Debug)]
 pub struct AsyncComponent<'t, C: Component>{
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<C>
 }
 
@@ -105,7 +105,7 @@ impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Arc<AsyncQueue>,
+        executor: &'t Arc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         Self {
@@ -197,7 +197,7 @@ impl<C: Component> AsyncComponent<'_, C> {
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
 pub struct AsyncResource<'t, R: Resource>{
-    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<R>
 }
 
@@ -215,7 +215,7 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
 
     fn from_async_context(
         _: Entity,
-        executor: &Arc<AsyncQueue>,
+        executor: &Arc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         Self {

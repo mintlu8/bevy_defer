@@ -5,24 +5,28 @@ use bevy_ecs::{
     system::Resource,
     world::World,
 };
+#[allow(unused)]
+use bevy_ecs::system::Query;
 use std::{
     borrow::{Borrow, Cow}, future::Future, marker::PhantomData, ops::Deref
 };
 use triomphe::Arc;
 use futures::channel::oneshot::channel;
-use super::{AsyncQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
+use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
 
 #[derive(Debug, Resource)]
 struct ResQueryCache<T: QueryData, F: QueryFilter>(QueryState<T, F>);
 
+/// Async version of [`Query`]
 pub struct AsyncQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {
-    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
+/// Async version of [`Query`] on a single entity.
 pub struct AsyncEntityQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncQueue>>,
+    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
@@ -86,7 +90,7 @@ impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam<'t> for AsyncEntityQuery
         Some(())
     }
 
-    fn from_async_context(entity: Entity, executor: &Arc<AsyncQueue>, _: ()) -> Self {
+    fn from_async_context(entity: Entity, executor: &Arc<AsyncQueryQueue>, _: ()) -> Self {
         Self {
             entity,
             executor: Cow::Owned(executor.clone()),

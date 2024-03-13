@@ -6,7 +6,7 @@ use std::pin::Pin;
 use bevy_ecs::{component::Component, entity::Entity};
 use crate::{signals::Signals, AsyncResult};
 use crate::KeepAlive;
-use super::{AsyncQueue, AsyncFailure};
+use super::{AsyncQueryQueue, AsyncFailure};
 #[allow(unused)]
 use crate::{AsyncComponent, signals::{Sender, Receiver}};
 
@@ -35,7 +35,7 @@ macro_rules! async_system {
             use $crate::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
             use $crate::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
             use $crate::signals::{Sender, Receiver};
-            $crate::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::Arc<$crate::AsyncQueue>, signals: &$crate::signals::Signals| {
+            $crate::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::Arc<$crate::AsyncQueryQueue>, signals: &$crate::signals::Signals| {
                 $(let $field = <$ty as $crate::AsyncEntityParam>::fetch_signal(signals)?;)*
                 Some(async move {
                     $(let $field = <$ty as $crate::AsyncEntityParam>::from_async_context(entity, &executor, $field);)*
@@ -54,14 +54,14 @@ type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + Send + 
 pub struct AsyncSystem {
     pub(crate) function: Box<dyn FnMut(
         Entity,
-        &Arc<AsyncQueue>,
+        &Arc<AsyncQueryQueue>,
         &Signals,
     ) -> Option<PinnedFut> + Send + Sync> ,
     pub(crate) marker: KeepAlive,
 }
 
 impl AsyncSystem {
-    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
+    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
         AsyncSystem {
             function: Box::new(move |entity, executor, signals| {
                 f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
@@ -101,7 +101,7 @@ impl DerefMut for AsyncSystems {
 
 
 impl AsyncSystems {
-    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
+    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
         AsyncSystems {
             systems: vec![AsyncSystem {
                 function: Box::new(move |entity, executor, signals| {
@@ -125,7 +125,7 @@ impl AsyncSystems {
         }
     }
 
-    pub fn and<F>(mut self, mut f: impl FnMut(Entity, Arc<AsyncQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
+    pub fn and<F>(mut self, mut f: impl FnMut(Entity, Arc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
         self.systems.push(
             AsyncSystem {
                 function: Box::new(move |entity, executor, signals| {
@@ -147,7 +147,7 @@ pub trait AsyncEntityParam<'t>: Sized {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Arc<AsyncQueue>,
+        executor: &'t Arc<AsyncQueryQueue>,
         signal: Self::Signal,
     ) -> Self;
 }
