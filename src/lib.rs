@@ -1,6 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
-use std::pin::Pin;
+use std::{borrow::Borrow, pin::Pin};
 
 use bevy_app::{App, Plugin, PreUpdate, Update, PostUpdate, First};
 mod async_world;
@@ -8,26 +8,31 @@ mod async_entity;
 mod async_values;
 mod async_systems;
 mod async_query;
+mod event;
 pub mod signals;
 mod signal_inner;
 mod object;
 mod executor;
 mod commands;
 use bevy_ecs::{system::{Command, Commands}, world::World};
+use bevy_log::error;
 pub use executor::*;
 pub use async_world::*;
 pub use async_systems::*;
 pub use async_values::*;
 pub use async_query::*;
+pub use event::*;
 use futures::{task::SpawnExt, Future};
 pub use object::{Object, AsObject};
 pub use futures::channel::oneshot::channel;
 
+pub(crate) static TYPE_ERROR: &str = "unexpected type from a typed signal";
 pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
 
 #[doc(hidden)]
 pub use bevy_ecs::entity::Entity;
 
+use signals::{SignalId, TypedSignal};
 #[doc(hidden)]
 pub use triomphe::Arc;
 
@@ -82,35 +87,59 @@ impl Plugin for DefaultAsyncPlugin {
     }
 }
 
-/// Extension for spawning tasks for [`World`], [`App`] and [`Commands`].
+/// Extension for [`World`], [`App`] and [`Commands`].
 pub trait AsyncExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
-    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static);
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static);
+    /// Obtain a named signal.
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data>;
 }
 
 impl AsyncExtension for World {
-    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static) {
-        let _ = self.non_send_resource::<AsyncExecutor>().0.spawner().spawn(f);
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) {
+        let _ = self.non_send_resource::<AsyncExecutor>().0.spawner().spawn(async move {
+            match f.await {
+                Ok(()) => (),
+                Err(err) => error!("Async Failure: {err}")
+            }
+        });
+    }
+
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data> {
+        self.get_resource_or_insert_with::<NamedSignals<T>>(Default::default).get(name)
     }
 }
 
 impl AsyncExtension for App {
-    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static) {
-        let _ = self.world.non_send_resource::<AsyncExecutor>().0.spawner().spawn(f);
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) {
+        let _ = self.world.non_send_resource::<AsyncExecutor>().0.spawner().spawn(async move {
+            match f.await {
+                Ok(()) => (),
+                Err(err) => error!("Async Failure: {err}")
+            }
+        });
+    }
+
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data> {
+        self.world.get_resource_or_insert_with::<NamedSignals<T>>(Default::default).get(name)
     }
 }
 
 impl AsyncExtension for Commands<'_, '_> {
-    fn spawn_task(&mut self, f: impl Future<Output = ()> + Send + Sync + 'static) {
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) {
         self.add(Spawn::new(f))
+    }
+
+    fn signal<T: SignalId>(&mut self, _: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data> {
+        unimplemented!("Cannot obtain named signal from Commands.")
     }
 }
 
 /// [`Command`] for spawning a task.
-pub struct Spawn(Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>);
+pub struct Spawn(Pin<Box<dyn Future<Output = AsyncResult> + Send + Sync + 'static>>);
 
 impl Spawn {
-    fn new(f: impl Future<Output = ()> + Send + Sync + 'static) -> Self{
+    fn new(f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> Self{
         Spawn(Box::pin(f))
     }
 }

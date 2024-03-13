@@ -1,4 +1,4 @@
-use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, task::Poll};
+use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, sync::atomic::Ordering, task::Poll};
 use std::future::Future;
 use triomphe::Arc;
 use bevy_ecs::{component::Component, entity::Entity, query::QueryData};
@@ -9,6 +9,7 @@ use crate::object::{Object, AsObject};
 use crate::{AsyncQueryQueue, AsyncEntityParam};
 use crate::signal_inner::{SignalInner, YieldNow};
 pub use crate::signal_inner::{Signal, SignalData};
+
 /// A marker type that indicates the type and purpose of a signal.
 pub trait SignalId: Any + Send + Sync + 'static{
     type Data: AsObject;
@@ -44,7 +45,7 @@ macro_rules! signal_ids {
 /// A type erased signal with a nominal type.
 #[derive(Debug, Clone)]
 pub struct TypedSignal<T: AsObject> {
-    inner: Arc<SignalData<Object>>,
+    pub(crate) inner: Arc<SignalData<Object>>,
     p: PhantomData<T>,
 }
 
@@ -76,6 +77,19 @@ impl<T: AsObject> TypedSignal<T> {
             inner: self.inner, 
             p: PhantomData 
         }
+    }
+
+    pub fn send(&self, item: T) {
+        let mut lock = self.inner.data.lock();
+        lock.set(item);
+        self.inner.version.fetch_add(1, Ordering::Relaxed);
+        let mut wakers = self.inner.wakers.lock();
+        wakers.drain(..).for_each(|x| x.wake());
+    }
+
+    pub fn peek(&self) -> Option<T>{
+        let lock = self.inner.data.lock();
+        lock.get()
     }
 }
 

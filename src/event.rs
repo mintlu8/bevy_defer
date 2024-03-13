@@ -1,0 +1,165 @@
+use std::{borrow::Borrow, marker::PhantomData};
+
+use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
+use bevy_ecs::world::FromWorld;
+use bevy_ecs::{system::Resource, world::World};
+use futures::{channel::oneshot::channel, Future};
+use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
+use triomphe::Arc;
+
+use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, BoxedQueryCallback, Object, CHANNEL_CLOSED, TYPE_ERROR};
+use crate::signals::{SignalData, SignalId, TypedSignal};
+
+/// A resource containing named signals.
+#[derive(Debug, Resource)]
+pub struct NamedSignals<T: SignalId>{
+    map: Mutex<FxHashMap<String, Arc<SignalData<Object>>>>,
+    p: PhantomData<T>
+}
+
+impl<T: SignalId> Default for NamedSignals<T> {
+    fn default() -> Self {
+        Self { map: Default::default(), p: Default::default() }
+    }
+}
+
+impl<T: SignalId> NamedSignals<T> {
+    /// Obtain a named signal.
+    pub fn get(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data>{
+        if let Some(data) = self.map.get_mut().get(name.borrow()){
+            TypedSignal::from_inner(data.clone())
+        } else {
+            let data = Arc::new(SignalData::default());
+            self.map.get_mut().insert(name.into(), data.clone());
+            TypedSignal::from_inner(data)
+        }
+    }
+
+    /// Obtain a named signal through locking.
+    pub fn get_from_ref(&self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data>{
+        let mut map = self.map.lock();
+        if let Some(data) = map.get(name.borrow()){
+            TypedSignal::from_inner(data.clone())
+        } else {
+            let data = Arc::new(SignalData::default());
+            map.insert(name.into(), data.clone());
+            TypedSignal::from_inner(data)
+        }
+    }
+}
+
+impl AsyncWorldMut {
+    /// Obtain a named signal.
+    pub fn signal<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = TypedSignal<T::Data>> {
+        let (sender, receiver) = channel();
+        let name = name.into();
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                world.signal::<T>(name)
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Poll a named signal.
+    pub fn poll<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = T::Data> {
+        let (sender, receiver) = channel();
+        let name = name.into();
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                SignalInner::from_typed(world.signal::<T>(name))
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await
+                .expect(CHANNEL_CLOSED)
+                .async_read().await
+                .get::<T::Data>()
+                .expect(TYPE_ERROR)
+        }
+    }
+
+    /// Send data through a named signal.
+    pub fn send<T: SignalId>(&self, name: impl Into<String>, value: T::Data) -> impl Future<Output = ()> {
+        let (sender, receiver) = channel();
+        let name = name.into();
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                world.signal::<T>(name).send(value)
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = Option<EventId<E>>> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                world.send_event(event)
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    pub fn poll_event<E: Event + Clone>(&self) -> impl Future<Output = E> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                let mut reader = world.remove_resource::<AsyncEventReader<E>>()
+                    .unwrap_or_else(||AsyncEventReader::from_world(world));
+                let events = world.get_resource::<Events<E>>()?;
+                let result = reader.0.read(events).next().cloned();
+                world.insert_resource(reader);
+                result
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+}
+
+#[derive(Debug, Resource)]
+struct AsyncEventReader<E: Event>(ManualEventReader<E>);
+
+impl<E: Event> FromWorld for AsyncEventReader<E> {
+    fn from_world(world: &mut World) -> Self {
+        let mut reader = ManualEventReader::default();
+        if let Some(events) = world.get_resource::<Events<E>>() {
+            reader.clear(events)
+        }
+        Self(reader)
+    }
+}

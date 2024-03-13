@@ -6,18 +6,56 @@
 
 A simple asynchronous runtime for executing deferred queries.
 
-## Why
+## Getting Started
 
-`bevy_defer` can be used to power UI with a simple premise:
-given two components `Signals` and `AsyncSystems`, you can
-run any query you want in a deferred manner, and communicate with other widgets
-through signals.
-With code defined entirely at the site of Entity construction on top of that!
-No marker components, system functions or `World` access needed.
+There are two main ways to utilize this crate, `spawn_task` and `AsyncSystems`.
 
-## How do I use an `AsyncSystem`?
+## Spawning in Sync Context
 
-An entity needs `AsyncSystems` and `Signals` (optional) to use `AsyncSystems`.
+This is a straightforward way to implement some logic that can wait
+for animations or other events to complete.
+
+```rust
+command.spawn(async move {
+    // This is an `AsyncWorldMut`.
+    let world = world();
+    // Wait for state to be `MyState::Combat`.
+    world.in_state(MyState::Combat).await;
+    // This function is async because we don't own the world,
+    // we send a query request and wait for the response.
+    let richard = world.resource::<NamedEntities>().get(|res| res.get("Richard").unwrap()).await?;
+    // We can also mutate the world asynchronously.
+    world.entity(richard).component::<HP>().set(|hp| hp.set(500)).await?;
+    // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
+    world.entity(richard).component::<MyAnimator>().animate("Wave").await?;
+    // Dance for 5 seconds with `select`.
+    futures::select!(
+        _ = world.entity(richard).component::<MyAnimator>().animate("Dance"),
+        _ = world.wait(Duration::from_seconds(5))
+    ).await;
+    world.entity(richard).component::<MyAnimator>().animate("Idle").await;
+    // Spawn another future on the executor and wait for it to complete
+    spawn(sound_routine).await;
+    // Returns `Result<(), AsyncFailure>`
+    Ok(())
+});
+```
+
+You can call spawn on `Commands`, `World` or `App`.
+
+## AsyncSystems
+
+`AsyncSystems` is a per entity system-like function that can power reactive UIs
+and other similar systems.
+
+`AsyncSystems` have a simple premise: given two components `Signals` and `AsyncSystems`,
+we can make any query we want at entity creation site without world access.
+Thus no need to add regular or one-shot systems for a single entity.
+
+`Signals` stores synchronization primitives that
+allows easy and robust cross entity communication.
+
+### How do I use `AsyncSystems`?
 
 To create an `AsyncSystems`, create an `AsyncSystem` first via a macro:
 
@@ -52,46 +90,44 @@ handle it from here.
 Signals::from_receiver::<PositionChanged>(sig)
 ```
 
-`PositionChanged` is a `SignalId`, or a discriminant + an associated type,
-which informs us the type of the signal is `Vec3`. We can have multiple signals
+`PositionChanged` is a `SignalId`, or a discriminant + an associated type.
+In this case the type of the signal is `Vec3`. We can have multiple signals
 on an `Entity` with type `Vec3`, but not with the same `SignalId`.
 
 ```rust
-|recv: SigRecv<PositionChanged>, transform: Ac<Transform>| { .. }
+|recv: Receiver<PositionChanged>, transform: AsyncComponent<Transform>| { .. }
 ```
 
-`SigRecv` receives the signal, `Ac` is an alias for `AsyncComponent`
-defined in the prelude. It allows us to get or set data
+`Receiver` receives the signal, `AsyncComponent` allows us to get or set data
 on a component within the same entity.
 
-Notice the function signature is a bit weird, since the macro expands to
+Notice the function signature is a bit weird, since the macro roughly expands to
 
 ```rust
-move | .. | async move { 
+move | context | async move { 
+    let recv = from_context(context);
+    let transform = from_context(context);
     {..}; 
     return Ok(()); 
 }
 ```
 
-The macro saves us from writing some async closure boilerplate.
+The body of the `AsyncSystem`. Await will wait for queued queries to complete.
 
 ```rust
 let pos: Vec3 = recv.recv().await;
 transform.set(|transform| transform.scale = pos).await?;
 ```
 
-The body of the `AsyncSystem`, await means either
-"wait for" or "deferred" here.
+### How does this `AsyncSystem` run?
 
-### How does this run?
-
-You can treat this like a loop
+You can treat this system like a loop
 
 1. At the start of the frame, run this function if not already running.
 2. Wait until something sends the signal.
 3. Write received position to the `Transform` component.
 4. Wait for the write query to complete.
-5. End and repeat step 1 on the next frame.
+5. End and repeat step `1` on the next frame.
 
 ## Supported System Params
 
@@ -100,29 +136,71 @@ You can treat this like a loop
 | `AsyncWorldMut` | `World` / `Commands` |
 | `AsyncEntityMut` | `EntityCommands` |
 | `AsyncQuery` | `WorldQuery` |
-| `AsyncEntityQuery` | `WorldQuery` |
+| `AsyncEntityQuery` | `WorldQuery` on `Entity` |
 | `AsyncSystemParam` | `SystemParam` |
 | `AsyncComponent` | `Component` |
 | `AsyncResource` | `Resource` |
-| `SigSend` | `Signals` |
-| `SigRecv` | `Signals` |
+| `Sender` | `Signals` |
+| `Receiver` | `Signals` |
 
-Note: you can create your own `AsyncSystemParam` by implementing it.
+You can create your own `AsyncEntityParam` by implementing it.
 
-## How do signals work?
+## Signals
 
-`Signal` is a shared memory location with a version number.
-To poll a signal requires the version number different from the receiver's
-previously recorded version. Therefore a signal is read at most once per
-write for every reader.
+A `Signal` is read at most once per write for every reader.
+Senders can also read from signals, if `send` is used,
+the value can be read from the same sender. If `broadcast` is used,
+the same sender cannot read the value sent.
 
 ## Implementation Details
 
-The executor does not spawn threads and in fact runs synchronously as a
-part of the schedule. Each future currently only gets polled a fixed number
-of times per frame, therefore `futures::join!` or `futures_lite::future::zip`
-should be used wherever possible for better performance.
+The executor runs synchronously as a part of the schedule.
+At each execution point, we will poll our futures until no progress can be made.
 
-The `spawn` function can spawn a future like `tokio::spawn`, however
-do keep in mind the execution model might not be great for all
-use cases, like making a web request.
+Imagine `DefaultAsyncPlugin` is used, which means we have 3 execution points per frame, this code:
+
+```rust
+let a = query1.await;
+let b = query2.await;
+let c = query3.await;
+let d = query4.await;
+let e = query5.await;
+let f = query6.await;
+```
+
+takes at least 2 frames to complete, since queries are deferred and cannot resolve immediately.
+
+To complete the task faster, try using `futures::join!` or `futures_lite::future::zip` to
+run these queries concurrently.
+
+```rust
+let (a, b, c, d, e, f) = futures::join! {
+    query1, 
+    query2,
+    query3,
+    query4,
+    query5,
+    query6,
+}.await;
+```
+
+## Versions
+
+| bevy | bevy_defer         |
+|------|--------------------|
+| 0.12 | 0.1                |
+| 0.13 | 0.2-latest         |
+
+## License
+
+License under either of
+
+Apache License, Version 2.0 (LICENSE-APACHE or <http://www.apache.org/licenses/LICENSE-2.0>)
+MIT license (LICENSE-MIT or <http://opensource.org/licenses/MIT>)
+at your option.
+
+## Contribution
+
+Contributions are welcome!
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

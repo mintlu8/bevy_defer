@@ -13,9 +13,9 @@ use crate::signals::TypedSignal;
 /// The data component of a signal.
 #[derive(Debug, Default)]
 pub struct SignalData<T> {
-    data: Mutex<T>,
-    version: AtomicU32,
-    wakers: Mutex<Vec<Waker>>
+    pub(crate) data: Mutex<T>,
+    pub(crate) version: AtomicU32,
+    pub(crate) wakers: Mutex<Vec<Waker>>
 }
 
 /// The shared component of a signal.
@@ -93,14 +93,22 @@ impl<T: Send + Sync + 'static> Deref for Signal<T> {
 
 impl Signal<Object> {
     pub fn from_typed<T: AsObject>(value: TypedSignal<T>) -> Self{
-        Self {inner: Arc::new(SignalInner {
-            inner: value.into_inner(),
-            version: AtomicU32::new(0),
-        })}
+        Self {inner: Arc::new(SignalInner::from_typed(value))}
     }
 }
 
+impl SignalInner<Object> {
+    pub fn from_typed<T: AsObject>(value: TypedSignal<T>) -> Self{
+        Self {
+            version: AtomicU32::new(value.inner.version.load(Ordering::Relaxed)),
+            inner: value.into_inner(),
+        }
+    }
+}
+
+
 impl<T: Send + Sync + 'static> SignalInner<T> {
+
     /// Note: This does not increment the read counter.
     pub fn write(&self, value: T) {
         let mut lock = self.inner.data.lock();

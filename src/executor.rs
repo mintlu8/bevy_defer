@@ -42,7 +42,7 @@ impl KeepAlive {
     }
 }
 
-/// A parallelizable query on a `World`.
+/// A deferred parallelizable query on a `World`.
 pub struct BoxedReadonlyCallback {
     command: Option<Box<dyn FnOnce(&World) + Send + 'static>>
 }
@@ -63,7 +63,7 @@ impl BoxedReadonlyCallback {
     }
 }
 
-/// A boxed function that return its data through a channel.
+/// A deferred query on a `World`.
 pub struct BoxedQueryCallback {
     command: Box<dyn FnOnce(&mut World) -> Option<BoxedQueryCallback> + Send + 'static>
 }
@@ -125,7 +125,7 @@ pub struct AsyncQueryQueue {
     pub queries: Mutex<Vec<BoxedQueryCallback>>,
 }
 
-/// Queue foe deferred queries applied on the [`World`].
+/// Queue for deferred queries applied on the [`World`].
 #[derive(Debug, Default)]
 pub struct AsyncExecutor(pub(crate) LocalPool);
 

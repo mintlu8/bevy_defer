@@ -29,6 +29,18 @@ impl AsyncWorldMut {
         }
     }
 
+    pub fn run<T: Send + Sync + 'static>(&self, f: impl FnOnce(&mut World) -> T + Send + Sync + 'static) -> impl Future<Output = T> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::once(f, sender);
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED) 
+        }
+    }
+
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = Entity> {
         let (sender, receiver) = channel::<Entity>();
         let query = BoxedQueryCallback::once(
