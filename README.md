@@ -10,24 +10,30 @@ A simple asynchronous runtime for executing deferred queries.
 
 There are two main ways to utilize this crate, `spawn_task` and `AsyncSystems`.
 
-## Spawning in Sync Context
+## Spawning in a Sync Context
 
 This is a straightforward way to implement some logic that can wait
-for animations or other events to complete.
+for signals, animations or other events to complete.
+In fact you can create your game logic
+entirely in async rust!
 
 ```rust
-command.spawn(async move {
+commands.spawn_task(async move {
     // This is an `AsyncWorldMut`.
+    // like tokio::spawn() this only works in the async context.
     let world = world();
     // Wait for state to be `MyState::Combat`.
     world.in_state(MyState::Combat).await;
     // This function is async because we don't own the world,
     // we send a query request and wait for the response.
-    let richard = world.resource::<NamedEntities>().get(|res| res.get("Richard").unwrap()).await?;
+    let richard = world.resource::<NamedEntities>()
+        .get(|res| res.get("Richard").unwrap()).await?;
     // We can also mutate the world asynchronously.
-    world.entity(richard).component::<HP>().set(|hp| hp.set(500)).await?;
+    world.entity(richard).component::<HP>()
+        .set(|hp| hp.set(500)).await?;
     // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
-    world.entity(richard).component::<MyAnimator>().animate("Wave").await?;
+    world.entity(richard).component::<MyAnimator>()
+        .animate("Wave").await?;
     // Dance for 5 seconds with `select`.
     futures::select!(
         _ = world.entity(richard).component::<MyAnimator>().animate("Dance"),
@@ -49,11 +55,12 @@ You can call spawn on `Commands`, `World` or `App`.
 and other similar systems.
 
 `AsyncSystems` have a simple premise: given two components `Signals` and `AsyncSystems`,
-we can make any query we want at entity creation site without world access.
-Thus no need to add regular or one-shot systems for a single entity.
+we can make any query we want through async semantic.
+Which can be done at entity creation site without world access.
 
 `Signals` stores synchronization primitives that
-allows easy and robust cross entity communication.
+allows easy and robust cross entity communication. Combined with signals,
+`AsyncSystems` allows inter-entity communication with ease.
 
 ### How do I use `AsyncSystems`?
 
@@ -134,7 +141,7 @@ You can treat this system like a loop
 | Query Type | Corresponding Bevy/Sync Type |
 | ---- | ----- |
 | `AsyncWorldMut` | `World` / `Commands` |
-| `AsyncEntityMut` | `EntityCommands` |
+| `AsyncEntityMut` | `EntityMut` / `EntityCommands` |
 | `AsyncQuery` | `WorldQuery` |
 | `AsyncEntityQuery` | `WorldQuery` on `Entity` |
 | `AsyncSystemParam` | `SystemParam` |
@@ -154,6 +161,9 @@ the same sender cannot read the value sent.
 
 ## Implementation Details
 
+`bevy_defer` uses a single threaded runtime that always runs on bevy's main thread,
+this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run here.
+
 The executor runs synchronously as a part of the schedule.
 At each execution point, we will poll our futures until no progress can be made.
 
@@ -170,7 +180,7 @@ let f = query6.await;
 
 takes at least 2 frames to complete, since queries are deferred and cannot resolve immediately.
 
-To complete the task faster, try using `futures::join!` or `futures_lite::future::zip` to
+To complete the task faster, try use `futures::join!` or `futures_lite::future::zip` to
 run these queries concurrently.
 
 ```rust
