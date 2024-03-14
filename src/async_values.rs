@@ -51,6 +51,7 @@ type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'stati
 struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
 
 impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
+    /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
     ) -> impl Future<Output = AsyncResult<T>> + Send + Sync + 'static{
@@ -119,6 +120,7 @@ impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
 
 impl<C: Component> AsyncComponent<'_, C> {
 
+    /// Run a function on the [`Component`] and obtain the result.
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -142,6 +144,32 @@ impl<C: Component> AsyncComponent<'_, C> {
         }
     }
 
+    /// Run a function on the mutable [`Component`] and obtain the result.
+    pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + Sync + 'static)
+            -> impl Future<Output = AsyncResult<Out>> {
+        let (sender, receiver) = channel();
+        let entity = self.entity;
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                Ok(f(world
+                    .get_entity_mut(entity)
+                    .ok_or(AsyncFailure::EntityNotFound)?
+                    .get_mut::<C>()
+                    .ok_or(AsyncFailure::ComponentNotFound)?
+                    .as_mut()))
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Run a repeatable function on the [`Component`] and obtain the result once [`Some`] is returned.
     pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&C) -> Option<Out> + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -160,30 +188,6 @@ impl<C: Component> AsyncComponent<'_, C> {
                         Ok(None)
                     }
                 })().transpose()
-            },
-            sender
-        );
-        {
-            let mut lock = self.executor.queries.lock();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
-    }
-
-    pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + Sync + 'static)
-            -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = channel();
-        let entity = self.entity;
-        let query = BoxedQueryCallback::once(
-            move |world: &mut World| {
-                Ok(f(world
-                    .get_entity_mut(entity)
-                    .ok_or(AsyncFailure::EntityNotFound)?
-                    .get_mut::<C>()
-                    .ok_or(AsyncFailure::ComponentNotFound)?
-                    .as_mut()))
             },
             sender
         );
@@ -229,6 +233,7 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
 }
 
 impl<R: Resource> AsyncResource<'_, R> {
+    /// Run a function on the [`Resource`] and obtain the result.
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -249,6 +254,7 @@ impl<R: Resource> AsyncResource<'_, R> {
         }
     }
 
+    /// Run a function on the mutable [`Resource`] and obtain the result.
     pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -269,7 +275,7 @@ impl<R: Resource> AsyncResource<'_, R> {
         }
     }
 
-
+    /// Run a repeatable function on the [`Resource`] obtain the result once [`Some`] is returned.
     pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&R) -> Option<Out> + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();

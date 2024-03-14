@@ -2,8 +2,8 @@ use std::{cell::OnceCell, time::Duration, future::Future};
 use bevy_app::AppExit;
 use triomphe::Arc;
 use futures::channel::oneshot::channel;
-use bevy_asset::{Asset, Assets, Handle};
-use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, State, States}, system::Command, world::World};
+use bevy_asset::{Asset, AssetId, Assets};
+use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
 use bevy_time::Time;
 use rustc_hash::FxHashMap;
 use crate::{signal_inner::SignalData, AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, Object, CHANNEL_CLOSED};
@@ -13,6 +13,7 @@ pub struct SignalServer {
 }
 
 impl AsyncWorldMut {
+    /// Applies a command, causing it to mutate the world.
     pub fn apply_command(&self, command: impl Command + Sync) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let query = BoxedQueryCallback::once(
@@ -30,6 +31,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Apply a function on the world and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self, f: impl FnOnce(&mut World) -> T + Send + Sync + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(f, sender);
@@ -42,6 +44,44 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Runs the schedule a single time.
+    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::once( 
+            move |world: &mut World| {
+                world.try_run_schedule(schedule)
+                    .map_err(|_| AsyncFailure::ScheduleNotFound)
+            }, 
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED) 
+        }
+    }
+
+    /// Spawns a new [`Entity`] with no components.
+    pub fn spawn_empty(&self) -> impl Future<Output = Entity> {
+        let (sender, receiver) = channel::<Entity>();
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                world.spawn_empty().id()
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Spawn a new Entity with a given Bundle of components.
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = Entity> {
         let (sender, receiver) = channel::<Entity>();
         let query = BoxedQueryCallback::once(
@@ -59,6 +99,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Transition to a new [`States`].
     pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
@@ -78,7 +119,7 @@ impl AsyncWorldMut {
         }
     }
 
-
+    /// Obtain a [`States`].
     pub fn get_state<S: States>(&self) -> impl Future<Output = Option<S>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
@@ -96,6 +137,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Wait until a [`States`] is entered.
     pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let query = BoxedQueryCallback::repeat(
@@ -114,6 +156,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Pause the future for the [`Duration`], according to the [`Time`] resource.
     pub fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let time_cell = OnceCell::new();
@@ -135,6 +178,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Shutdown the bevy app.
     pub fn quit(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
@@ -152,7 +196,12 @@ impl AsyncWorldMut {
         }
     }
 
-    pub fn asset<A: Asset, T: Send + Sync + 'static>(&self, handle: Handle<A>, f: impl FnOnce(&A) -> T + Send + Sync + 'static) -> impl Future<Output = Option<T>> {
+    /// Run a function on an `Asset` and obtain the result.
+    pub fn asset<A: Asset, T: Send + Sync + 'static>(
+        &self, 
+        handle: impl Into<AssetId<A>> + Send + Sync + 'static, 
+        f: impl FnOnce(&A) -> T + Send + Sync + 'static
+    ) -> impl Future<Output = Option<T>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {

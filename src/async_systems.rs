@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use bevy_ecs::{component::Component, entity::Entity};
 use crate::{signals::Signals, AsyncResult};
-use crate::KeepAlive;
+use crate::ParentAlive;
 use super::{AsyncQueryQueue, AsyncFailure};
 #[allow(unused)]
 use crate::{AsyncComponent, signals::{Sender, Receiver}};
@@ -57,7 +57,7 @@ pub struct AsyncSystem {
         &Arc<AsyncQueryQueue>,
         &Signals,
     ) -> Option<PinnedFut> + Send + Sync> ,
-    pub(crate) marker: KeepAlive,
+    pub(crate) marker: ParentAlive,
 }
 
 impl AsyncSystem {
@@ -66,7 +66,7 @@ impl AsyncSystem {
             function: Box::new(move |entity, executor, signals| {
                 f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
             }),
-            marker: KeepAlive::new()
+            marker: ParentAlive::new()
         }
     }
 }
@@ -131,6 +131,7 @@ pub trait AsyncEntityParam<'t>: Sized {
     /// If not found, log what's missing and return None.
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal>;
 
+    /// Obtain `Self` from the async context.
     fn from_async_context(
         entity: Entity,
         executor: &'t Arc<AsyncQueryQueue>,

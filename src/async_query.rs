@@ -51,6 +51,7 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<'_, T, F> {
 }
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<'_, T, F> {
+    /// Run a function on the iterator.
     pub fn for_each (
         &self,
         f: impl FnMut(T::Item<'_>) + Send + Sync + 'static,
@@ -79,6 +80,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<'_, T, F> {
         }
     }
 
+    /// Run a function on the iterator returned by [`Query`] and obtain the result.
     pub fn iter<U: Send + Sync + 'static> (
         &self,
         f: impl FnOnce(QueryIter<'_, '_, T, F>) -> U + Send + Sync + 'static,
@@ -127,6 +129,7 @@ impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam<'t> for AsyncEntityQuery
 }
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F> {
+    /// Run a function on the [`Query`] and obtain the result.
     pub fn run<Out: Send + Sync + 'static>(
         &self,
         f: impl FnOnce(T::Item<'_>) -> Out + Send + Sync + 'static,
@@ -162,6 +165,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
         }
     }
 
+    /// Run a repeatable function on the [`Query`] and obtain the result once [`Some`] is returned.
     pub fn watch<U: Send + Sync + 'static>(
         &mut self,
         f: impl Fn(<T as WorldQuery>::Item<'_>) -> Option<U> + Send + Sync + 'static,

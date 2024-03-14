@@ -1,3 +1,5 @@
+use std::pin::Pin;
+use std::task::{Poll, Waker};
 use std::{mem, ops::Deref};
 use bevy_ecs::system::{NonSend, NonSendMut};
 use bevy_ecs::{entity::Entity, system::{Query, Res, Resource}, world::World};
@@ -6,6 +8,7 @@ use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use futures::channel::oneshot::Sender;
 use futures::executor::LocalPool;
 use futures::task::LocalSpawnExt;
+use futures::{Future, FutureExt};
 use parking_lot::Mutex;
 use triomphe::Arc;
 use crate::{world_scope, AsyncSystems};
@@ -26,23 +29,72 @@ pub enum AsyncFailure {
     ResourceNotFound,
     #[error("signal not found")]
     SignalNotFound,
+    #[error("schedule not found")]
+    ScheduleNotFound,
     #[error("system param error")]
     SystemParamError,
 }
 
 /// A shared storage that cleans up associated futures
 /// when their associated entity is destroyed.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct KeepAlive(Arc<()>);
+#[derive(Debug, Default)]
+pub(crate) struct ParentAlive(Arc<Mutex<Option<Waker>>>);
 
-impl KeepAlive {
+impl ParentAlive {
     pub fn new() -> Self {
-        KeepAlive::default()
+        ParentAlive::default()
     }
     pub fn other_alive(&self) -> bool {
         Arc::count(&self.0) > 1
     }
+    pub fn clone_child(&self) -> ChildAlive {
+        ChildAlive {
+            inner: self.0.clone(),
+            init: false,
+        }
+    }
 }
+
+impl Drop for ParentAlive {
+    fn drop(&mut self) {
+        match self.0.lock().take() {
+            Some(waker) => waker.wake(),
+            None => (),
+        }
+    }
+}
+
+
+/// A shared storage that cleans up associated futures
+/// when their associated entity is destroyed.
+#[derive(Debug, Default)]
+pub(crate) struct ChildAlive{
+    inner: Arc<Mutex<Option<Waker>>>,
+    init: bool,
+}
+
+impl Future for ChildAlive {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        if Arc::count(&self.inner) <= 1 {
+            Poll::Ready(())
+        } else if !self.init {
+            self.init = true;
+            *self.inner.lock() = Some(cx.waker().clone());
+            Poll::Pending
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl Drop for ChildAlive {
+    fn drop(&mut self) {
+        *self.inner.lock() = None
+    }
+}
+
 
 /// A deferred parallelizable query on a `World`.
 pub struct BoxedReadonlyCallback {
@@ -187,6 +239,7 @@ pub fn run_async_executor(
     })
 }
 
+/// Push inactive [`AsyncSystems`] to the executor.
 pub fn push_async_systems(
     executor: Res<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
@@ -198,11 +251,14 @@ pub fn push_async_systems(
         let signals = signals.unwrap_or(dummy);
         for system in systems.systems.iter_mut(){
             if !system.marker.other_alive() {
+                let alive = system.marker.clone_child();
+
                 let Some(fut) = (system.function)(entity, &executor.0, signals) else {continue};
-                let alive = system.marker.clone();
                 let _ = spawner.spawn_local(async move {
-                    let _ = fut.await;
-                    drop(alive)
+                    futures::select! {
+                        _ = alive.fuse() => (),
+                        _ = fut.fuse() => (),
+                    };
                 });
             }
         }
