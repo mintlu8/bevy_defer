@@ -264,4 +264,12 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Load asset from a [`AssetPath`], then run a function on the loaded [`Asset`] to obtain the result.
+    pub async fn load_direct<A: Asset, T: Send + Sync + 'static>(
+        &self, 
+        path: impl Into<AssetPath<'static>> + Send + Sync + 'static, 
+        f: impl FnMut(&A) -> T + Send + Sync + 'static,
+    ) -> AsyncResult<T> {
+        self.asset(self.load_asset(path).await?, f).await
+    }
 }

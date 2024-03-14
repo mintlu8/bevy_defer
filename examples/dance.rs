@@ -14,6 +14,7 @@ pub struct HP(usize);
 
 impl HP {
     pub fn set(&mut self, value: usize) {
+        println!("HP from {} to {}.", self.0, value);
         self.0 = value;
     }
 }

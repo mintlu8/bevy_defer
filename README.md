@@ -162,7 +162,7 @@ Here are the guarantees of signals:
 
 ## Implementation Details
 
-`bevy_defer` uses a single threaded runtime that always runs on bevy's main thread,
+`bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
 this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run here.
 
 The executor runs synchronously as a part of the schedule.
