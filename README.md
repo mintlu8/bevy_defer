@@ -34,16 +34,16 @@ commands.spawn_task(async move {
     let animator = richard.component::<Animator>();
     // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
     animator.animate("Wave").await?;
-    // Spawning a future.
+    // Spawn another future on the executor.
     let audio = spawn(sound_routine(richard_entity));
     // Dance for 5 seconds with `select`.
     futures::select!(
         _ = animator.animate("Dance").fuse() => (),
         _ = world.sleep(Duration::from_secs(5)).fuse() => println!("Dance cancelled"),
     );
+    // animate back to idle
     richard.component::<Animator>().animate("Idle").await?;
-    // Spawn another future on the executor and wait for it to complete
-    // Returns `Result<(), AsyncFailure>`
+    // Wait for spawned future to complete
     audio.await?;
     world.quit().await;
     Ok(())
@@ -68,7 +68,7 @@ To create an `AsyncSystems`, create an `AsyncSystem` first via a macro:
 
 ```rust
 // Set scale based on received position
-let system = async_system!(|recv: Receiver<PositionChanged>, transform: Ac<Transform>|{
+let system = async_system!(|recv: Receiver<PositionChanged>, transform: AsyncComponent<Transform>|{
     let pos: Vec3 = recv.recv().await;
     transform.set(|transform| transform.scale = pos).await?;
 })

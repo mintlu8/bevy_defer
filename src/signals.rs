@@ -67,6 +67,13 @@ impl<T: AsObject> TypedSignal<T> {
             p: PhantomData
         }
     }
+
+    pub fn from_signal(signal: &Signal<Object>) -> Self {
+        Self {
+            inner: signal.inner.inner.clone(),
+            p: PhantomData
+        }
+    }
     
     pub fn into_inner(self) -> Arc<SignalData<Object>> {
         self.inner

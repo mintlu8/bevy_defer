@@ -21,8 +21,8 @@ pub struct SignalData<T> {
 /// The shared component of a signal.
 #[derive(Debug, Default)]
 pub struct SignalInner<T> {
-    inner: Arc<SignalData<T>>,
-    tick: AtomicU32,
+    pub(crate) inner: Arc<SignalData<T>>,
+    pub(crate) tick: AtomicU32,
 }
 
 /// A piece of shared data that contains a version number for synchronization.
