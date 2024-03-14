@@ -1,14 +1,13 @@
 use std::fmt::Debug;
 use std::{borrow::Borrow, marker::PhantomData};
-
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
-use bevy_ecs::world::FromWorld;
 use bevy_ecs::{system::Resource, world::World};
 use futures::{channel::oneshot::channel, Future};
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use triomphe::Arc;
 
+use crate::{AsyncFailure, AsyncResult};
 use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, BoxedQueryCallback, CHANNEL_CLOSED};
 use crate::signals::{SignalData, SignalId};
 
@@ -116,11 +115,11 @@ impl AsyncWorldMut {
     }
 
     /// Send an [`Event`].
-    pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = Option<EventId<E>>> {
+    pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = AsyncResult<EventId<E>>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
-                world.send_event(event)
+                world.send_event(event).ok_or(AsyncFailure::EventNotRegistered)
             },
             sender
         );
@@ -140,11 +139,22 @@ impl AsyncWorldMut {
     /// Only receives events sent after this call.
     pub fn poll_event<E: Event + Clone>(&self) -> impl Future<Output = E> {
         let (sender, receiver) = channel();
+        let mut reader = None;
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
-                let mut reader = AsyncEventReader::from_world(world);
                 let events = world.get_resource::<Events<E>>()?;
-                let result = reader.0.read(events).next().cloned();
+                let reader = match &mut reader {
+                    Some(reader) => reader,
+                    None => {
+                        reader = Some({
+                            let mut reader = ManualEventReader::default();
+                            reader.clear(events);
+                            reader
+                        });
+                        reader.as_mut().unwrap()
+                    }
+                };
+                let result = reader.read(events).next().cloned();
                 result
             },
             sender
@@ -165,11 +175,22 @@ impl AsyncWorldMut {
     /// Only receives events sent after this call.
     pub fn poll_events<E: Event + Clone>(&self) -> impl Future<Output = Vec<E>> {
         let (sender, receiver) = channel();
+        let mut reader = None;
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
-                let mut reader = AsyncEventReader::from_world(world);
                 let events = world.get_resource::<Events<E>>()?;
-                let result: Vec<_> = reader.0.read(events).cloned().collect();
+                let reader = match &mut reader {
+                    Some(reader) => reader,
+                    None => {
+                        reader = Some({
+                            let mut reader = ManualEventReader::default();
+                            reader.clear(events);
+                            reader
+                        });
+                        reader.as_mut().unwrap()
+                    }
+                };
+                let result: Vec<_> = reader.read(events).cloned().collect();
                 if result.len() == 0 {
                     return None;
                 }
@@ -184,18 +205,5 @@ impl AsyncWorldMut {
         async {
             receiver.await.expect(CHANNEL_CLOSED)
         }
-    }
-}
-
-#[derive(Debug, Resource)]
-struct AsyncEventReader<E: Event>(ManualEventReader<E>);
-
-impl<E: Event> FromWorld for AsyncEventReader<E> {
-    fn from_world(world: &mut World) -> Self {
-        let mut reader = ManualEventReader::default();
-        if let Some(events) = world.get_resource::<Events<E>>() {
-            reader.clear(events)
-        }
-        Self(reader)
     }
 }

@@ -27,6 +27,8 @@ pub enum AsyncFailure {
     ComponentNotFound,
     #[error("resource not found")]
     ResourceNotFound,
+    #[error("event not registered")]
+    EventNotRegistered,
     #[error("signal not found")]
     SignalNotFound,
     #[error("schedule not found")]
