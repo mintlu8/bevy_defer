@@ -14,7 +14,7 @@ use crate::signals::TypedSignal;
 #[derive(Debug, Default)]
 pub struct SignalData<T> {
     pub(crate) data: Mutex<T>,
-    pub(crate) version: AtomicU32,
+    pub(crate) tick: AtomicU32,
     pub(crate) wakers: Mutex<Vec<Waker>>
 }
 
@@ -22,7 +22,7 @@ pub struct SignalData<T> {
 #[derive(Debug, Default)]
 pub struct SignalInner<T> {
     inner: Arc<SignalData<T>>,
-    version: AtomicU32,
+    tick: AtomicU32,
 }
 
 /// A piece of shared data that contains a version number for synchronization.
@@ -36,7 +36,7 @@ impl<T> Clone for Signal<T> {
         Signal {
             inner: Arc::new(SignalInner {
                 inner: self.inner.inner.clone(),
-                version: AtomicU32::new(self.inner.version.load(Ordering::Relaxed))
+                tick: AtomicU32::new(self.inner.tick.load(Ordering::Relaxed))
             })
         }
     }
@@ -63,21 +63,24 @@ impl Future for YieldNow {
 }
 
 impl<T: Send + Sync + 'static> Signal<T> {
+    /// Create a new signal.
     pub fn new(value: T) -> Self{
         Self {inner: Arc::new(SignalInner {
             inner: Arc::new(SignalData {
                 data: Mutex::new(value),
-                version: Default::default(),
+                tick: AtomicU32::new(0),
                 wakers: Default::default(),
             }),
-            version: AtomicU32::new(0),
+            tick: AtomicU32::new(0),
         })}
     }
 
+    /// Borrow the inner value with shared read tick.
     pub fn borrow_inner(&self) -> Arc<SignalInner<T>> {
         self.inner.clone()
     }
 
+    /// Reference to the inner value with shared read tick.
     pub fn inner(&self) -> &Arc<SignalInner<T>> {
         &self.inner
     }
@@ -92,28 +95,40 @@ impl<T: Send + Sync + 'static> Deref for Signal<T> {
 }
 
 impl Signal<Object> {
+    /// Create a [`Signal`] from a [`TypedSignal`].
     pub fn from_typed<T: AsObject>(value: TypedSignal<T>) -> Self{
         Self {inner: Arc::new(SignalInner::from_typed(value))}
     }
 }
 
 impl SignalInner<Object> {
+    /// Create a [`SignalInner`] from a [`TypedSignal`].
     pub fn from_typed<T: AsObject>(value: TypedSignal<T>) -> Self{
         Self {
-            version: AtomicU32::new(value.inner.version.load(Ordering::Relaxed)),
+            tick: AtomicU32::new(value.inner.tick.load(Ordering::Relaxed)),
             inner: value.into_inner(),
         }
     }
 }
 
+impl<T: AsObject> From<TypedSignal<T>> for Signal<Object>{
+    fn from(value: TypedSignal<T>) -> Self {
+        Signal::from_typed(value)
+    }
+}
+
+impl<T: AsObject> From<TypedSignal<T>> for SignalInner<Object>{
+    fn from(value: TypedSignal<T>) -> Self {
+        SignalInner::from_typed(value)
+    }
+}
 
 impl<T: Send + Sync + 'static> SignalInner<T> {
-
     /// Note: This does not increment the read counter.
     pub fn write(&self, value: T) {
         let mut lock = self.inner.data.lock();
         *lock = value;
-        self.inner.version.fetch_add(1, Ordering::Relaxed);
+        self.inner.tick.fetch_add(1, Ordering::Relaxed);
         let mut wakers = self.inner.wakers.lock();
         wakers.drain(..).for_each(|x| x.wake());
     }
@@ -125,7 +140,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
             *lock = value;
             let mut wakers = self.inner.wakers.lock();
             wakers.drain(..).for_each(|x| x.wake());
-            self.inner.version.fetch_add(1, Ordering::Relaxed);
+            self.inner.tick.fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -133,10 +148,10 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     pub fn broadcast(&self, value: T) {
         let mut lock = self.inner.data.lock();
         *lock = value;
-        let version = self.inner.version.fetch_add(1, Ordering::Relaxed);
+        let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
         let mut wakers = self.inner.wakers.lock();
         wakers.drain(..).for_each(|x| x.wake());
-        self.version.store(version.wrapping_add(1), Ordering::Relaxed)
+        self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
     }
 
 
@@ -145,34 +160,36 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         let mut lock = self.inner.data.lock();
         if *lock != value {
             *lock = value;
-            let version = self.inner.version.fetch_add(1, Ordering::Relaxed);
+            let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
             let mut wakers = self.inner.wakers.lock();
             wakers.drain(..).for_each(|x| x.wake());
-            self.version.store(version.wrapping_add(1), Ordering::Relaxed)
+            self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
         }
     }
 
+    /// Reads the underlying value synchronously if changed.
     pub fn try_read(&self) -> Option<T> where T: Clone {
-        let version = self.inner.version.load(Ordering::Relaxed);
-        if self.version.swap(version, Ordering::Relaxed) != version {
+        let version = self.inner.tick.load(Ordering::Relaxed);
+        if self.tick.swap(version, Ordering::Relaxed) != version {
             Some(self.inner.data.lock().clone())
         } else {
             None
         }
     }
 
-    /// Reads the underlying value regardless of change detection.
+    /// Reads the underlying value synchronously regardless of change detection.
     pub fn force_read(&self) -> T where T: Clone {
-        let version = self.inner.version.load(Ordering::Relaxed);
-        self.version.swap(version, Ordering::Relaxed);
+        let version = self.inner.tick.load(Ordering::Relaxed);
+        self.tick.swap(version, Ordering::Relaxed);
         self.inner.data.lock().clone()
     }
 
+    /// Reads the underlying value asynchronously when changed.
     pub async fn async_read(&self) -> T where T: Clone {
         let mut first = true;
         loop {
-            let version = self.inner.version.load(Ordering::Relaxed);
-            if self.version.swap(version, Ordering::Relaxed) != version {
+            let version = self.inner.tick.load(Ordering::Relaxed);
+            if self.tick.swap(version, Ordering::Relaxed) != version {
                 return self.inner.data.lock().clone();
             } else if first {
                 first = false;
@@ -186,17 +203,14 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
             }
         }
     }
-
-    pub fn get_shared(&self) -> Arc<SignalData<T>> {
-        self.inner.clone()
-    }
 }
 
 
 impl SignalInner<Object> {
+    /// Reads the underlying value by downcasting the [`Object`].
     pub fn try_read_as<T: AsObject>(&self) -> Option<T> where T: Clone {
-        let version = self.inner.version.load(Ordering::Relaxed);
-        if self.version.swap(version, Ordering::Relaxed) != version {
+        let version = self.inner.tick.load(Ordering::Relaxed);
+        if self.tick.swap(version, Ordering::Relaxed) != version {
             Some(self.inner.data.lock().clone())
                 .and_then(|x| x.get())
         } else {

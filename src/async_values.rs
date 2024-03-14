@@ -275,22 +275,19 @@ impl<R: Resource> AsyncResource<'_, R> {
         }
     }
 
-    /// Run a repeatable function on the [`Resource`] obtain the result once [`Some`] is returned.
+    /// Run a repeatable function on the [`Resource`] and obtain the result once [`Some`] is returned.
     pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&R) -> Option<Out> + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
-                (||{
-                    let res = world
-                        .get_resource_ref::<R>()
-                        .ok_or(AsyncFailure::ResourceNotFound)?;
-                    if res.is_changed() {
-                        Ok(f(&res))
-                    } else {
-                        Ok(None)
-                    }
-                })().transpose()
+                let Some(res) = world.get_resource_ref::<R>() 
+                    else {return Some(Err(AsyncFailure::ResourceNotFound))};
+                if res.is_changed() {
+                    Ok(f(&res)).transpose()
+                } else {
+                    None
+                }
             },
             sender
         );

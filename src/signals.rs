@@ -82,7 +82,7 @@ impl<T: AsObject> TypedSignal<T> {
     pub fn send(&self, item: T) {
         let mut lock = self.inner.data.lock();
         lock.set(item);
-        self.inner.version.fetch_add(1, Ordering::Relaxed);
+        self.inner.tick.fetch_add(1, Ordering::Relaxed);
         let mut wakers = self.inner.wakers.lock();
         wakers.drain(..).for_each(|x| x.wake());
     }

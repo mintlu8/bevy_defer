@@ -1,10 +1,6 @@
-use std::time::Duration;
-
 use futures::channel::oneshot::channel;
-use bevy_animation::{AnimationClip, AnimationPlayer};
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
-use bevy_asset::Handle;
 use std::future::Future;
 use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, BoxedQueryCallback, CHANNEL_CLOSED};
 
@@ -171,64 +167,6 @@ impl AsyncEntityMut<'_> {
                 DespawnChildrenRecursive {
                     entity
                 }.apply(world)
-            },
-            sender
-        );
-        {
-            let mut lock = self.executor.queries.lock();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
-    }
-
-    pub fn animate(&self, clip: Handle<AnimationClip>) -> impl Future<Output = AsyncResult<()>> {
-        let (sender, receiver) = channel();
-        let entity = self.entity;
-        let mut once = true;
-        let query = BoxedQueryCallback::repeat(
-            move |world: &mut World| {
-                let Some(mut entity) = world.get_entity_mut(entity) else {
-                    return Some(Err(AsyncFailure::EntityNotFound))
-                };
-                let Some(mut player) = entity.get_mut::<AnimationPlayer>() else {
-                    return Some(Err(AsyncFailure::ComponentNotFound))
-                };
-                if once {
-                    once = false;
-                    player.play(clip.clone());
-                }
-                (player.animation_clip() != &clip || player.is_finished())
-                    .then_some(Ok(()))
-            },
-            sender
-        );
-        {
-            let mut lock = self.executor.queries.lock();
-            lock.push(query);
-        }
-        async {receiver.await.expect(CHANNEL_CLOSED)}
-    }
-
-    pub fn animate_with_transition(&self, clip: Handle<AnimationClip>, time: Duration) -> impl Future<Output = AsyncResult<()>> {
-        let (sender, receiver) = channel();
-        let entity = self.entity;
-        let mut once = true;
-        let query = BoxedQueryCallback::repeat(
-            move |world: &mut World| {
-                let Some(mut entity) = world.get_entity_mut(entity) else {
-                    return Some(Err(AsyncFailure::EntityNotFound))
-                };
-                let Some(mut player) = entity.get_mut::<AnimationPlayer>() else {
-                    return Some(Err(AsyncFailure::ComponentNotFound))
-                };
-                if once {
-                    once = false;
-                    player.play_with_transition(clip.clone(), time);
-                }
-                (player.animation_clip() != &clip || player.is_finished())
-                    .then_some(Ok(()))
             },
             sender
         );

@@ -48,7 +48,7 @@ pub fn spawn<T: Send + Sync + 'static>(fut: impl Future<Output = T> + Send + 'st
     let (mut send, recv) = channel();
     let _ = SPAWNER.with(|s| s.spawn_local(
         async move {
-            futures::select!(
+            futures::select_biased!(
                 _ = send.cancellation().fuse() => (), 
                 out = fut.fuse() => {
                     let _ = send.send(out);
@@ -80,6 +80,11 @@ pub struct AsyncWorldMut {
 }
 
 impl AsyncWorldMut {
+    /// Obtain an [`AsyncEntityMut`] of the entity.
+    /// 
+    /// # Note
+    /// 
+    /// This does not mean the entity exists in the world.
     pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
         AsyncEntityMut { 
             entity, 
@@ -87,6 +92,11 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Obtain an [`AsyncResource`] of the entity.
+    /// 
+    /// # Note
+    /// 
+    /// This does not mean the resource exists in the world.
     pub fn resource<R: Resource>(&self) -> AsyncResource<R> {
         AsyncResource { 
             executor: Cow::Borrowed(&self.executor),
@@ -95,6 +105,7 @@ impl AsyncWorldMut {
 
     }
 
+    /// Obtain an [`AsyncQuery`].
     pub fn query<Q: QueryData>(&self) -> AsyncQuery<Q> {
         AsyncQuery { 
             executor: Cow::Borrowed(&self.executor),
@@ -102,6 +113,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
         AsyncQuery { 
             executor: Cow::Borrowed(&self.executor),
@@ -109,6 +121,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Obtain an [`AsyncSystemParam`].
     pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
         AsyncSystemParam { 
             executor: Cow::Borrowed(&self.executor),
@@ -117,7 +130,7 @@ impl AsyncWorldMut {
     }
 }
 
-/// A fast readonly query for multiple components.
+/// Async version of `EntityMut` or `EntityCommands`.
 pub struct AsyncEntityMut<'t> {
     pub(crate) entity: Entity,
     pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
@@ -132,10 +145,16 @@ impl Deref for AsyncEntityMut<'_> {
 }
 
 impl AsyncEntityMut<'_> {
+    /// Obtain the underlying [`AsyncWorldMut`]
     pub fn world(&self) -> &AsyncWorldMut {
         AsyncWorldMut::ref_cast(self.executor.as_ref())
     }
 
+    /// Get an [`AsyncComponent`] on this entity.
+    /// 
+    /// # Note
+    /// 
+    /// This does not mean the component or the entity exists in the world.
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
             entity: self.entity,
@@ -144,6 +163,11 @@ impl AsyncEntityMut<'_> {
         }
     }
 
+    /// Get an [`AsyncEntityQuery`] on this entity.
+    /// 
+    /// # Note
+    /// 
+    /// This does not mean the component or the entity exists in the world.
     pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<'_, T, ()> {
         AsyncEntityQuery {
             entity: self.entity,
@@ -152,6 +176,11 @@ impl AsyncEntityMut<'_> {
         }
     }
 
+    /// Get an [`AsyncEntityQuery`] on this entity.
+    /// 
+    /// # Note
+    /// 
+    /// This does not mean the component or the entity exists in the world.
     pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<'_, T, F> {
         AsyncEntityQuery {
             entity: self.entity,

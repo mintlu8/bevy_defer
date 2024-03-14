@@ -111,6 +111,7 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Send an [`Event`].
     pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = Option<EventId<E>>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
@@ -128,16 +129,47 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Poll an [`Event`].
+    /// 
+    /// # Note
+    /// 
+    /// Only receives events sent after this call.
     pub fn poll_event<E: Event + Clone>(&self) -> impl Future<Output = E> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
-                let mut reader = world.remove_resource::<AsyncEventReader<E>>()
-                    .unwrap_or_else(||AsyncEventReader::from_world(world));
+                let mut reader = AsyncEventReader::from_world(world);
                 let events = world.get_resource::<Events<E>>()?;
                 let result = reader.0.read(events).next().cloned();
-                world.insert_resource(reader);
                 result
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Poll [`Event`]s until done, result must have at least one value.
+    /// 
+    /// # Note
+    /// 
+    /// Only receives events sent after this call.
+    pub fn poll_events<E: Event + Clone>(&self) -> impl Future<Output = Vec<E>> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                let mut reader = AsyncEventReader::from_world(world);
+                let events = world.get_resource::<Events<E>>()?;
+                let result: Vec<_> = reader.0.read(events).cloned().collect();
+                if result.len() == 0 {
+                    return None;
+                }
+                Some(result)
             },
             sender
         );

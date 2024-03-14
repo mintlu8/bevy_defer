@@ -255,7 +255,7 @@ pub fn push_async_systems(
 
                 let Some(fut) = (system.function)(entity, &executor.0, signals) else {continue};
                 let _ = spawner.spawn_local(async move {
-                    futures::select! {
+                    futures::select_biased! {
                         _ = alive.fuse() => (),
                         _ = fut.fuse() => (),
                     };
