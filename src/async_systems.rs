@@ -79,7 +79,7 @@ impl Debug for AsyncSystem {
 
 
 /// A component containing an entity's `AsyncSystem`s.
-#[derive(Debug, Component, Reflect)]
+#[derive(Debug, Component, Default, Reflect)]
 pub struct AsyncSystems {
     #[reflect(ignore)]
     pub systems: Vec<AsyncSystem>,
@@ -99,17 +99,17 @@ impl DerefMut for AsyncSystems {
     }
 }
 
+impl FromIterator<AsyncSystem> for AsyncSystems {
+    fn from_iter<T: IntoIterator<Item = AsyncSystem>>(iter: T) -> Self {
+        AsyncSystems {
+            systems: iter.into_iter().collect()
+        }
+    }
+}
 
 impl AsyncSystems {
-    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
-        AsyncSystems {
-            systems: vec![AsyncSystem {
-                function: Box::new(move |entity, executor, signals| {
-                    f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
-                }),
-                marker: KeepAlive::new()
-            }]
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn from_single(sys: AsyncSystem) -> Self  {
@@ -118,22 +118,8 @@ impl AsyncSystems {
         }
     }
 
-
-    pub fn from_systems(iter: impl IntoIterator<Item = AsyncSystem>) -> Self  {
-        AsyncSystems {
-            systems: iter.into_iter().collect()
-        }
-    }
-
-    pub fn and<F>(mut self, mut f: impl FnMut(Entity, Arc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
-        self.systems.push(
-            AsyncSystem {
-                function: Box::new(move |entity, executor, signals| {
-                    f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
-                }),
-                marker: KeepAlive::new()
-            }
-        );
+    pub fn and(mut self, sys: AsyncSystem) -> Self {
+        self.systems.push(sys);
         self
     }
 }

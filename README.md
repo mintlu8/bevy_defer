@@ -51,16 +51,11 @@ You can call spawn on `Commands`, `World` or `App`.
 
 ## AsyncSystems
 
-`AsyncSystems` is a per entity system-like function that can power reactive UIs
-and other similar systems.
+`AsyncSystems` is a system-like async function capable of driving reactive UIs and other similar use cases.
 
-`AsyncSystems` have a simple premise: given two components `Signals` and `AsyncSystems`,
-we can make any query we want through async semantic.
-Which can be done at entity creation site without world access.
+The fundamental concept behind AsyncSystems is straightforward: by utilizing components `Signals` and `AsyncSystems` , we enable the execution of various queries through asynchronous semantics. This functionality can be implemented directly at the entity creation stage without the need for world access.
 
-`Signals` stores synchronization primitives that
-allows easy and robust cross entity communication. Combined with signals,
-`AsyncSystems` allows inter-entity communication with ease.
+`Signals` provide robust inter-entity communication, when used in conjunction with `AsyncSystems`.
 
 ### Example
 
@@ -79,7 +74,7 @@ Then create a `AsyncSystems` from it:
 ```rust
 let systems = AsyncSystems::from_single(system);
 // or
-let systems = AsyncSystems::from_systems([a, b, c, ...]);
+let systems = AsyncSystems::from_iter([a, b, c, ...]);
 ```
 
 Add the associated `Signal`:
