@@ -33,7 +33,7 @@ pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
 #[doc(hidden)]
 pub use bevy_ecs::entity::Entity;
 
-use signals::{SignalId, TypedSignal};
+use signals::{SignalData, SignalId};
 #[doc(hidden)]
 pub use triomphe::Arc;
 
@@ -91,47 +91,50 @@ impl Plugin for DefaultAsyncPlugin {
 /// Extension for [`World`], [`App`] and [`Commands`].
 pub trait AsyncExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static);
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self;
     /// Obtain a named signal.
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data>;
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>;
 }
 
 impl AsyncExtension for World {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) {
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self {
         let _ = self.non_send_resource::<AsyncExecutor>().0.spawner().spawn(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}")
             }
         });
+        self
     }
 
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data> {
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
         self.get_resource_or_insert_with::<NamedSignals<T>>(Default::default).get(name)
     }
 }
 
 impl AsyncExtension for App {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) {
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self {
         let _ = self.world.non_send_resource::<AsyncExecutor>().0.spawner().spawn(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}")
             }
         });
+        self
     }
 
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data> {
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
         self.world.get_resource_or_insert_with::<NamedSignals<T>>(Default::default).get(name)
     }
 }
 
 impl AsyncExtension for Commands<'_, '_> {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) {
-        self.add(Spawn::new(f))
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self {
+        self.add(Spawn::new(f));
+        self
     }
 
-    fn signal<T: SignalId>(&mut self, _: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data> {
+    fn signal<T: SignalId>(&mut self, _: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
         unimplemented!("Cannot obtain named signal from Commands.")
     }
 }
@@ -147,6 +150,6 @@ impl Spawn {
 
 impl Command for Spawn {
     fn apply(self, world: &mut World) {
-        world.spawn_task(self.0)
+        world.spawn_task(self.0);
     }
 }

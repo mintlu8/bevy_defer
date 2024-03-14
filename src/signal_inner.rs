@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::task::Waker;
 use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 use triomphe::Arc;
@@ -94,32 +95,34 @@ impl<T: Send + Sync + 'static> Deref for Signal<T> {
     }
 }
 
-impl Signal<Object> {
-    /// Create a [`Signal`] from a [`TypedSignal`].
-    pub fn from_typed<T: AsObject>(value: TypedSignal<T>) -> Self{
-        Self {inner: Arc::new(SignalInner::from_typed(value))}
+impl<T: AsObject> From<Arc<SignalData<T>>> for Signal<T>{
+    fn from(value: Arc<SignalData<T>>) -> Self {
+        Self {inner: Arc::new(SignalInner::from(value))}
     }
 }
 
-impl SignalInner<Object> {
-    /// Create a [`SignalInner`] from a [`TypedSignal`].
-    pub fn from_typed<T: AsObject>(value: TypedSignal<T>) -> Self{
+impl<T: AsObject> From<Arc<SignalData<T>>> for SignalInner<T>{
+    fn from(value:Arc<SignalData<T>>) -> Self {
         Self {
-            tick: AtomicU32::new(value.inner.tick.load(Ordering::Relaxed)),
-            inner: value.into_inner(),
+            tick: AtomicU32::new(value.tick.load(Ordering::Relaxed)),
+            inner: value,
         }
     }
 }
 
+
 impl<T: AsObject> From<TypedSignal<T>> for Signal<Object>{
     fn from(value: TypedSignal<T>) -> Self {
-        Signal::from_typed(value)
+        Self {inner: Arc::new(SignalInner::from(value))}
     }
 }
 
 impl<T: AsObject> From<TypedSignal<T>> for SignalInner<Object>{
     fn from(value: TypedSignal<T>) -> Self {
-        SignalInner::from_typed(value)
+        Self {
+            tick: AtomicU32::new(value.inner.tick.load(Ordering::Relaxed)),
+            inner: value.into_inner(),
+        }
     }
 }
 
@@ -193,14 +196,17 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
                 return self.inner.data.lock().clone();
             } else if first {
                 first = false;
-                poll_fn(|ctx|{
-                    let mut lock = self.inner.wakers.lock();
-                    lock.push(ctx.waker().clone());
-                    Poll::<T>::Pending
-                }).await;
-            } else {
-                poll_fn(|_| Poll::<T>::Pending).await;
+                let waker = poll_fn(|ctx| Poll::Ready(ctx.waker().clone())).await;
+                let mut lock = self.inner.wakers.lock();
+                lock.push(waker);
             }
+            let mut yielded = false;
+            poll_fn(|_| if yielded {
+                Poll::Ready(())
+            } else {
+                yielded = true;
+                Poll::Pending
+            }).await
         }
     }
 }

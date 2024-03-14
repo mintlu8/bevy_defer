@@ -12,7 +12,7 @@ pub use crate::signal_inner::{Signal, SignalData};
 
 /// A marker type that indicates the type and purpose of a signal.
 pub trait SignalId: Any + Send + Sync + 'static{
-    type Data: AsObject;
+    type Data: AsObject + Default;
 }
 
 /// Quickly construct multiple marker [`SignalId`]s at once.
@@ -268,10 +268,10 @@ impl Signals {
         self.receivers.get(&TypeId::of::<T>()).map(|x| x.borrow_inner())
     }
     pub fn add_sender<T: SignalId>(&mut self, signal: TypedSignal<T::Data>) {
-        self.senders.insert(TypeId::of::<T>(), Signal::from_typed(signal));
+        self.senders.insert(TypeId::of::<T>(), Signal::from(signal));
     }
     pub fn add_receiver<T: SignalId>(&mut self, signal: TypedSignal<T::Data>) {
-        self.receivers.insert(TypeId::of::<T>(), Signal::from_typed(signal));
+        self.receivers.insert(TypeId::of::<T>(), Signal::from(signal));
     }
     pub fn add_adaptor<T: SignalId>(&mut self, ty: TypeId, mapper: SignalMapper) {
         self.adaptors.insert(TypeId::of::<T>(), (ty, mapper));

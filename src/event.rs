@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::{borrow::Borrow, marker::PhantomData};
 
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
@@ -8,14 +9,20 @@ use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use triomphe::Arc;
 
-use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, BoxedQueryCallback, Object, CHANNEL_CLOSED, TYPE_ERROR};
-use crate::signals::{SignalData, SignalId, TypedSignal};
+use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, BoxedQueryCallback, CHANNEL_CLOSED};
+use crate::signals::{SignalData, SignalId};
 
 /// A resource containing named signals.
-#[derive(Debug, Resource)]
+#[derive(Resource)]
 pub struct NamedSignals<T: SignalId>{
-    map: Mutex<FxHashMap<String, Arc<SignalData<Object>>>>,
+    map: Mutex<FxHashMap<String, Arc<SignalData<T::Data>>>>,
     p: PhantomData<T>
+}
+
+impl<T: SignalId> Debug for NamedSignals<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NamedSignals").field("map", &self.map.lock().len()).finish()
+    }
 }
 
 impl<T: SignalId> Default for NamedSignals<T> {
@@ -26,32 +33,32 @@ impl<T: SignalId> Default for NamedSignals<T> {
 
 impl<T: SignalId> NamedSignals<T> {
     /// Obtain a named signal.
-    pub fn get(&mut self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data>{
+    pub fn get(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>{
         if let Some(data) = self.map.get_mut().get(name.borrow()){
-            TypedSignal::from_inner(data.clone())
+            data.clone()
         } else {
             let data = Arc::new(SignalData::default());
             self.map.get_mut().insert(name.into(), data.clone());
-            TypedSignal::from_inner(data)
+            data
         }
     }
 
     /// Obtain a named signal through locking.
-    pub fn get_from_ref(&self, name: impl Borrow<str> + Into<String>) -> TypedSignal<T::Data>{
+    pub fn get_from_ref(&self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>{
         let mut map = self.map.lock();
         if let Some(data) = map.get(name.borrow()){
-            TypedSignal::from_inner(data.clone())
+            data.clone()
         } else {
             let data = Arc::new(SignalData::default());
             map.insert(name.into(), data.clone());
-            TypedSignal::from_inner(data)
+            data
         }
     }
 }
 
 impl AsyncWorldMut {
     /// Obtain a named signal.
-    pub fn signal<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = TypedSignal<T::Data>> {
+    pub fn signal<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = Arc<SignalData<T::Data>>> {
         let (sender, receiver) = channel();
         let name = name.into();
         let query = BoxedQueryCallback::once(
@@ -75,7 +82,7 @@ impl AsyncWorldMut {
         let name = name.into();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
-                SignalInner::from_typed(world.signal::<T>(name))
+                world.signal::<T>(name)
             },
             sender
         );
@@ -84,11 +91,8 @@ impl AsyncWorldMut {
             lock.push(query);
         }
         async {
-            receiver.await
-                .expect(CHANNEL_CLOSED)
-                .async_read().await
-                .get::<T::Data>()
-                .expect(TYPE_ERROR)
+            let signal = receiver.await.expect(CHANNEL_CLOSED);
+            SignalInner::from(signal).async_read().await
         }
     }
 
@@ -98,7 +102,7 @@ impl AsyncWorldMut {
         let name = name.into();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
-                world.signal::<T>(name).send(value)
+                SignalInner::from(world.signal::<T>(name.clone())).write(value);
             },
             sender
         );
