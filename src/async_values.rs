@@ -143,7 +143,7 @@ impl<C: Component> AsyncComponent<'_, C> {
         }
     }
 
-    pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&C) -> Out + Send + Sync + 'static)
+    pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&C) -> Option<Out> + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel::<Out>();
         let entity = self.entity;
@@ -152,7 +152,7 @@ impl<C: Component> AsyncComponent<'_, C> {
                 world.entity_mut(entity)
                     .get_ref::<C>()
                     .and_then(|r| if r.is_changed() {
-                        Some(f(r.as_ref()))
+                        f(r.as_ref())
                     } else {
                         None
                     })

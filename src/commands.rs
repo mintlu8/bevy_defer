@@ -1,4 +1,5 @@
 use std::{cell::OnceCell, time::Duration, future::Future};
+use bevy_app::AppExit;
 use triomphe::Arc;
 use futures::channel::oneshot::channel;
 use bevy_asset::{Asset, Assets, Handle};
@@ -113,8 +114,8 @@ impl AsyncWorldMut {
         }
     }
 
-    pub fn pause<S: States>(&self, duration: Duration) -> impl Future<Output = ()> {
-        let (sender, receiver) = channel::<()>();
+    pub fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
+        let (sender, receiver) = channel();
         let time_cell = OnceCell::new();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
@@ -122,6 +123,23 @@ impl AsyncWorldMut {
                 let prev = time_cell.get_or_init(||time.elapsed());
                 let now = time.elapsed();
                 (now - *prev > duration).then_some(())
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    pub fn quit(&self) -> impl Future<Output = ()> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::once(
+            move |world: &mut World| {
+                world.send_event(AppExit);
             },
             sender
         );

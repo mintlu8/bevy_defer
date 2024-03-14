@@ -23,26 +23,29 @@ commands.spawn_task(async move {
     // like tokio::spawn() this only works in the async context.
     let world = world();
     // Wait for state to be `MyState::Combat`.
-    world.in_state(MyState::Combat).await;
+    world.in_state(GameState::Animating).await;
     // This function is async because we don't own the world,
     // we send a query request and wait for the response.
-    let richard = world.resource::<NamedEntities>()
-        .get(|res| res.get("Richard").unwrap()).await?;
+    let richard_entity = world.resource::<NamedEntities>()
+        .get(|res| *res.get("Richard").unwrap()).await?;
+    let richard = world.entity(richard_entity);
     // We can also mutate the world asynchronously.
-    world.entity(richard).component::<HP>()
-        .set(|hp| hp.set(500)).await?;
-    // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
-    world.entity(richard).component::<MyAnimator>()
-        .animate("Wave").await?;
+    richard.component::<HP>().set(|hp| hp.set(500)).await?;
+    let animator = richard.component::<Animator>();
+    // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
+    animator.animate("Wave").await?;
+    // Spawning a future.
+    let audio = spawn(sound_routine(richard_entity));
     // Dance for 5 seconds with `select`.
     futures::select!(
-        _ = world.entity(richard).component::<MyAnimator>().animate("Dance"),
-        _ = world.wait(Duration::from_seconds(5))
-    ).await;
-    world.entity(richard).component::<MyAnimator>().animate("Idle").await;
+        _ = animator.animate("Dance").fuse() => (),
+        _ = world.sleep(Duration::from_secs(5)).fuse() => println!("Dance cancelled"),
+    );
+    richard.component::<Animator>().animate("Idle").await?;
     // Spawn another future on the executor and wait for it to complete
-    spawn(sound_routine).await;
     // Returns `Result<(), AsyncFailure>`
+    audio.await?;
+    world.quit().await;
     Ok(())
 });
 ```

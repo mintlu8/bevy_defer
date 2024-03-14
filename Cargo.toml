@@ -37,3 +37,6 @@ bevy_time = "0.13.0"
 rustc-hash = "1.1.0"
 scoped-tls = "1.0.1"
 futures = "0.3.30"
+
+[dev-dependencies]
+bevy = { version = "0.13.0", default-features = false, features = ["multi-threaded"] }

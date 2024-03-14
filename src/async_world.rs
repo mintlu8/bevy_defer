@@ -4,8 +4,8 @@ use futures::executor::LocalSpawner;
 use futures::task::LocalSpawnExt;
 use futures::FutureExt;
 use triomphe::Arc;
-use bevy_ecs::{entity::Entity, query::{QueryData, QueryFilter}, system::{Res, Resource, SystemParam}};
-use crate::{AsyncEntityParam, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam, QueryQueue};
+use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{Res, Resource, SystemParam}};
+use crate::{AsyncComponent, AsyncEntityParam, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam, QueryQueue};
 use ref_cast::RefCast;
 use super::AsyncQueryQueue;
 
@@ -62,7 +62,7 @@ pub fn spawn<T: Send + Sync + 'static>(fut: impl Future<Output = T> + Send + 'st
 /// Obtain the [`AsyncWorldMut`] of the currently running `bevy_defer` executor.
 ///
 /// Can only be used inside a `bevy_defer` future.
-pub fn world<T: Send + Sync + 'static>() -> AsyncWorldMut {
+pub fn world() -> AsyncWorldMut {
     if !ASYNC_WORLD.is_set() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")
     }
@@ -134,6 +134,14 @@ impl Deref for AsyncEntityMut<'_> {
 impl AsyncEntityMut<'_> {
     pub fn world(&self) -> &AsyncWorldMut {
         AsyncWorldMut::ref_cast(self.executor.as_ref())
+    }
+
+    pub fn component<C: Component>(&self) -> AsyncComponent<C> {
+        AsyncComponent {
+            entity: self.entity,
+            executor: Cow::Borrowed(self.executor.as_ref()),
+            p: PhantomData,
+        }
     }
 
     pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<'_, T, ()> {
