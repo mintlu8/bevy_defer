@@ -59,9 +59,8 @@ impl ParentAlive {
 
 impl Drop for ParentAlive {
     fn drop(&mut self) {
-        match self.0.lock().take() {
-            Some(waker) => waker.wake(),
-            None => (),
+        if let Some(waker) = self.0.lock().take() {
+            waker.wake()
         }
     }
 }

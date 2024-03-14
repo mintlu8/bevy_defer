@@ -156,7 +156,7 @@ impl AsyncWorldMut {
         let time_cell = OnceCell::new();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
-                let Some(time) = world.get_resource::<Time>() else {return None};
+                let time = world.get_resource::<Time>()?;
                 let prev = time_cell.get_or_init(||time.elapsed());
                 let now = time.elapsed();
                 (now - *prev > duration).then_some(())

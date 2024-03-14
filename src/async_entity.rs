@@ -98,10 +98,10 @@ impl AsyncEntityMut<'_> {
         let entity = self.entity;
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
-                world.get_entity_mut(entity).and_then(|mut entity| {
+                world.get_entity_mut(entity).map(|mut entity| {
                     let mut id = Entity::PLACEHOLDER;
                     entity.with_children(|spawn| {id = spawn.spawn(bundle).id()});
-                    Some(id)
+                    id
                 })
             },
             sender

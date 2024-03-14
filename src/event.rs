@@ -191,7 +191,7 @@ impl AsyncWorldMut {
                     }
                 };
                 let result: Vec<_> = reader.read(events).cloned().collect();
-                if result.len() == 0 {
+                if result.is_empty() {
                     return None;
                 }
                 Some(result)

@@ -27,7 +27,6 @@ use futures::{task::SpawnExt, Future};
 pub use object::{Object, AsObject};
 pub use futures::channel::oneshot::channel;
 
-pub(crate) static TYPE_ERROR: &str = "unexpected type from a typed signal";
 pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
 
 #[doc(hidden)]
