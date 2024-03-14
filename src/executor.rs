@@ -26,6 +26,8 @@ pub enum AsyncFailure {
     ResourceNotFound,
     #[error("signal not found")]
     SignalNotFound,
+    #[error("system param error")]
+    SystemParamError,
 }
 
 /// A shared storage that cleans up associated futures

@@ -1,15 +1,15 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Deref;
-use triomphe::Arc;
 use bevy_ecs::change_detection::DetectChanges;
+use triomphe::Arc;
 use bevy_ecs::component::Component;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use std::future::Future;
 use futures::channel::oneshot::channel;
 use crate::signals::Signals;
-use crate::AsyncEntityParam;
+use crate::{AsyncEntityParam, CHANNEL_CLOSED};
 
 use super::{AsyncQueryQueue, AsyncFailure, BoxedQueryCallback, BoxedReadonlyCallback, AsyncResult};
 
@@ -54,7 +54,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
     ) -> impl Future<Output = AsyncResult<T>> + Send + Sync + 'static{
-        let (sender, receiver) = channel::<T>();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 let id = match world.get_resource::<ResSysParamId<Q, T>>(){
@@ -69,7 +69,8 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
                         id
                     },
                 };
-                world.run_system_with_input(id, Box::new(f)).unwrap()
+                world.run_system_with_input(id, Box::new(f))
+                    .map_err(|_| AsyncFailure::SystemParamError)
             },
             sender,
         );
@@ -78,7 +79,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
             lock.push(query);
         }
         async {
-            receiver.await.map_err(|_|AsyncFailure::ChannelClosed)
+            receiver.await.expect(CHANNEL_CLOSED)
         }
     }
 }
@@ -120,13 +121,15 @@ impl<C: Component> AsyncComponent<'_, C> {
 
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = channel::<Option<Out>>();
+        let (sender, receiver) = channel();
         let entity = self.entity;
         let query = BoxedReadonlyCallback::new(
             move |world: &World| {
-                world.entity(entity)
+                Ok(f(world
+                    .get_entity(entity)
+                    .ok_or(AsyncFailure::EntityNotFound)?
                     .get::<C>()
-                    .map(f)
+                    .ok_or(AsyncFailure::ComponentNotFound)?))
             },
             sender
         );
@@ -135,27 +138,28 @@ impl<C: Component> AsyncComponent<'_, C> {
             lock.push(query);
         }
         async {
-            match receiver.await {
-                Ok(Some(out)) => Ok(out),
-                Ok(None) => Err(AsyncFailure::ComponentNotFound),
-                Err(_) => Err(AsyncFailure::ChannelClosed),
-            }
+            receiver.await.expect(CHANNEL_CLOSED)
         }
     }
 
     pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&C) -> Option<Out> + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = channel::<Out>();
+        let (sender, receiver) = channel();
         let entity = self.entity;
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
-                world.entity_mut(entity)
-                    .get_ref::<C>()
-                    .and_then(|r| if r.is_changed() {
-                        f(r.as_ref())
+                (||{
+                    let component = world
+                        .get_entity(entity)
+                        .ok_or(AsyncFailure::EntityNotFound)?
+                        .get_ref::<C>()
+                        .ok_or(AsyncFailure::ComponentNotFound)?;
+                    if component.is_changed() {
+                        Ok(f(&component))
                     } else {
-                        None
-                    })
+                        Ok(None)
+                    }
+                })().transpose()
             },
             sender
         );
@@ -164,19 +168,22 @@ impl<C: Component> AsyncComponent<'_, C> {
             lock.push(query);
         }
         async {
-            receiver.await.map_err(|_| AsyncFailure::ChannelClosed)
+            receiver.await.expect(CHANNEL_CLOSED)
         }
     }
 
     pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = channel::<Option<Out>>();
+        let (sender, receiver) = channel();
         let entity = self.entity;
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
-                world.entity_mut(entity)
+                Ok(f(world
+                    .get_entity_mut(entity)
+                    .ok_or(AsyncFailure::EntityNotFound)?
                     .get_mut::<C>()
-                    .map(|mut x| f(x.as_mut()))
+                    .ok_or(AsyncFailure::ComponentNotFound)?
+                    .as_mut()))
             },
             sender
         );
@@ -185,11 +192,7 @@ impl<C: Component> AsyncComponent<'_, C> {
             lock.push(query);
         }
         async {
-            match receiver.await {
-                Ok(Some(out)) => Ok(out),
-                Ok(None) => Err(AsyncFailure::ComponentNotFound),
-                Err(_) => Err(AsyncFailure::ChannelClosed),
-            }
+            receiver.await.expect(CHANNEL_CLOSED)
         }
     }
 }
@@ -228,10 +231,12 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
 impl<R: Resource> AsyncResource<'_, R> {
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = channel::<Option<Out>>();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
-                world.get_resource::<R>().map(f)
+                world.get_resource::<R>()
+                    .map(f)
+                    .ok_or(AsyncFailure::ResourceNotFound)
             },
             sender
         );
@@ -240,21 +245,18 @@ impl<R: Resource> AsyncResource<'_, R> {
             lock.push(query);
         }
         async {
-            match receiver.await {
-                Ok(Some(out)) => Ok(out),
-                Ok(None) => Err(AsyncFailure::ResourceNotFound),
-                Err(_) => Err(AsyncFailure::ChannelClosed),
-            }
+            receiver.await.expect(CHANNEL_CLOSED)
         }
     }
 
     pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
-        let (sender, receiver) = channel::<Option<Out>>();
+        let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
                 world.get_resource_mut::<R>()
                     .map(|mut x| f(x.as_mut()))
+                    .ok_or(AsyncFailure::ResourceNotFound)
             },
             sender
         );
@@ -263,11 +265,35 @@ impl<R: Resource> AsyncResource<'_, R> {
             lock.push(query);
         }
         async {
-            match receiver.await {
-                Ok(Some(out)) => Ok(out),
-                Ok(None) => Err(AsyncFailure::ComponentNotFound),
-                Err(_) => Err(AsyncFailure::ChannelClosed),
-            }
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+
+    pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&R) -> Option<Out> + Send + Sync + 'static)
+            -> impl Future<Output = AsyncResult<Out>> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                (||{
+                    let res = world
+                        .get_resource_ref::<R>()
+                        .ok_or(AsyncFailure::ResourceNotFound)?;
+                    if res.is_changed() {
+                        Ok(f(&res))
+                    } else {
+                        Ok(None)
+                    }
+                })().transpose()
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
         }
     }
 }

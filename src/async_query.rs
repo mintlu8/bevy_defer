@@ -166,7 +166,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
         &mut self,
         f: impl Fn(<T as WorldQuery>::Item<'_>) -> Option<U> + Send + Sync + 'static,
     ) -> impl Future<Output = U> + 'static {
-        let (send, recv) = channel();
+        let (sender, receiver) = channel();
         let entity = self.entity;
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
@@ -182,13 +182,15 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
                     result
                 }
             },
-            send,
+            sender,
         );
         {
             let mut lock = self.executor.queries.lock();
             lock.push(query);
         }
-        async { recv.await.unwrap() }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
     }
 }
 
