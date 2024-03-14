@@ -56,7 +56,9 @@ You can call spawn on `Commands`, `World` or `App`.
 
 `AsyncSystems` is a system-like async function capable of driving reactive UIs and other similar use cases.
 
-The fundamental concept behind AsyncSystems is straightforward: by utilizing components `Signals` and `AsyncSystems` , we enable the execution of various queries through asynchronous semantics. This functionality can be implemented directly at the entity creation stage without the need for world access.
+The concept behind AsyncSystems is straightforward: by adding components `Signals` and `AsyncSystems`,
+we enable the execution of deferred queries through asynchronous semantics.
+This functionality can be implemented directly at entity creation site (via `Commands`) without the need for world access.
 
 `Signals` provide robust inter-entity communication, when used in conjunction with `AsyncSystems`.
 
@@ -152,10 +154,11 @@ You can create your own `AsyncEntityParam` by implementing it.
 
 ## Signals
 
-A `Signal` is read at most once per write for every reader.
-Senders can also read from signals, if `send` is used,
-the value can be read from the same sender. If `broadcast` is used,
-the same sender cannot read the value sent.
+Here are the guarantees of signals:
+
+* A `Signal` is read at most once per write for every reader.
+* Values are not guaranteed to be read if updated in rapid succession.
+* Value prior to reader creation will not be read by a new reader.
 
 ## Implementation Details
 

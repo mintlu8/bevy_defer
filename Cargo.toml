@@ -1,13 +1,13 @@
 [package]
 name = "bevy_defer"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
 readme = "README.md"
-repository = "https://github.com/mintlu8/bevy-aoui/tree/main/defer"
+repository = "https://github.com/mintlu8/bevy_defer"
 description = """
 A simple asynchronous runtime for executing deferred queries.
 """
