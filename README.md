@@ -22,15 +22,17 @@ commands.spawn_task(async move {
     // This is an `AsyncWorldMut`.
     // like tokio::spawn() this only works in the async context.
     let world = world();
-    // Wait for state to be `MyState::Combat`.
+    // Wait for state to be `GameState::Animating`.
     world.in_state(GameState::Animating).await;
     // This function is async because we don't own the world,
     // we send a query request and wait for the response.
     let richard_entity = world.resource::<NamedEntities>()
         .get(|res| *res.get("Richard").unwrap()).await?;
+    // Move to an entity's scope, does not verify the entity exists.
     let richard = world.entity(richard_entity);
     // We can also mutate the world asynchronously.
     richard.component::<HP>().set(|hp| hp.set(500)).await?;
+    // Move to a component's scope, does not verify the entity exists.
     let animator = richard.component::<Animator>();
     // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
     animator.animate("Wave").await?;
@@ -45,6 +47,7 @@ commands.spawn_task(async move {
     richard.component::<Animator>().animate("Idle").await?;
     // Wait for spawned future to complete
     audio.await?;
+    // Tell the bevy App to quit.
     world.quit().await;
     Ok(())
 });
@@ -171,12 +174,12 @@ At each execution point, we will poll our futures until no progress can be made.
 Imagine `DefaultAsyncPlugin` is used, which means we have 3 execution points per frame, this code:
 
 ```rust
-let a = query1.await;
-let b = query2.await;
-let c = query3.await;
-let d = query4.await;
-let e = query5.await;
-let f = query6.await;
+let a = query1().await;
+let b = query2().await;
+let c = query3().await;
+let d = query4().await;
+let e = query5().await;
+let f = query6().await;
 ```
 
 takes at least 2 frames to complete, since queries are deferred and cannot resolve immediately.
@@ -194,6 +197,21 @@ let (a, b, c, d, e, f) = futures::join! {
     query6,
 }.await;
 ```
+
+Since most methods on `AsyncWorldMut` queue the query
+immediately without needing to be polled,
+
+```rust
+let a = query1();
+let b = query2();
+let c = query3();
+
+let a = a.await;
+let b = b.await;
+let c = c.await;
+```
+
+is likely to work as well.
 
 ## Versions
 

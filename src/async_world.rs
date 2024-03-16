@@ -61,10 +61,10 @@ pub fn spawn<T: Send + 'static>(fut: impl Future<Output = T> + Send + 'static) -
 
 /// Spawn a `bevy_defer` compatible future.
 /// 
-/// The spawned future will not be dropped.
+/// The spawned future will not be dropped until finished.
 pub fn spawn_and_forget<T: Send + 'static>(fut: impl Future<Output = T> + Send + 'static) {
     if !SPAWNER.is_set() {
-        panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
+        panic!("bevy_defer::spawn_and_forget can only be used in a bevy_defer future.")
     }
     let _ = SPAWNER.with(|s| s.spawn_local(async {let _ = fut.await; }));
 }
