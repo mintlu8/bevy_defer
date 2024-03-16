@@ -1,12 +1,20 @@
 [package]
 name = "bevy_defer_http"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+readme = "README.md"
+repository = "https://github.com/mintlu8/bevy_defer"
+description = """
+Hyper based http utilies for bevy_defer.
+"""
+keywords = ["bevy", "async", "defer", "client"]
 
 [features]
-http2 = ["hyper/http2"]
+#http2 = ["hyper/http2"]
 
 [dependencies]
 async-io = "2.3.2"
