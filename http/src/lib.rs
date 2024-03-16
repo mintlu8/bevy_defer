@@ -9,10 +9,7 @@ pub struct BevyDeferExecutor;
 use hyper::{body::Body, header::HOST, Request};
 use http_body_util::BodyExt;
 
-#[cfg(not(feature="http2"))]
 use hyper::client::conn::http1::handshake;
-#[cfg(feature="http2")]
-use hyper::client::conn::http2::handshake;
 
 pub trait HyperHttpClientExt {
     fn http_get(&self, uri: &str) -> impl Future<Output = Result<Vec<u8>, HttpError>> + Send;
@@ -42,7 +39,6 @@ pub enum HttpError {
 
 impl HyperHttpClientExt for bevy_defer::AsyncWorldMut {
 
-    #[cfg(not(feature="http2"))]
     async fn http_get(&self, uri: &str) -> Result<Vec<u8>, HttpError> {
         let uri = uri.parse::<hyper::Uri>()?;
         let host = uri.host().expect("uri has no host");
@@ -78,7 +74,6 @@ impl HyperHttpClientExt for bevy_defer::AsyncWorldMut {
         Ok(buffer)
     }
 
-    #[cfg(not(feature="http2"))]
     async fn http_request<T: Body + 'static>(&self, request: hyper::Request<T>) -> Result<Vec<u8>, HttpError>
         where T: Send + Sync, T::Data: Send + Sync, T::Error: std::error::Error + Send + Sync
     {
