@@ -173,14 +173,15 @@ impl BoxedQueryCallback {
     }
 }
 
-/// Queue foe deferred queries applied on the [`World`].
+
+/// Queue for deferred queries applied on the [`World`].
 #[derive(Default)]
 pub struct AsyncQueryQueue {
     pub readonly: Mutex<Vec<BoxedReadonlyCallback>>,
     pub queries: Mutex<Vec<BoxedQueryCallback>>,
 }
 
-/// Queue for deferred queries applied on the [`World`].
+/// Resource containing a reference to an async executor.
 #[derive(Debug, Default)]
 pub struct AsyncExecutor(pub(crate) LocalPool);
 
@@ -193,7 +194,7 @@ impl std::fmt::Debug for AsyncQueryQueue {
     }
 }
 
-/// Resource containing a reference to an async executor.
+/// Queue for deferred queries applied on the [`World`].
 #[derive(Default, Resource)]
 pub struct QueryQueue(pub(crate) Arc<AsyncQueryQueue>);
 

@@ -155,6 +155,11 @@ impl Deref for AsyncEntityMut<'_> {
 }
 
 impl AsyncEntityMut<'_> {
+    /// Obtain the underlying entity.
+    pub fn entity(&self) -> Entity {
+        self.entity
+    }
+
     /// Obtain the underlying [`AsyncWorldMut`]
     pub fn world(&self) -> &AsyncWorldMut {
         AsyncWorldMut::ref_cast(self.executor.as_ref())
@@ -250,5 +255,30 @@ impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
             entity,
             executor: Cow::Borrowed(executor)
         }
+    }
+}
+
+/// Call [`addon`](AsyncWorldMut::addon) on [`AsyncWorldMut`] to convert to a custom type.
+pub trait AsyncWorldAddon {
+    fn from_async_world(world: &AsyncWorldMut) -> Self;
+}
+
+
+/// Call [`addon`](AsyncEntityMut::addon) on [`AsyncEntityMut`] to convert to a custom type.
+pub trait AsyncEntityAddon {
+    fn from_async_entity(world: &AsyncEntityMut) -> Self;
+}
+
+impl AsyncWorldMut {
+    /// Obtain an [`AsyncWorldAddon`].
+    pub fn addon<A: AsyncWorldAddon>(&self) -> A {
+        A::from_async_world(self)
+    }
+}
+
+impl AsyncEntityMut<'_> {
+    /// Obtain an [`AsyncEntityAddon`].
+    pub fn addon<A: AsyncEntityAddon>(&self) -> A {
+        A::from_async_entity(self)
     }
 }
