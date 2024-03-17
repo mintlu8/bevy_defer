@@ -160,6 +160,14 @@ impl AsyncEntityMut<'_> {
         self.entity
     }
 
+    /// Reborrow an [`AsyncEntityMut`] to a new lifetime.
+    pub fn reborrow<'t>(&'t self) -> AsyncEntityMut<'t> {
+        AsyncEntityMut {
+            entity: self.entity,
+            executor: Cow::Borrowed(&self.executor),
+        }
+    }
+
     /// Obtain the underlying [`AsyncWorldMut`]
     pub fn world(&self) -> &AsyncWorldMut {
         AsyncWorldMut::ref_cast(self.executor.as_ref())
@@ -259,26 +267,26 @@ impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
 }
 
 /// Call [`addon`](AsyncWorldMut::addon) on [`AsyncWorldMut`] to convert to a custom type.
-pub trait AsyncWorldAddon {
-    fn from_async_world(world: &AsyncWorldMut) -> Self;
+pub trait AsyncWorldAddon<'t> {
+    fn from_async_world(world: &'t AsyncWorldMut) -> Self;
 }
 
 
 /// Call [`addon`](AsyncEntityMut::addon) on [`AsyncEntityMut`] to convert to a custom type.
-pub trait AsyncEntityAddon {
-    fn from_async_entity(world: &AsyncEntityMut) -> Self;
+pub trait AsyncEntityAddon<'t> {
+    fn from_async_entity(world: AsyncEntityMut<'t>) -> Self;
 }
 
 impl AsyncWorldMut {
     /// Obtain an [`AsyncWorldAddon`].
-    pub fn addon<A: AsyncWorldAddon>(&self) -> A {
+    pub fn addon<'t, A: AsyncWorldAddon<'t>>(&'t self) -> A {
         A::from_async_world(self)
     }
 }
 
 impl AsyncEntityMut<'_> {
     /// Obtain an [`AsyncEntityAddon`].
-    pub fn addon<A: AsyncEntityAddon>(&self) -> A {
-        A::from_async_entity(self)
+    pub fn addon<'t, A: AsyncEntityAddon<'t>>(&'t self) -> A {
+        A::from_async_entity(self.reborrow())
     }
 }
