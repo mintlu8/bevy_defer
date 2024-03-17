@@ -8,7 +8,7 @@ use crate::{AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, CHANNE
 
 impl AsyncWorldMut {
     /// Applies a command, causing it to mutate the world.
-    pub fn apply_command(&self, command: impl Command + Sync) -> impl Future<Output = ()> {
+    pub fn apply_command(&self, command: impl Command) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
@@ -26,7 +26,7 @@ impl AsyncWorldMut {
     }
 
     /// Apply a function on the world and obtain the result.
-    pub fn run<T: Send + Sync + 'static>(&self, f: impl FnOnce(&mut World) -> T + Send + Sync + 'static) -> impl Future<Output = T> {
+    pub fn run<T: Send + 'static>(&self, f: impl FnOnce(&mut World) -> T + Send + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(f, sender);
         {
@@ -193,10 +193,10 @@ impl AsyncWorldMut {
     /// Run a function on an `Asset` and obtain the result.
     /// 
     /// Repeat until the asset is loaded.
-    pub fn asset<A: Asset, T: Send + Sync + 'static>(
+    pub fn asset<A: Asset, T: Send + 'static>(
         &self, 
         handle: Handle<A>,
-        mut f: impl FnMut(&A) -> T + Send + Sync + 'static
+        mut f: impl FnMut(&A) -> T + Send + 'static
     ) -> impl Future<Output = AsyncResult<T>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::repeat(
@@ -219,7 +219,7 @@ impl AsyncWorldMut {
     /// Wait until an asset is loaded.
     /// 
     /// Repeat until the asset is loaded.
-    pub fn asset_loaded<A: Asset, T: Send + Sync + 'static>(
+    pub fn asset_loaded<A: Asset, T: Send + 'static>(
         &self, 
         handle: Handle<A>,
     ) -> impl Future<Output = AsyncResult<()>> {
@@ -244,7 +244,7 @@ impl AsyncWorldMut {
     /// Run a function on an `Asset` and obtain the result.
     pub fn load_asset<A: Asset>(
         &self, 
-        path: impl Into<AssetPath<'static>> + Send + Sync + 'static, 
+        path: impl Into<AssetPath<'static>> + Send + 'static, 
     ) -> impl Future<Output = AsyncResult<Handle<A>>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
@@ -265,10 +265,10 @@ impl AsyncWorldMut {
     }
 
     /// Load asset from a [`AssetPath`], then run a function on the loaded [`Asset`] to obtain the result.
-    pub async fn load_direct<A: Asset, T: Send + Sync + 'static>(
+    pub async fn load_direct<A: Asset, T: Send + 'static>(
         &self, 
-        path: impl Into<AssetPath<'static>> + Send + Sync + 'static, 
-        f: impl FnMut(&A) -> T + Send + Sync + 'static,
+        path: impl Into<AssetPath<'static>> + Send + 'static, 
+        f: impl FnMut(&A) -> T + Send + 'static,
     ) -> AsyncResult<T> {
         self.asset(self.load_asset(path).await?, f).await
     }

@@ -12,7 +12,6 @@
 //! - [ ] Server.
 //! - [ ] WASM support.
 
-
 use std::{future::Future, net::TcpStream};
 use async_io::Async;
 use bevy_defer::spawn;
@@ -29,7 +28,7 @@ use hyper::client::conn::http1::handshake;
 pub trait HyperHttpClientExt {
     fn http_get(&self, uri: &str) -> impl Future<Output = Result<Vec<u8>, HttpError>> + Send;
     fn http_request<T: Body + 'static>(&self, request: hyper::Request<T>) -> impl Future<Output = Result<Vec<u8>, HttpError>> + Send 
-        where T: Send + Sync, T::Data: Send + Sync, T::Error: std::error::Error + Send + Sync;
+        where T: Send, T::Data: Send, T::Error: std::error::Error + Send + Sync;
 }
 
 impl<F> hyper::rt::Executor<F> for BevyDeferExecutor where
@@ -90,7 +89,7 @@ impl HyperHttpClientExt for bevy_defer::AsyncWorldMut {
     }
 
     async fn http_request<T: Body + 'static>(&self, request: hyper::Request<T>) -> Result<Vec<u8>, HttpError>
-        where T: Send + Sync, T::Data: Send + Sync, T::Error: std::error::Error + Send + Sync
+        where T: Send, T::Data: Send, T::Error: std::error::Error + Send + Sync
     {
         let host = request.uri().host().expect("uri has no host");
         let port = request.uri().port_u16().unwrap_or(80);

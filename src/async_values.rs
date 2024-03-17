@@ -145,7 +145,7 @@ impl<C: Component> AsyncComponent<'_, C> {
     }
 
     /// Run a function on the mutable [`Component`] and obtain the result.
-    pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + Sync + 'static)
+    pub fn set<Out: Send + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -170,7 +170,7 @@ impl<C: Component> AsyncComponent<'_, C> {
     }
 
     /// Run a repeatable function on the [`Component`] and obtain the result once [`Some`] is returned.
-    pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&C) -> Option<Out> + Send + Sync + 'static)
+    pub fn watch<Out: Send + 'static>(&self, f: impl Fn(&C) -> Option<Out> + Send + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -255,7 +255,7 @@ impl<R: Resource> AsyncResource<'_, R> {
     }
 
     /// Run a function on the mutable [`Resource`] and obtain the result.
-    pub fn set<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&mut R) -> Out + Send + Sync + 'static)
+    pub fn set<Out: Send + 'static>(&self, f: impl FnOnce(&mut R) -> Out + Send + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(
@@ -276,7 +276,7 @@ impl<R: Resource> AsyncResource<'_, R> {
     }
 
     /// Run a repeatable function on the [`Resource`] and obtain the result once [`Some`] is returned.
-    pub fn watch<Out: Send + Sync + 'static>(&self, f: impl Fn(&R) -> Option<Out> + Send + Sync + 'static)
+    pub fn watch<Out: Send + 'static>(&self, f: impl Fn(&R) -> Option<Out> + Send + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::repeat(

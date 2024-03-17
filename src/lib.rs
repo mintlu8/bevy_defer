@@ -90,13 +90,13 @@ impl Plugin for DefaultAsyncPlugin {
 /// Extension for [`World`], [`App`] and [`Commands`].
 pub trait AsyncExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self;
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + 'static) -> &mut Self;
     /// Obtain a named signal.
     fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>;
 }
 
 impl AsyncExtension for World {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self {
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + 'static) -> &mut Self {
         let _ = self.non_send_resource::<AsyncExecutor>().0.spawner().spawn(async move {
             match f.await {
                 Ok(()) => (),
@@ -112,7 +112,7 @@ impl AsyncExtension for World {
 }
 
 impl AsyncExtension for App {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self {
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + 'static) -> &mut Self {
         let _ = self.world.non_send_resource::<AsyncExecutor>().0.spawner().spawn(async move {
             match f.await {
                 Ok(()) => (),
@@ -128,7 +128,7 @@ impl AsyncExtension for App {
 }
 
 impl AsyncExtension for Commands<'_, '_> {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> &mut Self {
+    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + Send + 'static) -> &mut Self {
         self.add(Spawn::new(f));
         self
     }
@@ -139,10 +139,10 @@ impl AsyncExtension for Commands<'_, '_> {
 }
 
 /// [`Command`] for spawning a task.
-pub struct Spawn(Pin<Box<dyn Future<Output = AsyncResult> + Send + Sync + 'static>>);
+pub struct Spawn(Pin<Box<dyn Future<Output = AsyncResult> + Send + 'static>>);
 
 impl Spawn {
-    fn new(f: impl Future<Output = AsyncResult> + Send + Sync + 'static) -> Self{
+    fn new(f: impl Future<Output = AsyncResult> + Send + 'static) -> Self{
         Spawn(Box::pin(f))
     }
 }

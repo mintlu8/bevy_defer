@@ -42,19 +42,19 @@ impl AsyncAnimationPlayer<'_> {
         ).map(|_|())
     }
 
-    pub async fn set_repeat(&self, f: impl FnOnce(RepeatAnimation) -> RepeatAnimation + Send + Sync + 'static) -> AsyncResult {
+    pub async fn set_repeat(&self, f: impl FnOnce(RepeatAnimation) -> RepeatAnimation + Send + 'static) -> AsyncResult {
         self.0.set(move |player| {
             player.set_repeat(f(player.repeat_mode()));
         }).await
     }
 
-    pub async fn set_speed(&self, f: impl FnOnce(f32) -> f32 + Send + Sync + 'static) -> AsyncResult {
+    pub async fn set_speed(&self, f: impl FnOnce(f32) -> f32 + Send + 'static) -> AsyncResult {
         self.0.set(move |player| {
             player.set_speed(f(player.speed()));
         }).await
     }
 
-    pub async fn seek_to(&self, f: impl FnOnce(f32) -> f32 + Send + Sync + 'static) -> AsyncResult {
+    pub async fn seek_to(&self, f: impl FnOnce(f32) -> f32 + Send + 'static) -> AsyncResult {
         self.0.set(move |player| {
             player.seek_to(f(player.seek_time()));
         }).await

@@ -135,7 +135,7 @@ impl BoxedQueryCallback {
         }
     }
 
-    pub fn once<Out: Send + Sync + 'static>(
+    pub fn once<Out: Send + 'static>(
         query: impl (FnOnce(&mut World) -> Out) + Send + 'static,
         channel: Sender<Out>
     ) -> Self {
@@ -150,7 +150,7 @@ impl BoxedQueryCallback {
         }
     }
 
-    pub fn repeat<Out: Send + Sync + 'static>(
+    pub fn repeat<Out: Send + 'static>(
         mut query: impl (FnMut(&mut World) -> Option<Out>) + Send + 'static,
         channel: Sender<Out>
     ) -> Self {
