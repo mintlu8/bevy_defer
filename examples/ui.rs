@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_defer::{async_system, signals::{Signals, TypedSignal}, ui::AsyncUIButton, world, AsyncExtension, AsyncSystems, DefaultAsyncPlugin};
-use bevy_defer::ui::{ui_reactor, UICancelled, UIClick, UIInteractionChange, UILoseFocus, UIObtainFocus, UIPressed};
+use bevy_defer::ui::{ui_reactor, UIClickCancelled, UIClick, UIInteractionChange, UILoseFocus, UIObtainFocus, UIPressed};
 use bevy_ui::RelativeCursorPosition;
 use futures::FutureExt;
 
@@ -93,10 +93,10 @@ fn setup(mut commands: Commands) {
                         .with_sender::<UIPressed>(press.clone())
                         .with_sender::<UIObtainFocus>(focus.clone())
                         .with_sender::<UILoseFocus>(lose.clone())
-                        .with_sender::<UICancelled>(cancel.clone())
+                        .with_sender::<UIClickCancelled>(cancel.clone())
                         .with_sender::<UIInteractionChange>(state.clone()),
                     AsyncSystems::from_single(async_system!(
-                        |click: Sender<UIClick>, press: Sender<UIPressed>, focus: Sender<UIObtainFocus>, lose: Sender<UILoseFocus>, cancel: Sender<UICancelled>| {
+                        |click: Sender<UIClick>, press: Sender<UIPressed>, focus: Sender<UIObtainFocus>, lose: Sender<UILoseFocus>, cancel: Sender<UIClickCancelled>| {
                             futures::select_biased! {
                                 pos = click.fuse() => println!("Clicked at {pos}"),
                                 pos = press.fuse() => println!("Pressed at {pos}"),
@@ -140,9 +140,9 @@ fn setup(mut commands: Commands) {
                     .with_receiver::<UIPressed>(press.clone())
                     .with_receiver::<UIObtainFocus>(focus.clone())
                     .with_receiver::<UILoseFocus>(lose.clone())
-                    .with_receiver::<UICancelled>(cancel.clone()),
+                    .with_receiver::<UIClickCancelled>(cancel.clone()),
                 AsyncSystems::from_single(async_system!(
-                    |click: Receiver<UIClick>, press: Receiver<UIPressed>, focus: Receiver<UIObtainFocus>, lose: Receiver<UILoseFocus>, cancel: Receiver<UICancelled>, this: AsyncComponent<Text>| {
+                    |click: Receiver<UIClick>, press: Receiver<UIPressed>, focus: Receiver<UIObtainFocus>, lose: Receiver<UILoseFocus>, cancel: Receiver<UIClickCancelled>, this: AsyncComponent<Text>| {
                         futures::select_biased! {
                             pos = click.fuse() => {
                                 let s = format!("Clicked at {pos}");

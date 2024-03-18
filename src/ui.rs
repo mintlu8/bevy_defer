@@ -24,7 +24,7 @@ signal_ids! {
     /// [`Interaction`](bevy_ui::Interaction) from `Pressed` to `None`.
     /// 
     /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition).
-    pub UICancelled: Vec2,
+    pub UIClickCancelled: Vec2,
 }
 
 #[cfg(feature = "bevy_ui")]
@@ -50,7 +50,7 @@ pub fn ui_reactor(
         }
         match (previous, interaction) {
             (Interaction::Pressed, Interaction::Hovered) => signals.send::<UIClick>(position),
-            (Interaction::Pressed, Interaction::None) => signals.send::<UICancelled>(position),
+            (Interaction::Pressed, Interaction::None) => signals.send::<UIClickCancelled>(position),
             _ => (),
         }
         if previous == Interaction::None {
