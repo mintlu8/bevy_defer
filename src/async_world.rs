@@ -161,7 +161,7 @@ impl AsyncEntityMut<'_> {
     }
 
     /// Reborrow an [`AsyncEntityMut`] to a new lifetime.
-    pub fn reborrow<'t>(&'t self) -> AsyncEntityMut<'t> {
+    pub fn reborrow(&self) -> AsyncEntityMut {
         AsyncEntityMut {
             entity: self.entity,
             executor: Cow::Borrowed(&self.executor),

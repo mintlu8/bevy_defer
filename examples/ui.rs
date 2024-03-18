@@ -146,23 +146,23 @@ fn setup(mut commands: Commands) {
                         futures::select_biased! {
                             pos = click.fuse() => {
                                 let s = format!("Clicked at {pos}");
-                                let _ = this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
                             pos = press.fuse() => {
                                 let s = format!("Pressed at {pos}");
-                                let _ = this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
                             pos = focus.fuse() => {
                                 let s = format!("Obtained focus at {pos}");
-                                let _ = this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
                             pos = lose.fuse() => {
                                 let s = format!("Lose focus at {pos}");
-                                let _ = this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
                             pos = cancel.fuse() => {
                                 let s = format!("Click cancelled at {pos}");
-                                let _ = this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
                         }
                     } 
