@@ -1,6 +1,6 @@
-use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}};
+use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration};
 
-use bevy::core::TaskPoolPlugin;
+use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt, Handle};
 use bevy_defer::{world, AsyncExtension, DefaultAsyncPlugin};
@@ -37,7 +37,7 @@ impl AssetLoader for JsonNumberLoader {
 pub fn procedural(){
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
-    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(MinimalPlugins);
     app.init_asset_loader::<JsonNumberLoader>();
     app.init_asset::<JsonNumber>();
     app.add_plugins(DefaultAsyncPlugin);
@@ -54,9 +54,13 @@ pub fn procedural(){
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });
-    app.update();
-    app.update();
-    app.update();
+    app.spawn_task(async {
+        let world = world();
+        world.sleep(Duration::from_millis(100)).await;
+        world.quit().await;
+        Ok(())
+    });
+    app.run();
     assert!(lock.load(Ordering::Relaxed));
 }
 
@@ -64,7 +68,7 @@ pub fn procedural(){
 pub fn concurrent(){
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
-    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(MinimalPlugins);
     app.init_asset_loader::<JsonNumberLoader>();
     app.init_asset::<JsonNumber>();
     app.add_plugins(DefaultAsyncPlugin);
@@ -89,8 +93,19 @@ pub fn concurrent(){
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });
-    app.update();
-    app.update();
+    app.spawn_task(async {
+        let world = world();
+        world.sleep(Duration::from_millis(100)).await;
+        world.quit().await;
+        Ok(())
+    });
+    app.spawn_task(async {
+        let world = world();
+        world.sleep(Duration::from_millis(100)).await;
+        world.quit().await;
+        Ok(())
+    });
+    app.run();
     assert!(lock.load(Ordering::Relaxed));
 }
 
@@ -98,7 +113,7 @@ pub fn concurrent(){
 pub fn direct(){
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
-    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(MinimalPlugins);
     app.init_asset_loader::<JsonNumberLoader>();
     app.init_asset::<JsonNumber>();
     app.add_plugins(DefaultAsyncPlugin);
@@ -117,7 +132,12 @@ pub fn direct(){
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });
-    app.update();
-    app.update();
+    app.spawn_task(async {
+        let world = world();
+        world.sleep(Duration::from_millis(100)).await;
+        world.quit().await;
+        Ok(())
+    });
+    app.run();
     assert!(lock.load(Ordering::Relaxed));
 }
