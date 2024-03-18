@@ -1,7 +1,7 @@
 use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, sync::atomic::Ordering, task::Poll};
 use std::future::Future;
 use triomphe::Arc;
-use bevy_ecs::{component::Component, entity::Entity, query::QueryData};
+use bevy_ecs::{component::Component, entity::Entity};
 use bevy_log::debug;
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
@@ -312,16 +312,8 @@ impl<T: SignalId> Sender<T> {
     }
 
     /// Receives a value from the sender.
-    pub async fn recv(self) -> T::Data {
-        loop {
-            let signal = self.0.clone();
-            let obj = signal.async_read().await;
-            if let Some(data) = obj.get() {
-                return data;
-            } else {
-                YieldNow::new().await
-            }
-        }
+    pub async fn recv(&self) -> T::Data {
+        self.await
     }
 }
 
@@ -364,7 +356,41 @@ impl<T: SignalId> Future for &Receiver<T> {
     }
 }
 
+impl<T: SignalId> Future for &Sender<T> {
+    type Output = T::Data;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        let signal = self.0.clone();
+        let pinned = pin!(signal.async_read());
+        match pinned.poll(cx) {
+            Poll::Ready(data) => if let Some(data) = data.get() {
+                Poll::Ready(data)
+            } else {
+                Poll::Pending
+            }
+            Poll::Pending => Poll::Pending
+        }
+    }
+}
+
 impl<T: SignalId> Future for Receiver<T> {
+    type Output = T::Data;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        let signal = self.0.clone();
+        let pinned = pin!(signal.async_read());
+        match pinned.poll(cx) {
+            Poll::Ready(data) => if let Some(data) = data.get() {
+                Poll::Ready(data)
+            } else {
+                Poll::Pending
+            }
+            Poll::Pending => Poll::Pending
+        }
+    }
+}
+
+impl<T: SignalId> Future for Sender<T> {
     type Output = T::Data;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
@@ -423,62 +449,76 @@ impl <'t, T: SignalId> AsyncEntityParam<'t> for Receiver<T>  {
     }
 }
 
-/// `WorldQuery` for sending a signal synchronously.
-#[derive(Debug, QueryData)]
-pub struct SignalSender<T: SignalId>{
-    signals: Option<&'static Signals>,
-    p: PhantomData<T>,
-}
+mod sealed {
+    use std::marker::PhantomData;
 
-impl<T: SignalId> SignalSenderItem<'_, T> {
-    /// Check if a sender exists.
-    pub fn exists(&self) -> bool{
-        self.signals
-            .map(|x| x.borrow_sender::<T>().is_some())
-            .unwrap_or(false)
+    use bevy_ecs::query::QueryData;
+
+    use super::{SignalId, Signals};
+
+    /// `WorldQuery` for sending a signal synchronously.
+    /// 
+    /// This does not filter for [`Signals`] or require mutable access.
+    #[derive(Debug, QueryData)]
+    pub struct SignalSender<T: SignalId>{
+        signals: Option<&'static Signals>,
+        p: PhantomData<T>,
     }
 
-    /// Send a item through a signal, can be polled from the same sender.
-    pub fn send(&self, item: T::Data) {
-        if let Some(signals) = self.signals {
-            signals.send::<T>(item);
+    impl<T: SignalId> SignalSenderItem<'_, T> {
+        /// Check if a sender exists.
+        pub fn exists(&self) -> bool{
+            self.signals
+                .map(|x| x.borrow_sender::<T>().is_some())
+                .unwrap_or(false)
+        }
+
+        /// Send a item through a signal, can be polled from the same sender.
+        pub fn send(&self, item: T::Data) {
+            if let Some(signals) = self.signals {
+                signals.send::<T>(item);
+            }
+        }
+        
+        /// Send a item through a signal, cannot be polled from the same sender.
+        pub fn broadcast(&self, item: T::Data) {
+            if let Some(signals) = self.signals {
+                signals.broadcast::<T>(item);
+            }
+        }
+
+        /// Poll the signal from a sender.
+        pub fn poll_sender(&self) -> Option<T::Data> {
+            self.signals.and_then(|s| s.poll_sender_once::<T>())
         }
     }
-    
-    /// Send a item through a signal, cannot be polled from the same sender.
-    pub fn broadcast(&self, item: T::Data) {
-        if let Some(signals) = self.signals {
-            signals.broadcast::<T>(item);
+
+    /// `WorldQuery` for receiving a signal synchronously.
+    /// 
+    /// This does not filter for [`Signals`] or require mutable access.
+    #[derive(Debug, QueryData)]
+    pub struct SignalReceiver<T: SignalId>{
+        signals: Option<&'static Signals>,
+        p: PhantomData<T>,
+    }
+
+    impl<T: SignalId> SignalReceiverItem<'_, T> {
+        /// Poll an item synchronously.
+        pub fn poll_once(&self) -> Option<T::Data> {
+            self.signals.as_ref()
+                .and_then(|sig| sig.poll_once::<T>())
+        }
+
+        /// Returns true if content is changed.
+        pub fn poll_change(&self) -> bool {
+            self.signals.as_ref()
+                .and_then(|sig| sig.poll_once::<T>())
+                .is_some()
         }
     }
-
-    /// Poll the signal from a sender.
-    pub fn poll_sender(&self) -> Option<T::Data> {
-        self.signals.and_then(|s| s.poll_sender_once::<T>())
-    }
 }
 
-/// `WorldQuery` for receiving a signal synchronously.
-#[derive(Debug, QueryData)]
-pub struct SignalReceiver<T: SignalId>{
-    signals: Option<&'static Signals>,
-    p: PhantomData<T>,
-}
-
-impl<T: SignalId> SignalReceiverItem<'_, T> {
-    /// Poll an item synchronously.
-    pub fn poll_once(&self) -> Option<T::Data> {
-        self.signals.as_ref()
-            .and_then(|sig| sig.poll_once::<T>())
-    }
-
-    /// Returns true if content is changed.
-    pub fn poll_change(&self) -> bool {
-        self.signals.as_ref()
-            .and_then(|sig| sig.poll_once::<T>())
-            .is_some()
-    }
-}
+pub use sealed::{SignalSender, SignalReceiver};
 
 /// A signal with a role, that can be composed with [`Signals`].
 pub enum RoleSignal<T: SignalId>{

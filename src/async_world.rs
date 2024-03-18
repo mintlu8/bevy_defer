@@ -265,28 +265,3 @@ impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
         }
     }
 }
-
-/// Call [`addon`](AsyncWorldMut::addon) on [`AsyncWorldMut`] to convert to a custom type.
-pub trait AsyncWorldAddon<'t> {
-    fn from_async_world(world: &'t AsyncWorldMut) -> Self;
-}
-
-
-/// Call [`addon`](AsyncEntityMut::addon) on [`AsyncEntityMut`] to convert to a custom type.
-pub trait AsyncEntityAddon<'t> {
-    fn from_async_entity(world: AsyncEntityMut<'t>) -> Self;
-}
-
-impl AsyncWorldMut {
-    /// Obtain an [`AsyncWorldAddon`].
-    pub fn addon<'t, A: AsyncWorldAddon<'t>>(&'t self) -> A {
-        A::from_async_world(self)
-    }
-}
-
-impl AsyncEntityMut<'_> {
-    /// Obtain an [`AsyncEntityAddon`].
-    pub fn addon<'t, A: AsyncEntityAddon<'t>>(&'t self) -> A {
-        A::from_async_entity(self.reborrow())
-    }
-}

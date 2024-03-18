@@ -1,6 +1,6 @@
 [package]
 name = "bevy_defer_http"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -18,7 +18,7 @@ keywords = ["bevy", "async", "defer", "client"]
 
 [dependencies]
 async-io = "2.3.2"
-bevy_defer = { version = "0.4", path = "../"}
+bevy_defer = { version = "0.5", path = "../"}
 http-body-util = "0.1.1"
 hyper = { version = "1.2.0", features = ["http1", "client"] }
 smol-hyper = { version = "0.1.1", default-features = false, features = ["async-io"] }

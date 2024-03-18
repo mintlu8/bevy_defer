@@ -167,8 +167,8 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
 
     /// Run a repeatable function on the [`Query`] and obtain the result once [`Some`] is returned.
     pub fn watch<U: Send + Sync + 'static>(
-        &mut self,
-        f: impl Fn(<T as WorldQuery>::Item<'_>) -> Option<U> + Send + Sync + 'static,
+        &self,
+        mut f: impl FnMut(<T as WorldQuery>::Item<'_>) -> Option<U> + Send + Sync + 'static,
     ) -> impl Future<Output = U> + 'static {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -202,12 +202,12 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncQueryDeref: QueryData + Sized {
-    type Target<'t> where Self: 't;
-    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncQuery<'a, Self, F>) -> &'b Self::Target<'a>;
+    type Target<'t, F: QueryFilter> where Self: 't, F: 't;
+    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncQuery<'a, Self, F>) -> &'b Self::Target<'a, F>;
 }
 
-impl<'t, C> Deref for AsyncQuery<'t, C> where C: AsyncQueryDeref{
-    type Target = <C as AsyncQueryDeref>::Target<'t>;
+impl<'t, C, F> Deref for AsyncQuery<'t, C, F> where C: AsyncQueryDeref, F: QueryFilter{
+    type Target = <C as AsyncQueryDeref>::Target<'t, F>;
 
     fn deref(&self) -> &Self::Target {
         AsyncQueryDeref::async_deref(self)
@@ -218,12 +218,12 @@ impl<'t, C> Deref for AsyncQuery<'t, C> where C: AsyncQueryDeref{
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncEntityQueryDeref: QueryData + Sized {
-    type Target<'t> where Self: 't;
-    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncEntityQuery<'a, Self, F>) -> &'b Self::Target<'a>;
+    type Target<'t, F: QueryFilter> where Self: 't, F: 't;
+    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncEntityQuery<'a, Self, F>) -> &'b Self::Target<'a, F>;
 }
 
-impl<'t, C> Deref for AsyncEntityQuery<'t, C> where C: AsyncEntityQueryDeref{
-    type Target = <C as AsyncEntityQueryDeref>::Target<'t>;
+impl<'t, C, F> Deref for AsyncEntityQuery<'t, C, F> where C: AsyncEntityQueryDeref, F: QueryFilter{
+    type Target = <C as AsyncEntityQueryDeref>::Target<'t, F>;
 
     fn deref(&self) -> &Self::Target {
         AsyncEntityQueryDeref::async_deref(self)
