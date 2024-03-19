@@ -23,8 +23,23 @@ impl AsyncAnimationPlayer<'_> {
         self.0.set(move |player| {player.play(clip);}).await
     }
 
+    pub async fn play_repeat(&self, clip: Handle<AnimationClip>) -> AsyncResult {
+        self.0.set(move |player| {
+            player.play(clip);
+            player.repeat();
+        }).await
+    }
+
     pub async fn play_with_transition(&self, clip: Handle<AnimationClip>, duration: Duration) -> AsyncResult {
         self.0.set(move |player| {player.play_with_transition(clip, duration);}).await
+    }
+
+
+    pub async fn play_repeat_with_transition(&self, clip: Handle<AnimationClip>, duration: Duration) -> AsyncResult {
+        self.0.set(move |player| {
+            player.play_with_transition(clip, duration);
+            player.repeat();
+        }).await
     }
 
     pub async fn animate(&self, clip: Handle<AnimationClip>) -> AsyncResult {

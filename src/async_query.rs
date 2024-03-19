@@ -15,7 +15,7 @@ use futures::channel::oneshot::channel;
 use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
 
 #[derive(Debug, Resource)]
-struct ResQueryCache<T: QueryData, F: QueryFilter>(QueryState<T, F>);
+pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
 
 /// Async version of [`Query`]
 pub struct AsyncQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {

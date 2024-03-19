@@ -46,6 +46,7 @@ rustc-hash = "1.1.0"
 scoped-tls = "1.0.1"
 futures = "0.3.30"
 bevy_math = "0.13.0"
+bevy_core = "0.13.1"
 
 [dev-dependencies]
 bevy = { version = "0.13.0" }

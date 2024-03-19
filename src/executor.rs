@@ -15,6 +15,9 @@ use crate::{world_scope, AsyncSystems};
 use crate::signals::{Signals, DUMMY_SIGNALS};
 
 /// Standard errors for the async runtime.
+/// 
+/// This type is designed to be match friendly but not necessarily carry all the debugging information.
+/// It might me more correct to either match or unwrap this error instead of propagating it.
 #[derive(Debug, thiserror::Error)]
 pub enum AsyncFailure {
     #[error("async channel closed")]

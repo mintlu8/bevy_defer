@@ -15,6 +15,7 @@ mod object;
 mod executor;
 mod commands;
 mod anim;
+mod search;
 pub mod ui;
 use bevy_ecs::{system::{Command, Commands}, world::World};
 use bevy_log::error;

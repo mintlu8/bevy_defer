@@ -1,4 +1,5 @@
 use std::{cell::OnceCell, time::Duration, future::Future};
+use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::channel::oneshot::channel;
 use bevy_asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle};
@@ -160,6 +161,35 @@ impl AsyncWorldMut {
                 let prev = time_cell.get_or_init(||time.elapsed());
                 let now = time.elapsed();
                 (now - *prev > duration).then_some(())
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Pause the future for some frames, according to the [`FrameCount`] resource.
+    pub fn sleep_frames(&self, frames: u32) -> impl Future<Output = ()> {
+        fn diff(a: u32, b: u32) -> u32{
+            if a >= b {
+                a - b
+            } else {
+                u32::MAX - b + a
+            }
+        }
+        let (sender, receiver) = channel();
+        let time_cell = OnceCell::new();
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                let frame = world.get_resource::<FrameCount>()?;
+                let prev = time_cell.get_or_init(||frame.0);
+                let now = frame.0;
+                (diff(now, *prev) >= frames).then_some(())
             },
             sender
         );
