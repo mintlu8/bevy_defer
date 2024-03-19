@@ -1,7 +1,7 @@
 use std::{cell::OnceCell, time::Duration, future::Future};
 use bevy_app::AppExit;
 use futures::channel::oneshot::channel;
-use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle};
+use bevy_asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
 use bevy_time::Time;
 use crate::{AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, CHANNEL_CLOSED};
@@ -195,15 +195,42 @@ impl AsyncWorldMut {
     /// Repeat until the asset is loaded.
     pub fn asset<A: Asset, T: Send + 'static>(
         &self, 
-        handle: Handle<A>,
+        handle: impl Into<AssetId<A>>,
         mut f: impl FnMut(&A) -> T + Send + 'static
     ) -> impl Future<Output = AsyncResult<T>> {
         let (sender, receiver) = channel();
+        let handle = handle.into();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
                 let Some(assets) = world.get_resource::<Assets<A>>()
                     else { return Some(Err(AsyncFailure::ResourceNotFound)) };
-                assets.get(&handle).map(|x|Ok(f(x)))
+                assets.get(handle).map(|x|Ok(f(x)))
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Remove an `Asset` and obtain it.
+    /// 
+    /// Repeat until the asset is loaded.
+    pub fn take_asset<A: Asset>(
+        &self, 
+        handle: impl Into<AssetId<A>>,
+    ) -> impl Future<Output = AsyncResult<A>> {
+        let (sender, receiver) = channel();
+        let handle = handle.into();
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                let Some(mut assets) = world.get_resource_mut::<Assets<A>>()
+                    else { return Some(Err(AsyncFailure::ResourceNotFound)) };
+                assets.remove(handle).map(Ok)
             },
             sender
         );
@@ -221,14 +248,15 @@ impl AsyncWorldMut {
     /// Repeat until the asset is loaded.
     pub fn asset_loaded<A: Asset, T: Send + 'static>(
         &self, 
-        handle: Handle<A>,
+        handle: impl Into<AssetId<A>>,
     ) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
+        let handle = handle.into();
         let query = BoxedQueryCallback::repeat(
             move |world: &mut World| {
                 let Some(assets) = world.get_resource::<Assets<A>>()
                     else { return Some(Err(AsyncFailure::ResourceNotFound)) };
-                assets.contains(&handle).then_some(Ok(()))
+                assets.contains(handle).then_some(Ok(()))
             },
             sender
         );
@@ -264,12 +292,22 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Load asset from a [`AssetPath`], then run a function on the loaded [`Asset`] to obtain the result.
+    /// Load an asset from a [`AssetPath`], then run a function on the loaded [`Asset`] to obtain the result.
     pub async fn load_direct<A: Asset, T: Send + 'static>(
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
-        f: impl FnMut(&A) -> T + Send + 'static,
+        mut f: impl FnMut(Handle<A>, &A) -> T + Send + 'static,
     ) -> AsyncResult<T> {
-        self.asset(self.load_asset(path).await?, f).await
+        let handle = self.load_asset(path).await?;
+        self.asset(handle.clone_weak(), move |x| f(handle.clone(), x)).await
+    }
+
+    /// Load an asset from a [`AssetPath`], then remove the result from [`Asset`] to obtain the result.
+    pub async fn load_take<A: Asset>(
+        &self, 
+        path: impl Into<AssetPath<'static>> + Send + 'static, 
+    ) -> AsyncResult<A> {
+        let handle = self.load_asset(path).await?;
+        self.take_asset(handle).await
     }
 }

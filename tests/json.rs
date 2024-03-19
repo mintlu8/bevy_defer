@@ -122,9 +122,9 @@ pub fn direct(){
     app.spawn_task(async move {
         let world = world();
         let (one, four, sixty_nine) = futures::try_join!(
-            world.load_direct::<JsonNumber, _>("1.json", |x| x.0),
-            world.load_direct::<JsonNumber, _>("4.json", |x| x.0),
-            world.load_direct::<JsonNumber, _>("69.json", |x| x.0),
+            world.load_direct::<JsonNumber, _>("1.json", |_, x| x.0),
+            world.load_direct::<JsonNumber, _>("4.json", |_, x| x.0),
+            world.load_direct::<JsonNumber, _>("69.json", |_, x| x.0),
         )?;
         assert_eq!(one, 1);
         assert_eq!(four, 4);

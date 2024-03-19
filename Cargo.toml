@@ -1,9 +1,11 @@
 [workspace] 
-members = ["http"]
+members = [ 
+    "http"
+]
 
 [package]
 name = "bevy_defer"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
