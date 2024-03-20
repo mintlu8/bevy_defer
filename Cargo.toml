@@ -5,7 +5,7 @@ members = [
 
 [package]
 name = "bevy_defer"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -32,21 +32,21 @@ thiserror = "^1"
 downcast-rs = "^1.2"
 async-channel = "2.2.0"
 ref-cast = "1.0.22"
-bevy_ecs = "0.13.0"
-bevy_hierarchy = "0.13.0"
-bevy_app = "0.13.0"
-bevy_animation = "0.13.0"
-bevy_asset = "0.13.0"
-bevy_reflect = "0.13.0"
-bevy_log = "0.13.0"
-bevy_tasks = "0.13.0"
-bevy_time = "0.13.0"
+bevy_ecs = "0.13.1"
+bevy_hierarchy = "0.13.1"
+bevy_app = "0.13.1"
+bevy_animation = "0.13.1"
+bevy_asset = "0.13.1"
+bevy_reflect = "0.13.1"
+bevy_log = "0.13.1"
+bevy_tasks = "0.13.1"
+bevy_time = "0.13.1"
+bevy_math = "0.13.1"
+bevy_core = "0.13.1"
 bevy_ui = { version = "0.13.0", optional = true }
 rustc-hash = "1.1.0"
 scoped-tls = "1.0.1"
 futures = "0.3.30"
-bevy_math = "0.13.0"
-bevy_core = "0.13.1"
 
 [dev-dependencies]
 bevy = { version = "0.13.0" }
