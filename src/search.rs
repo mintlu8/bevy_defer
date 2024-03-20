@@ -14,7 +14,7 @@ pub struct AsyncScene<'t>(AsyncEntityMut<'t>);
 
 impl AsyncWorldMut {
     pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncScene{
-        let entity = self.spawn_bundle(bun).await;
+        let entity = self.spawn_bundle(bun).await.id();
         AsyncScene(self.entity(entity))
     }
 }

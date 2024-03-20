@@ -1,11 +1,11 @@
-use std::{cell::OnceCell, time::Duration, future::Future};
+use std::{borrow::Cow, cell::OnceCell, future::Future, time::Duration};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::channel::oneshot::channel;
 use bevy_asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
 use bevy_time::Time;
-use crate::{AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, CHANNEL_CLOSED};
+use crate::{AsyncEntityMut, AsyncFailure, AsyncResult, AsyncWorldMut, BoxedQueryCallback, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
     /// Applies a command, causing it to mutate the world.
@@ -18,7 +18,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -31,7 +31,7 @@ impl AsyncWorldMut {
         let (sender, receiver) = channel();
         let query = BoxedQueryCallback::once(f, sender);
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -50,7 +50,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -68,7 +68,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -77,7 +77,7 @@ impl AsyncWorldMut {
     }
 
     /// Spawn a new Entity with a given Bundle of components.
-    pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = Entity> {
+    pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> {
         let (sender, receiver) = channel::<Entity>();
         let query = BoxedQueryCallback::once(
             move |world: &mut World| {
@@ -86,11 +86,15 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
-            receiver.await.expect(CHANNEL_CLOSED)
+            AsyncEntityMut {
+                entity: receiver.await.expect(CHANNEL_CLOSED),
+                executor: Cow::Borrowed(&self.queue),
+            }
+            
         }
     }
 
@@ -106,7 +110,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -124,7 +128,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -143,7 +147,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -165,7 +169,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -194,7 +198,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -212,7 +216,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -239,7 +243,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -265,7 +269,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -291,7 +295,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -314,7 +318,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {

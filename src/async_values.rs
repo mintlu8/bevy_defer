@@ -120,6 +120,28 @@ impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
 
 impl<C: Component> AsyncComponent<'_, C> {
 
+    /// Wait until a [`Component`] exist.
+    pub fn exists<Out: Send + Sync + 'static>(&self) -> impl Future<Output = ()> {
+        let (sender, receiver) = channel();
+        let entity = self.entity;
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                world
+                    .get_entity(entity)?
+                    .get::<C>()
+                    .map(|_|())
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
     /// Run a function on the [`Component`] and obtain the result.
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&C) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
@@ -233,6 +255,27 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
 }
 
 impl<R: Resource> AsyncResource<'_, R> {
+
+    /// Wait until a [`Resource`] exist.
+    pub fn exists<Out: Send + Sync + 'static>(&self) -> impl Future<Output = ()> {
+        let (sender, receiver) = channel();
+        let query = BoxedQueryCallback::repeat(
+            move |world: &mut World| {
+                world
+                    .get_resource::<R>()
+                    .map(|_|())
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.lock();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
     /// Run a function on the [`Resource`] and obtain the result.
     pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&R) -> Out + Send + Sync + 'static)
             -> impl Future<Output = AsyncResult<Out>> {

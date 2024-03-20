@@ -2,7 +2,7 @@
 #![allow(clippy::type_complexity)]
 use std::{borrow::Borrow, pin::Pin};
 
-use bevy_app::{App, Plugin, PreUpdate, Update, PostUpdate, First};
+use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 mod async_world;
 mod async_entity;
 mod async_values;
@@ -16,6 +16,7 @@ mod executor;
 mod commands;
 mod anim;
 mod search;
+mod tween;
 pub mod ui;
 use bevy_ecs::{system::{Command, Commands}, world::World};
 use bevy_log::error;
@@ -38,6 +39,7 @@ pub use bevy_ecs::entity::Entity;
 use signals::{SignalData, SignalId, Signals};
 #[doc(hidden)]
 pub use triomphe::Arc;
+use tween::{run_fixed_queue, FixedQueue};
 
 /// Result type of `AsyncSystemFunction`.
 pub type AsyncResult<T = ()> = Result<T, AsyncFailure>;
@@ -51,14 +53,16 @@ pub struct CoreAsyncPlugin;
 impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<QueryQueue>()
+            .init_non_send_resource::<AsyncExecutor>()
+            .init_non_send_resource::<FixedQueue>()
             .register_type::<QueryQueue>()
             .register_type_data::<QueryQueue, ReflectDefault>()
             .register_type::<AsyncSystems>()
             .register_type_data::<AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
-            .init_non_send_resource::<AsyncExecutor>()
-            .add_systems(First, push_async_systems);
+            .add_systems(First, push_async_systems)
+            .add_systems(FixedUpdate, run_fixed_queue);
     }
 }
 

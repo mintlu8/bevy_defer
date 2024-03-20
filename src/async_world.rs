@@ -76,7 +76,7 @@ pub fn world() -> AsyncWorldMut {
     if !ASYNC_WORLD.is_set() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")
     }
-    ASYNC_WORLD.with(|w| AsyncWorldMut{ executor: w.executor.clone() })
+    ASYNC_WORLD.with(|w| AsyncWorldMut{ queue: w.queue.clone() })
 }
 
 #[allow(unused)]
@@ -86,7 +86,7 @@ use bevy_ecs::{world::World, system::Commands};
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
 pub struct AsyncWorldMut {
-    pub(crate) executor: Arc<AsyncQueryQueue>,
+    pub(crate) queue: Arc<AsyncQueryQueue>,
 }
 
 impl AsyncWorldMut {
@@ -98,7 +98,7 @@ impl AsyncWorldMut {
     pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
         AsyncEntityMut { 
             entity, 
-            executor: Cow::Borrowed(&self.executor)
+            executor: Cow::Borrowed(&self.queue)
         }
     }
 
@@ -109,7 +109,7 @@ impl AsyncWorldMut {
     /// This does not mean the resource exists in the world.
     pub fn resource<R: Resource>(&self) -> AsyncResource<R> {
         AsyncResource { 
-            executor: Cow::Borrowed(&self.executor),
+            executor: Cow::Borrowed(&self.queue),
             p: PhantomData
         }
 
@@ -118,7 +118,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncQuery`].
     pub fn query<Q: QueryData>(&self) -> AsyncQuery<Q> {
         AsyncQuery { 
-            executor: Cow::Borrowed(&self.executor),
+            executor: Cow::Borrowed(&self.queue),
             p: PhantomData
         }
     }
@@ -126,7 +126,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
         AsyncQuery { 
-            executor: Cow::Borrowed(&self.executor),
+            executor: Cow::Borrowed(&self.queue),
             p: PhantomData
         }
     }
@@ -134,7 +134,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncSystemParam`].
     pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
         AsyncSystemParam { 
-            executor: Cow::Borrowed(&self.executor),
+            executor: Cow::Borrowed(&self.queue),
             p: PhantomData
         }
     }
@@ -155,8 +155,8 @@ impl Deref for AsyncEntityMut<'_> {
 }
 
 impl AsyncEntityMut<'_> {
-    /// Obtain the underlying entity.
-    pub fn entity(&self) -> Entity {
+    /// Obtain the underlying [`Entity`] id.
+    pub fn id(&self) -> Entity {
         self.entity
     }
 
@@ -226,7 +226,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut{
-            executor: executor.clone()
+            queue: executor.clone()
         }
     }
 }

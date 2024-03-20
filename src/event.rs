@@ -67,7 +67,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -86,7 +86,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -106,7 +106,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -124,7 +124,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -160,7 +160,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
@@ -199,7 +199,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.queue.queries.lock();
             lock.push(query);
         }
         async {
