@@ -8,7 +8,7 @@ use bevy_ecs::{
 #[allow(unused)]
 use bevy_ecs::system::Query;
 use std::{
-    borrow::{Borrow, Cow}, future::Future, marker::PhantomData, ops::Deref, rc::Rc
+    borrow::Borrow, future::Future, marker::PhantomData, ops::Deref, rc::Rc
 };
 use crate::channels::channel;
 use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
@@ -17,19 +17,19 @@ use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
 pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
 
 /// Async version of [`Query`]
-pub struct AsyncQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {
-    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
+pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> {
+    pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
 /// Async version of [`Query`] on a single entity.
-pub struct AsyncEntityQuery<'t, T: QueryData + 't, F: QueryFilter + 't = ()> {
+pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
+    pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
-impl<T: QueryData, F: QueryFilter> AsyncQuery<'_, T, F> {
+impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     pub fn entity(&self, entity: impl Borrow<Entity>) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
             entity: *entity.borrow(),
@@ -39,7 +39,8 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<'_, T, F> {
     }
 }
 
-impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<'_, T, F> {
+impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
+    
     /// Run a function on the iterator.
     pub fn for_each (
         &self,
@@ -101,7 +102,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<'_, T, F> {
     }
 }
 
-impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam<'t> for AsyncEntityQuery<'_, T, F> {
+impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
     type Signal = ();
     
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
@@ -111,7 +112,7 @@ impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam<'t> for AsyncEntityQuery
     fn from_async_context(entity: Entity, executor: &Rc<AsyncQueryQueue>, _: ()) -> Self {
         Self {
             entity,
-            executor: Cow::Owned(executor.clone()),
+            executor: executor.clone(),
             p: PhantomData,
         }
     }
@@ -119,7 +120,7 @@ impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam<'t> for AsyncEntityQuery
 
 type ReadOnly<'a, T> = <<T as QueryData>::ReadOnly as WorldQuery>::Item<'a>;
 
-impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F> {
+impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
     /// Run a function on the [`Query`] and obtain the result.
     pub fn run<Out: 'static>(
         &self,
@@ -193,12 +194,12 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<'_, T, F
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncQueryDeref: QueryData + Sized {
-    type Target<'t, F: QueryFilter> where Self: 't, F: 't;
-    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncQuery<'a, Self, F>) -> &'b Self::Target<'a, F>;
+    type Target<F: QueryFilter>;
+    fn async_deref<F: QueryFilter>(this: &AsyncQuery<Self, F>) -> &Self::Target<F>;
 }
 
-impl<'t, C, F> Deref for AsyncQuery<'t, C, F> where C: AsyncQueryDeref, F: QueryFilter{
-    type Target = <C as AsyncQueryDeref>::Target<'t, F>;
+impl<'t, C, F> Deref for AsyncQuery<C, F> where C: AsyncQueryDeref, F: QueryFilter{
+    type Target = <C as AsyncQueryDeref>::Target<F>;
 
     fn deref(&self) -> &Self::Target {
         AsyncQueryDeref::async_deref(self)
@@ -209,12 +210,12 @@ impl<'t, C, F> Deref for AsyncQuery<'t, C, F> where C: AsyncQueryDeref, F: Query
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncEntityQueryDeref: QueryData + Sized {
-    type Target<'t, F: QueryFilter> where Self: 't, F: 't;
-    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncEntityQuery<'a, Self, F>) -> &'b Self::Target<'a, F>;
+    type Target<F: QueryFilter>;
+    fn async_deref<'a, 'b, F: QueryFilter>(this: &'b AsyncEntityQuery<Self, F>) -> &'b Self::Target<F>;
 }
 
-impl<'t, C, F> Deref for AsyncEntityQuery<'t, C, F> where C: AsyncEntityQueryDeref, F: QueryFilter{
-    type Target = <C as AsyncEntityQueryDeref>::Target<'t, F>;
+impl<'t, C, F> Deref for AsyncEntityQuery<C, F> where C: AsyncEntityQueryDeref, F: QueryFilter{
+    type Target = <C as AsyncEntityQueryDeref>::Target<F>;
 
     fn deref(&self) -> &Self::Target {
         AsyncEntityQueryDeref::async_deref(self)

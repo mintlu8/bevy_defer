@@ -124,7 +124,7 @@ impl AsyncSystems {
 }
 
 /// A parameter of an [`AsyncSystem`].
-pub trait AsyncEntityParam<'t>: Sized {
+pub trait AsyncEntityParam: Sized {
     type Signal: Send + Sync + 'static;
 
     /// If not found, log what's missing and return None.
@@ -133,7 +133,7 @@ pub trait AsyncEntityParam<'t>: Sized {
     /// Obtain `Self` from the async context.
     fn from_async_context(
         entity: Entity,
-        executor: &'t Rc<AsyncQueryQueue>,
+        executor: &Rc<AsyncQueryQueue>,
         signal: Self::Signal,
     ) -> Self;
 }

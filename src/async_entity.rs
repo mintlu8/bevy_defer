@@ -4,7 +4,7 @@ use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecurs
 use std::future::Future;
 use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
 
-impl AsyncEntityMut<'_> {
+impl AsyncEntityMut {
 
     /// Adds a [`Bundle`] of components to the entity.
     pub fn insert(&self, bundle: impl Bundle) -> impl Future<Output = Result<(), AsyncFailure>> {

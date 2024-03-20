@@ -2,7 +2,7 @@ use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time
 
 use bevy::MinimalPlugins;
 use bevy_app::App;
-use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, Assets, AsyncReadExt, Handle};
+use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt, Handle};
 use bevy_defer::{world, AsyncExtension, DefaultAsyncPlugin};
 use bevy_reflect::TypePath;
 

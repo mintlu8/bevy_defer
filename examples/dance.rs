@@ -49,18 +49,18 @@ impl DerefMut for NamedEntities {
 }
 
 impl AsyncComponentDeref for Animator {
-    type Target<'t> = AsyncAnimator<'t>;
+    type Target = AsyncAnimator;
 
-    fn async_deref<'a, 'b>(this: &'b AsyncComponent<'a, Self>) -> &'b Self::Target<'a> {
+    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target {
         AsyncAnimator::ref_cast(this)
     }
 }
 
 #[derive(RefCast)]
 #[repr(transparent)]
-pub struct AsyncAnimator<'t>(AsyncComponent<'t, Animator>);
+pub struct AsyncAnimator(AsyncComponent<Animator>);
 
-impl AsyncAnimator<'_> {
+impl AsyncAnimator {
     pub async fn animate(&self, name: &'static str) -> Result<(), AsyncFailure>{
         let len = name.len();
         self.0.set(move |comp| { 

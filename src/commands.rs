@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::OnceCell, future::Future, time::Duration};
+use std::{cell::OnceCell, future::Future, time::Duration};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use crate::channels::channel;
@@ -89,12 +89,12 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
+        let queue = self.queue.clone();
         async {
             AsyncEntityMut {
                 entity: receiver.await.expect(CHANNEL_CLOSED),
-                executor: Cow::Borrowed(&self.queue),
-            }
-            
+                executor: queue
+            }   
         }
     }
 

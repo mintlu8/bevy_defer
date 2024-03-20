@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -15,12 +14,12 @@ use super::{AsyncQueryQueue, AsyncFailure, QueryCallback, ParallelQueryCallback,
 
 /// Async version of [`SystemParam`].
 #[derive(Debug)]
-pub struct AsyncSystemParam<'t, P: SystemParam>{
-    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
+pub struct AsyncSystemParam<P: SystemParam>{
+    pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<P>
 }
 
-impl<'t, P: SystemParam> AsyncEntityParam<'t> for AsyncSystemParam<'t, P> {
+impl<P: SystemParam> AsyncEntityParam for AsyncSystemParam<P> {
     type Signal = ();
     
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
@@ -29,11 +28,11 @@ impl<'t, P: SystemParam> AsyncEntityParam<'t> for AsyncSystemParam<'t, P> {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Rc<AsyncQueryQueue>,
+        executor: &Rc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         AsyncSystemParam {
-            executor: Cow::Borrowed(executor),
+            executor: executor.clone(),
             p: PhantomData
         }
     }
@@ -45,7 +44,7 @@ type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'stati
 #[derive(Debug, Resource)]
 struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
 
-impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
+impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
@@ -82,13 +81,13 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
 #[derive(Debug)]
-pub struct AsyncComponent<'t, C: Component>{
+pub struct AsyncComponent<C: Component>{
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
+    pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<C>
 }
 
-impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
+impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
     type Signal = ();
     
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
@@ -97,18 +96,18 @@ impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Rc<AsyncQueryQueue>,
+        executor: &Rc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         Self {
             entity,
-            executor: Cow::Borrowed(executor),
+            executor: executor.clone(),
             p: PhantomData
         }
     }
 }
 
-impl<C: Component> AsyncComponent<'_, C> {
+impl<C: Component> AsyncComponent<C> {
 
     /// Wait until a [`Component`] exist.
     pub fn exists(&self) -> impl Future<Output = ()> {
@@ -239,12 +238,12 @@ impl<C: Component> AsyncComponent<'_, C> {
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
-pub struct AsyncResource<'t, R: Resource>{
-    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
+pub struct AsyncResource<R: Resource>{
+    pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<R>
 }
 
-impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
+impl<R: Resource> AsyncEntityParam for AsyncResource<R> {
     type Signal = ();
     
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
@@ -257,13 +256,13 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
         _: ()
     ) -> Self {
         Self {
-            executor: Cow::Owned(executor.clone()),
+            executor: executor.clone(),
             p: PhantomData
         }
     }
 }
 
-impl<R: Resource> AsyncResource<'_, R> {
+impl<R: Resource> AsyncResource<R> {
 
     /// Wait until a [`Resource`] exist.
     pub fn exists(&self) -> impl Future<Output = ()> {
@@ -378,12 +377,12 @@ impl<R: Resource> AsyncResource<'_, R> {
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncComponentDeref: Component + Sized {
-    type Target<'t>;
-    fn async_deref<'a, 'b>(this: &'b AsyncComponent<'a, Self>) -> &'b Self::Target<'a>;
+    type Target;
+    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target;
 }
 
-impl<'t, C> Deref for AsyncComponent<'t, C> where C: AsyncComponentDeref{
-    type Target = <C as AsyncComponentDeref>::Target<'t>;
+impl<C> Deref for AsyncComponent<C> where C: AsyncComponentDeref{
+    type Target = <C as AsyncComponentDeref>::Target;
 
     fn deref(&self) -> &Self::Target {
         AsyncComponentDeref::async_deref(self)
@@ -395,10 +394,10 @@ impl<'t, C> Deref for AsyncComponent<'t, C> where C: AsyncComponentDeref{
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncResourceDeref: Resource + Sized {
     type Target;
-    fn async_deref<'t>(this: &'t AsyncResource<Self>) -> &'t Self::Target;
+    fn async_deref(this: &AsyncResource<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncResource<'_, C> where C: AsyncResourceDeref{
+impl<C> Deref for AsyncResource<C> where C: AsyncResourceDeref{
     type Target = <C as AsyncResourceDeref>::Target;
 
     fn deref(&self) -> &Self::Target {

@@ -8,17 +8,17 @@ use crate::{AsyncComponent, AsyncComponentDeref, AsyncResult};
 
 #[derive(RefCast)]
 #[repr(transparent)]
-pub struct AsyncAnimationPlayer<'t>(AsyncComponent<'t, AnimationPlayer>);
+pub struct AsyncAnimationPlayer(AsyncComponent<AnimationPlayer>);
 
 impl AsyncComponentDeref for AnimationPlayer {
-    type Target<'t> = AsyncAnimationPlayer<'t>;
+    type Target = AsyncAnimationPlayer;
 
-    fn async_deref<'a, 'b>(this: &'b crate::AsyncComponent<'a, Self>) -> &'b Self::Target<'a> {
+    fn async_deref(this: &crate::AsyncComponent<Self>) -> &Self::Target {
         AsyncAnimationPlayer::ref_cast(this)
     }
 }
 
-impl AsyncAnimationPlayer<'_> {
+impl AsyncAnimationPlayer {
     pub async fn play(&self, clip: Handle<AnimationClip>) -> AsyncResult {
         self.0.set(move |player| {player.play(clip);}).await
     }

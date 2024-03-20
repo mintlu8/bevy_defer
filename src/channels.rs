@@ -107,8 +107,8 @@ impl<T> Sender<T> {
         self.0.send(t)
     }
 
-    pub fn cancellation(&mut self) -> Cancellation<T> {
-        Cancellation(self)
+    pub fn cancellation(&mut self) -> ChannelCancel<T> {
+        ChannelCancel(self)
     }
 }
 
@@ -138,9 +138,9 @@ impl<T> Drop for Receiver<T> {
 
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[derive(Debug)]
-pub struct Cancellation<'a, T>(&'a mut Sender<T>);
+pub struct ChannelCancel<'a, T>(&'a mut Sender<T>);
 
-impl<T> Future for Cancellation<'_, T> {
+impl<T> Future for ChannelCancel<'_, T> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {

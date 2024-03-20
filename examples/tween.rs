@@ -1,9 +1,15 @@
+use std::time::Duration;
+
 use bevy::prelude::*;
-use bevy_defer::{world, AsyncExtension, DefaultAsyncPlugin};
+use bevy_defer::{spawn, tween::{Cancellation, Playback}, world, AsyncExtension, DefaultAsyncPlugin};
+use bevy_log::{Level, LogPlugin};
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(LogPlugin {
+            level: Level::TRACE,
+            ..Default::default()
+        }))
         .add_plugins(DefaultAsyncPlugin)
         .add_systems(Startup, setup)
         .spawn_task(async {
@@ -44,6 +50,51 @@ fn main() {
                 2.0, 
                 Vec3::new(0.0, 0.0, 0.0)
             ).await.unwrap();
+            Ok(())
+        })
+        .spawn_task(async {
+            let world = world();
+            let entity = world.spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::GREEN,
+                    custom_size: Some(Vec2::splat(40.0)),
+                    ..Default::default()
+                },
+                transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+                ..Default::default()
+            }).await;
+            let cancel = Cancellation::new();
+            let comp = entity.component::<Transform>();
+            let _fut = spawn(comp.interpolate(
+                |t, v| t.translation = v, 
+                |x| x * x, 
+                2.0,
+                |x| Vec3::new(0.0, 200.0, 0.0).lerp(Vec3::new(0.0, -200.0, 0.0), x),
+                Playback::Bounce,
+                &cancel,
+            ));
+            world.sleep(Duration::from_secs(6)).await;
+            cancel.cancel();
+            comp.interpolate_to(
+                |t| t.translation, 
+                |t, v| t.translation = v, 
+                |x| x * x, 
+                2.0, 
+                Vec3::new(0.0, 0.0, 0.0)
+            ).await.unwrap();
+            
+            let cancel = Cancellation::new();
+            let comp = entity.component::<Transform>();
+            let _fut = spawn(comp.interpolate(
+                |t, v| t.translation = v, 
+                |x| x, 
+                2.0,
+                |x| Vec3::new(0.0, 0.0, 0.0).lerp(Vec3::new(200.0, 0.0, 0.0), x),
+                Playback::Loop,
+                &cancel,
+            ));
+            world.sleep(Duration::from_secs(6)).await;
+            cancel.cancel();
             Ok(())
         })
         .run();

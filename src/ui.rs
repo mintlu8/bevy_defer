@@ -86,9 +86,9 @@ mod sealed {
 
     #[derive(RefCast)]
     #[repr(transparent)]
-    pub struct AsyncUIExt<'t, F: QueryFilter>(AsyncEntityQuery<'t, AsyncUIButton, F>);
+    pub struct AsyncUIExt<F: QueryFilter>(AsyncEntityQuery<AsyncUIButton, F>);
 
-    impl<F: QueryFilter + 'static> AsyncUIExt<'_, F> {
+    impl<F: QueryFilter + 'static> AsyncUIExt<F> {
         /// returns when `pressed` -> `hovered`.
         pub async fn clicked(&self) -> Vec2 {
             let mut last = Interaction::None;
@@ -141,9 +141,9 @@ mod sealed {
     }
 
     impl AsyncEntityQueryDeref for AsyncUIButton {
-        type Target<'t, F: QueryFilter + 't> = AsyncUIExt<'t, F>;
+        type Target<F: QueryFilter> = AsyncUIExt<F>;
     
-        fn async_deref<'a, 'b, F: bevy_ecs::query::QueryFilter>(this: &'b AsyncEntityQuery<'a, Self, F>) -> &'b Self::Target<'a, F> {
+        fn async_deref<F: bevy_ecs::query::QueryFilter>(this: &AsyncEntityQuery<Self, F>) -> &Self::Target<F> {
             AsyncUIExt::ref_cast(this)
         }
     }

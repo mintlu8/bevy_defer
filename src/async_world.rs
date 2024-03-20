@@ -1,4 +1,4 @@
-use std::{borrow::Cow, future::Future, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 use bevy_log::error;
 use crate::channels::channel;
 use futures::executor::LocalSpawner;
@@ -97,7 +97,7 @@ pub fn world() -> AsyncWorldMut {
 use bevy_ecs::{world::World, system::Commands};
 
 /// Async version of [`World`] or [`Commands`].
-#[derive(Debug, RefCast)]
+#[derive(Debug, RefCast, Clone)]
 #[repr(transparent)]
 pub struct AsyncWorldMut {
     pub(crate) queue: Rc<AsyncQueryQueue>,
@@ -112,7 +112,7 @@ impl AsyncWorldMut {
     pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
         AsyncEntityMut { 
             entity, 
-            executor: Cow::Borrowed(&self.queue)
+            executor: self.queue.clone()
         }
     }
 
@@ -123,7 +123,7 @@ impl AsyncWorldMut {
     /// This does not mean the resource exists in the world.
     pub fn resource<R: Resource>(&self) -> AsyncResource<R> {
         AsyncResource { 
-            executor: Cow::Borrowed(&self.queue),
+            executor: self.queue.clone(),
             p: PhantomData
         }
 
@@ -132,7 +132,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncQuery`].
     pub fn query<Q: QueryData>(&self) -> AsyncQuery<Q> {
         AsyncQuery { 
-            executor: Cow::Borrowed(&self.queue),
+            executor: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -140,7 +140,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
         AsyncQuery { 
-            executor: Cow::Borrowed(&self.queue),
+            executor: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -148,43 +148,35 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncSystemParam`].
     pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
         AsyncSystemParam { 
-            executor: Cow::Borrowed(&self.queue),
+            executor: self.queue.clone(),
             p: PhantomData
         }
     }
 }
 
 /// Async version of `EntityMut` or `EntityCommands`.
-pub struct AsyncEntityMut<'t> {
+pub struct AsyncEntityMut {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
+    pub(crate) executor: Rc<AsyncQueryQueue>,
 }
 
-impl Deref for AsyncEntityMut<'_> {
+impl Deref for AsyncEntityMut {
     type Target = AsyncWorldMut;
 
     fn deref(&self) -> &Self::Target {
-        AsyncWorldMut::ref_cast(self.executor.as_ref())
+        AsyncWorldMut::ref_cast(&self.executor)
     }
 }
 
-impl AsyncEntityMut<'_> {
+impl AsyncEntityMut {
     /// Obtain the underlying [`Entity`] id.
     pub fn id(&self) -> Entity {
         self.entity
     }
 
-    /// Reborrow an [`AsyncEntityMut`] to a new lifetime.
-    pub fn reborrow(&self) -> AsyncEntityMut {
-        AsyncEntityMut {
-            entity: self.entity,
-            executor: Cow::Borrowed(&self.executor),
-        }
-    }
-
     /// Obtain the underlying [`AsyncWorldMut`]
-    pub fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(self.executor.as_ref())
+    pub fn world(&self) -> AsyncWorldMut {
+        AsyncWorldMut::ref_cast(&self.executor).clone()
     }
 
     /// Get an [`AsyncComponent`] on this entity.
@@ -195,7 +187,7 @@ impl AsyncEntityMut<'_> {
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
             entity: self.entity,
-            executor: Cow::Borrowed(self.executor.as_ref()),
+            executor: self.executor.clone(),
             p: PhantomData,
         }
     }
@@ -205,10 +197,10 @@ impl AsyncEntityMut<'_> {
     /// # Note
     /// 
     /// This does not mean the component or the entity exists in the world.
-    pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<'_, T, ()> {
+    pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<T, ()> {
         AsyncEntityQuery {
             entity: self.entity,
-            executor: Cow::Borrowed(&self.executor),
+            executor: self.executor.clone(),
             p: PhantomData,
         }
     }
@@ -218,16 +210,16 @@ impl AsyncEntityMut<'_> {
     /// # Note
     /// 
     /// This does not mean the component or the entity exists in the world.
-    pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<'_, T, F> {
+    pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
             entity: self.entity,
-            executor: Cow::Borrowed(&self.executor),
+            executor: self.executor.clone(),
             p: PhantomData,
         }
     }
 }
 
-impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
+impl AsyncEntityParam for AsyncWorldMut {
     type Signal = ();
 
     fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
@@ -236,7 +228,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Rc<AsyncQueryQueue>,
+        executor: &Rc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut{
@@ -245,23 +237,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
     }
 }
 
-impl<'t> AsyncEntityParam<'t> for &'t AsyncWorldMut {
-    type Signal = ();
-
-    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(
-        _: Entity,
-        executor: &'t Rc<AsyncQueryQueue>,
-        _: Self::Signal,
-    ) -> Self {
-        AsyncWorldMut::ref_cast(executor)
-    }
-}
-
-impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
+impl AsyncEntityParam for AsyncEntityMut {
     type Signal = ();
 
     fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
@@ -270,12 +246,12 @@ impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Rc<AsyncQueryQueue>,
+        executor: &Rc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncEntityMut{
             entity,
-            executor: Cow::Borrowed(executor)
+            executor: executor.clone()
         }
     }
 }

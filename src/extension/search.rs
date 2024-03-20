@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Deref, pin::pin};
+use std::{ops::Deref, pin::pin};
 
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, query::QueryState, world::World};
@@ -10,7 +10,7 @@ use crate::{AsyncEntityMut, AsyncWorldMut, QueryCallback, ResQueryCache, CHANNEL
 
 #[derive(RefCast)]
 #[repr(transparent)]
-pub struct AsyncScene<'t>(AsyncEntityMut<'t>);
+pub struct AsyncScene(AsyncEntityMut);
 
 impl AsyncWorldMut {
     pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncScene{
@@ -19,8 +19,8 @@ impl AsyncWorldMut {
     }
 }
 
-impl<'t> Deref for AsyncScene<'t> {
-    type Target = AsyncEntityMut<'t>;
+impl<'t> Deref for AsyncScene {
+    type Target = AsyncEntityMut;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -43,7 +43,7 @@ fn find_name(world: &mut World, parent: Entity, name: &str, query: &mut QuerySta
 }
 
 
-impl AsyncScene<'_> {
+impl AsyncScene {
     /// Obtain a spawned entity by [`Name`].
     /// 
     /// Due to having to wait and not being able to prove a negative,
@@ -74,12 +74,12 @@ impl AsyncScene<'_> {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
+        let executor = self.executor.clone();
         async {
             AsyncEntityMut{
                 entity: receiver.await.expect(CHANNEL_CLOSED),
-                executor: Cow::Borrowed(self.executor.as_ref()),
+                executor,
             }
-            
         }
     }
 

@@ -5,7 +5,7 @@ use std::task::{Poll, Waker};
 use std::{mem, ops::Deref};
 use bevy_ecs::system::{Local, NonSend, NonSendMut};
 use bevy_ecs::{entity::Entity, system::Query, world::World};
-use bevy_log::trace;
+use bevy_log::debug;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use futures::executor::LocalPool;
 use futures::task::LocalSpawnExt;
@@ -116,7 +116,7 @@ impl ParallelQueryCallback {
             command: Some(Box::new(move |w| {
                 let result = query(w);
                 if channel.send(result).is_err() {
-                    trace!("Error: one-shot channel closed.")
+                    debug!("Error: one-shot channel closed.")
                 }
             }))
         }
@@ -148,7 +148,7 @@ impl QueryCallback {
             command: Box::new(move |w| {
                 let result = query(w);
                 if channel.send(result).is_err() {
-                    trace!("Error: one-shot channel closed.")
+                    debug!("Error: one-shot channel closed.")
                 }
                 None
             })
@@ -164,7 +164,7 @@ impl QueryCallback {
                 match query(w) {
                     Some(x) => {
                         if channel.send(x).is_err() {
-                            trace!("Error: one-shot channel closed.")
+                            debug!("Error: one-shot channel closed.")
                         }
                         None
                     }
@@ -230,9 +230,10 @@ pub fn run_async_queries(
     }
     
     {
-        let mut lock = executor.queries.borrow_mut();
+        let mut lock = executor.queries.borrow_mut();    
         let inner: Vec<_> = mem::take(lock.as_mut());
         *lock = inner.into_iter().filter_map(|query| (query.command)(w)).collect();
+
     }
 }
 

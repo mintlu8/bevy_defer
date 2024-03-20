@@ -4,7 +4,7 @@ use triomphe::Arc;
 use bevy_ecs::entity::Entity;
 use crate::object::{Object, AsObject};
 use crate::{AsyncQueryQueue, AsyncEntityParam};
-use super::{component::Signals, signal_inner::SignalInner};
+use super::{signal_component::Signals, signal_inner::SignalInner};
 pub use super::signal_inner::{Signal, SignalData};
 
 /// A marker type that indicates the type and purpose of a signal.
@@ -171,7 +171,7 @@ impl<T: SignalId> Sender<T> {
     }
 }
 
-impl <'t, T: SignalId> AsyncEntityParam<'t> for Sender<T>  {
+impl<T: SignalId> AsyncEntityParam for Sender<T>  {
     type Signal = Arc<SignalInner<Object>>;
     
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
@@ -282,7 +282,7 @@ impl<T: SignalId<Data = Object>> Receiver<T> {
 }
 
 
-impl <'t, T: SignalId> AsyncEntityParam<'t> for Receiver<T>  {
+impl<T: SignalId> AsyncEntityParam for Receiver<T>  {
     type Signal = Arc<SignalInner<Object>>;
     
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {

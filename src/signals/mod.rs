@@ -1,8 +1,8 @@
-mod signals;
+mod signal_utils;
 mod signal_inner;
-mod component;
+mod signal_component;
 
-pub use signals::*;
+pub use signal_utils::*;
 pub use signal_inner::{Signal, SignalData};
-pub use component::Signals;
+pub use signal_component::Signals;
 pub(crate) use signal_inner::SignalInner;

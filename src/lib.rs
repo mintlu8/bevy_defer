@@ -14,7 +14,7 @@ mod object;
 mod executor;
 mod commands;
 mod extension;
-mod tween;
+pub mod tween;
 pub mod channels;
 pub mod ui;
 use bevy_ecs::{system::{Command, Commands}, world::World};
