@@ -7,7 +7,7 @@ use ref_cast::RefCast;
 
 use crate::{AsyncComponent, AsyncFailure, AsyncResult, AsyncWorldMut, CHANNEL_CLOSED};
 
-/// Shared object for cancelling a future.
+/// Shared object for cancelling a running task.
 #[derive(Debug, Clone, Default)]
 pub struct Cancellation(Rc<Cell<bool>>);
 
@@ -16,12 +16,14 @@ impl Cancellation {
         Cancellation(Rc::new(Cell::new(false)))
     }
 
+    /// Cancel a running task.
     pub fn cancel(&self) {
         self.0.set(true)
     }
 }
 
-pub struct FixedTask {
+/// A Task running on `FixedUpdate`.
+pub(crate) struct FixedTask {
     task: Box<dyn FnMut(&mut World, Duration) -> bool>,
     cancel: Option<Cancellation>,
 }

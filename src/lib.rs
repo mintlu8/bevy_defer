@@ -94,7 +94,7 @@ impl Plugin for DefaultAsyncPlugin {
     }
 }
 
-/// Extension for [`World`], [`App`] and [`Commands`].
+/// Extension for [`World`] and [`App`].
 pub trait AsyncExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self;
@@ -135,7 +135,7 @@ impl AsyncExtension for App {
     }
 }
 
-/// Extension for [`World`], [`App`] and [`Commands`].
+/// Extension for [`Commands`].
 pub trait AsyncCommandsExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
     fn spawn_task<F: Future<Output = AsyncResult> + 'static>(&mut self, f: impl FnOnce() -> F + Send + 'static) -> &mut Self;

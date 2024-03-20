@@ -2,14 +2,10 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_defer::{spawn, tween::{Cancellation, Playback}, world, AsyncExtension, DefaultAsyncPlugin};
-use bevy_log::{Level, LogPlugin};
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(LogPlugin {
-            level: Level::TRACE,
-            ..Default::default()
-        }))
+        .add_plugins(DefaultPlugins)
         .add_plugins(DefaultAsyncPlugin)
         .add_systems(Startup, setup)
         .spawn_task(async {
@@ -95,6 +91,7 @@ fn main() {
             ));
             world.sleep(Duration::from_secs(6)).await;
             cancel.cancel();
+            world.quit().await;
             Ok(())
         })
         .run();
