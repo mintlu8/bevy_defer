@@ -4,6 +4,7 @@ use std::{mem, ops::Deref};
 use bevy_ecs::system::{NonSend, NonSendMut};
 use bevy_ecs::{entity::Entity, system::{Query, Res, Resource}, world::World};
 use bevy_log::trace;
+use bevy_reflect::Reflect;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use futures::channel::oneshot::Sender;
 use futures::executor::LocalPool;
@@ -198,8 +199,8 @@ impl std::fmt::Debug for AsyncQueryQueue {
 }
 
 /// Queue for deferred queries applied on the [`World`].
-#[derive(Default, Resource)]
-pub struct QueryQueue(pub(crate) Arc<AsyncQueryQueue>);
+#[derive(Default, Resource, Reflect)]
+pub struct QueryQueue(#[reflect(ignore)] pub(crate) Arc<AsyncQueryQueue>);
 
 impl Deref for QueryQueue {
     type Target = AsyncQueryQueue;

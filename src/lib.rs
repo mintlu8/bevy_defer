@@ -19,6 +19,7 @@ mod search;
 pub mod ui;
 use bevy_ecs::{system::{Command, Commands}, world::World};
 use bevy_log::error;
+use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::*;
 pub use async_world::*;
 pub use async_systems::*;
@@ -34,7 +35,7 @@ pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
 #[doc(hidden)]
 pub use bevy_ecs::entity::Entity;
 
-use signals::{SignalData, SignalId};
+use signals::{SignalData, SignalId, Signals};
 #[doc(hidden)]
 pub use triomphe::Arc;
 
@@ -50,6 +51,12 @@ pub struct CoreAsyncPlugin;
 impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<QueryQueue>()
+            .register_type::<QueryQueue>()
+            .register_type_data::<QueryQueue, ReflectDefault>()
+            .register_type::<AsyncSystems>()
+            .register_type_data::<AsyncSystems, ReflectDefault>()
+            .register_type::<Signals>()
+            .register_type_data::<Signals, ReflectDefault>()
             .init_non_send_resource::<AsyncExecutor>()
             .add_systems(First, push_async_systems);
     }
@@ -79,9 +86,7 @@ pub struct DefaultAsyncPlugin;
 
 impl Plugin for DefaultAsyncPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<QueryQueue>()
-            .init_non_send_resource::<AsyncExecutor>()
-            .add_systems(First, push_async_systems)
+        app.add_plugins(CoreAsyncPlugin)
             .add_systems(PreUpdate, run_async_executor!())
             .add_systems(Update, run_async_executor!())
             .add_systems(PostUpdate, run_async_executor!())

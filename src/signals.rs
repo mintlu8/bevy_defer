@@ -1,5 +1,6 @@
 use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, sync::atomic::Ordering, task::Poll};
 use std::future::Future;
+use bevy_reflect::Reflect;
 use triomphe::Arc;
 use bevy_ecs::{component::Component, entity::Entity};
 use bevy_log::debug;
@@ -155,10 +156,13 @@ impl SignalMapper {
 }
 
 /// A composable component that contains signals on an `Entity`.
-#[derive(Debug, Component, Default)]
+#[derive(Debug, Component, Default, Reflect)]
 pub struct Signals {
+    #[reflect(ignore)]
     pub senders: FxHashMap<TypeId, Signal<Object>>,
+    #[reflect(ignore)]
     pub receivers: FxHashMap<TypeId, Signal<Object>>,
+    #[reflect(ignore)]
     pub adaptors: FxHashMap<TypeId, (TypeId, SignalMapper)>
 }
 
