@@ -2,11 +2,11 @@ use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time
 
 use bevy::MinimalPlugins;
 use bevy_app::App;
-use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt, Handle};
+use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, Assets, AsyncReadExt, Handle};
 use bevy_defer::{world, AsyncExtension, DefaultAsyncPlugin};
 use bevy_reflect::TypePath;
 
-#[derive(Asset, TypePath)]
+#[derive(Debug, Asset, TypePath)]
 pub struct JsonNumber(i64);
 
 #[derive(Default)]
@@ -48,15 +48,15 @@ pub fn procedural(){
         let one: Handle<JsonNumber> = world.load_asset("1.json").await?;
         let four: Handle<JsonNumber> = world.load_asset("4.json").await?;
         let sixty_nine: Handle<JsonNumber> = world.load_asset("69.json").await?;
-        assert_eq!(world.asset(one, |x| x.0).await?, 1);
-        assert_eq!(world.asset(four, |x| x.0).await?, 4);
-        assert_eq!(world.asset(sixty_nine, |x| x.0).await?, 69);
+        assert_eq!(world.asset(&one, |x| x.0).await?, 1);
+        assert_eq!(world.asset(&four, |x| x.0).await?, 4);
+        assert_eq!(world.asset(&sixty_nine, |x| x.0).await?, 69);
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });
     app.spawn_task(async {
         let world = world();
-        world.sleep(Duration::from_millis(100)).await;
+        world.sleep(Duration::from_millis(500)).await;
         world.quit().await;
         Ok(())
     });
@@ -83,9 +83,9 @@ pub fn concurrent(){
         )?;
 
         let (one, four, sixty_nine) = futures::try_join!(
-            world.asset(one, |x| x.0),
-            world.asset(four, |x| x.0),
-            world.asset(sixty_nine, |x| x.0),
+            world.asset(&one, |x| x.0),
+            world.asset(&four, |x| x.0),
+            world.asset(&sixty_nine, |x| x.0),
         )?;
         assert_eq!(one, 1);
         assert_eq!(four, 4);
@@ -95,13 +95,7 @@ pub fn concurrent(){
     });
     app.spawn_task(async {
         let world = world();
-        world.sleep(Duration::from_millis(100)).await;
-        world.quit().await;
-        Ok(())
-    });
-    app.spawn_task(async {
-        let world = world();
-        world.sleep(Duration::from_millis(100)).await;
+        world.sleep(Duration::from_millis(500)).await;
         world.quit().await;
         Ok(())
     });
@@ -134,7 +128,7 @@ pub fn direct(){
     });
     app.spawn_task(async {
         let world = world();
-        world.sleep(Duration::from_millis(100)).await;
+        world.sleep(Duration::from_millis(500)).await;
         world.quit().await;
         Ok(())
     });

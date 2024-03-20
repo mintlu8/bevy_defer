@@ -9,7 +9,9 @@ use crate::{AsyncComponent, AsyncEntityParam, AsyncEntityQuery, AsyncExecutor, A
 use ref_cast::RefCast;
 use super::AsyncQueryQueue;
 
-/// [`SystemParam`] for obtaining an [`AsyncWorldMut`].
+/// [`SystemParam`] for obtaining [`AsyncWorldMut`] and spawning futures.
+/// 
+/// Note this `SystemParam` is [`NonSend`] and can only execute on the main thread.
 #[derive(SystemParam)]
 pub struct AsyncWorld<'w, 's> {
     queue: NonSend<'w, QueryQueue>,

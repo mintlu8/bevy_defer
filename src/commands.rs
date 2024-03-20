@@ -224,12 +224,16 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Run a function on an `Asset` and obtain the result.
+    /// Run a function on an `Asset` and obtain the result,
+    /// repeat until the asset is loaded.
     /// 
-    /// Repeat until the asset is loaded.
+    /// # Note
+    /// 
+    /// `Handle<T>` is not allowed as that could drop the asset immediately,
+    /// pass in `&Handle<T>` instead.
     pub fn asset<A: Asset, T: Send + 'static>(
         &self, 
-        handle: impl Into<AssetId<A>>,
+        handle: impl Into<AssetId<A>> + Copy,
         mut f: impl FnMut(&A) -> T + Send + 'static
     ) -> impl Future<Output = AsyncResult<T>> {
         let (sender, receiver) = channel();
@@ -251,12 +255,15 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Remove an `Asset` and obtain it.
+    /// Remove an `Asset` and obtain it and repeat until the asset is loaded.
     /// 
-    /// Repeat until the asset is loaded.
+    /// # Note
+    /// 
+    /// `Handle<T>` is not allowed as that could drop the asset immediately,
+    /// pass in `&Handle<T>` instead.
     pub fn take_asset<A: Asset>(
         &self, 
-        handle: impl Into<AssetId<A>>,
+        handle: impl Into<AssetId<A>> + Copy,
     ) -> impl Future<Output = AsyncResult<A>> {
         let (sender, receiver) = channel();
         let handle = handle.into();
@@ -277,33 +284,9 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Wait until an asset is loaded.
+    /// Run a function on an `Asset` and obtain the handle.
     /// 
-    /// Repeat until the asset is loaded.
-    pub fn asset_loaded<A: Asset, T: Send + 'static>(
-        &self, 
-        handle: impl Into<AssetId<A>>,
-    ) -> impl Future<Output = AsyncResult<()>> {
-        let (sender, receiver) = channel();
-        let handle = handle.into();
-        let query = QueryCallback::repeat(
-            move |world: &mut World| {
-                let Some(assets) = world.get_resource::<Assets<A>>()
-                    else { return Some(Err(AsyncFailure::ResourceNotFound)) };
-                assets.contains(handle).then_some(Ok(()))
-            },
-            sender
-        );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
-    }
-
-    /// Run a function on an `Asset` and obtain the result.
+    /// Does not wait for `Asset` to be loaded.
     pub fn load_asset<A: Asset>(
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
@@ -333,7 +316,7 @@ impl AsyncWorldMut {
         mut f: impl FnMut(Handle<A>, &A) -> T + Send + 'static,
     ) -> AsyncResult<T> {
         let handle = self.load_asset(path).await?;
-        self.asset(handle.clone_weak(), move |x| f(handle.clone(), x)).await
+        self.asset(&handle.clone_weak(), move |x| f(handle.clone(), x)).await
     }
 
     /// Load an asset from a [`AssetPath`], then remove the result from [`Asset`] to obtain the result.
@@ -342,6 +325,6 @@ impl AsyncWorldMut {
         path: impl Into<AssetPath<'static>> + Send + 'static, 
     ) -> AsyncResult<A> {
         let handle = self.load_asset(path).await?;
-        self.take_asset(handle).await
+        self.take_asset(&handle).await
     }
 }

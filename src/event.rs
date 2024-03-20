@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 use triomphe::Arc;
 use crate::channels::channel;
 use crate::{AsyncFailure, AsyncResult};
-use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
+use crate::{signals::SignalInner, AsyncExtension, AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
 use crate::signals::{SignalData, SignalId};
 
 /// A resource containing named signals.

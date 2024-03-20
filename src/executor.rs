@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Poll, Waker};
 use std::{mem, ops::Deref};
-use bevy_ecs::system::{NonSend, NonSendMut};
+use bevy_ecs::system::{Local, NonSend, NonSendMut};
 use bevy_ecs::{entity::Entity, system::Query, world::World};
 use bevy_log::trace;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 use triomphe::Arc;
 use crate::channels::Sender;
 use crate::{world_scope, AsyncSystems};
-use crate::signals::{Signals, DUMMY_SIGNALS};
+use crate::signals::Signals;
 
 /// Standard errors for the async runtime.
 /// 
@@ -248,14 +248,14 @@ pub fn run_async_executor(
 
 /// Push inactive [`AsyncSystems`] to the executor.
 pub(crate) fn push_async_systems(
+    dummy: Local<Signals>,
     executor: NonSend<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
     mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems)>
 ) {
-    let dummy = DUMMY_SIGNALS.deref();
     let spawner = exec.0.spawner();
     for (entity, signals, mut systems) in query.iter_mut() {
-        let signals = signals.unwrap_or(dummy);
+        let signals = signals.unwrap_or(&dummy);
         for system in systems.systems.iter_mut(){
             if !system.marker.other_alive() {
                 let alive = system.marker.clone_child();
