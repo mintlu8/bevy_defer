@@ -1,29 +1,24 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::rc::Rc;
 use bevy_ecs::change_detection::DetectChanges;
-use triomphe::Arc;
 use bevy_ecs::component::Component;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use std::future::Future;
-use futures::channel::oneshot::channel;
+use crate::channels::{channel, sync_channel};
 use crate::signals::Signals;
 use crate::{AsyncEntityParam, CHANNEL_CLOSED};
 
-use super::{AsyncQueryQueue, AsyncFailure, BoxedQueryCallback, BoxedReadonlyCallback, AsyncResult};
+use super::{AsyncQueryQueue, AsyncFailure, QueryCallback, ParallelQueryCallback, AsyncResult};
 
 /// Async version of [`SystemParam`].
 #[derive(Debug)]
 pub struct AsyncSystemParam<'t, P: SystemParam>{
-    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
+    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<P>
 }
-
-/// Safety: Safe since `P` is a marker.
-unsafe impl<P: SystemParam> Send for AsyncSystemParam<'_, P> {}
-/// Safety: Safe since `P` is a marker.
-unsafe impl<P: SystemParam> Sync for AsyncSystemParam<'_, P> {}
 
 impl<'t, P: SystemParam> AsyncEntityParam<'t> for AsyncSystemParam<'t, P> {
     type Signal = ();
@@ -34,7 +29,7 @@ impl<'t, P: SystemParam> AsyncEntityParam<'t> for AsyncSystemParam<'t, P> {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Arc<AsyncQueryQueue>,
+        executor: &'t Rc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         AsyncSystemParam {
@@ -54,9 +49,9 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
-    ) -> impl Future<Output = AsyncResult<T>> + Send + Sync + 'static{
+    ) -> impl Future<Output = AsyncResult<T>> + 'static{
         let (sender, receiver) = channel();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 let id = match world.get_resource::<ResSysParamId<Q, T>>(){
                     Some(res) => res.0,
@@ -76,7 +71,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
             sender,
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -89,14 +84,9 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<'_, Q> {
 #[derive(Debug)]
 pub struct AsyncComponent<'t, C: Component>{
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
+    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<C>
 }
-
-/// Safety: Safe since `C` is a marker.
-unsafe impl<C: Component> Send for AsyncComponent<'_, C> {}
-/// Safety: Safe since `C` is a marker.
-unsafe impl<C: Component> Sync for AsyncComponent<'_, C> {}
 
 impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
     type Signal = ();
@@ -107,7 +97,7 @@ impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Arc<AsyncQueryQueue>,
+        executor: &'t Rc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         Self {
@@ -121,10 +111,10 @@ impl<'t, C: Component> AsyncEntityParam<'t> for AsyncComponent<'t, C> {
 impl<C: Component> AsyncComponent<'_, C> {
 
     /// Wait until a [`Component`] exist.
-    pub fn exists<Out: Send + Sync + 'static>(&self) -> impl Future<Output = ()> {
+    pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 world
                     .get_entity(entity)?
@@ -134,7 +124,7 @@ impl<C: Component> AsyncComponent<'_, C> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -143,11 +133,35 @@ impl<C: Component> AsyncComponent<'_, C> {
     }
 
     /// Run a function on the [`Component`] and obtain the result.
-    pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&C) -> Out + Send + Sync + 'static)
+    pub fn get<Out: 'static>(&self, f: impl FnOnce(&C) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedReadonlyCallback::new(
+        let query = QueryCallback::once(
+            move |world: &mut World| {
+                Ok(f(world
+                    .get_entity(entity)
+                    .ok_or(AsyncFailure::EntityNotFound)?
+                    .get::<C>()
+                    .ok_or(AsyncFailure::ComponentNotFound)?))
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.queries.borrow_mut();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Run a function on the [`Component`] in parallel and obtain the result.
+    pub fn par_get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&C) -> Out + Send + Sync + 'static)
+            -> impl Future<Output = AsyncResult<Out>> {
+        let (sender, receiver) = sync_channel();
+        let entity = self.entity;
+        let query = ParallelQueryCallback::new(
             move |world: &World| {
                 Ok(f(world
                     .get_entity(entity)
@@ -158,7 +172,7 @@ impl<C: Component> AsyncComponent<'_, C> {
             sender
         );
         {
-            let mut lock = self.executor.readonly.lock();
+            let mut lock = self.executor.readonly.borrow_mut();
             lock.push(query);
         }
         async {
@@ -167,11 +181,11 @@ impl<C: Component> AsyncComponent<'_, C> {
     }
 
     /// Run a function on the mutable [`Component`] and obtain the result.
-    pub fn set<Out: Send + 'static>(&self, f: impl FnOnce(&mut C) -> Out + Send + 'static)
+    pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut C) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 Ok(f(world
                     .get_entity_mut(entity)
@@ -183,7 +197,7 @@ impl<C: Component> AsyncComponent<'_, C> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -192,11 +206,11 @@ impl<C: Component> AsyncComponent<'_, C> {
     }
 
     /// Run a repeatable function on the [`Component`] and obtain the result once [`Some`] is returned.
-    pub fn watch<Out: Send + 'static>(&self, f: impl Fn(&C) -> Option<Out> + Send + 'static)
+    pub fn watch<Out: 'static>(&self, f: impl Fn(&C) -> Option<Out> + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 (||{
                     let component = world
@@ -214,7 +228,7 @@ impl<C: Component> AsyncComponent<'_, C> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -226,14 +240,9 @@ impl<C: Component> AsyncComponent<'_, C> {
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
 pub struct AsyncResource<'t, R: Resource>{
-    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
+    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
     pub(crate) p: PhantomData<R>
 }
-
-/// Safety: Safe since `R` is a marker.
-unsafe impl<R: Resource> Send for AsyncResource<'_, R> {}
-/// Safety: Safe since `R` is a marker.
-unsafe impl<R: Resource> Sync for AsyncResource<'_, R> {}
 
 impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
     type Signal = ();
@@ -244,7 +253,7 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
 
     fn from_async_context(
         _: Entity,
-        executor: &Arc<AsyncQueryQueue>,
+        executor: &Rc<AsyncQueryQueue>,
         _: ()
     ) -> Self {
         Self {
@@ -257,9 +266,9 @@ impl<'t, R: Resource> AsyncEntityParam<'t> for AsyncResource<'t, R> {
 impl<R: Resource> AsyncResource<'_, R> {
 
     /// Wait until a [`Resource`] exist.
-    pub fn exists<Out: Send + Sync + 'static>(&self) -> impl Future<Output = ()> {
+    pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 world
                     .get_resource::<R>()
@@ -268,7 +277,7 @@ impl<R: Resource> AsyncResource<'_, R> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -277,10 +286,10 @@ impl<R: Resource> AsyncResource<'_, R> {
     }
 
     /// Run a function on the [`Resource`] and obtain the result.
-    pub fn get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&R) -> Out + Send + Sync + 'static)
+    pub fn get<Out: 'static>(&self, f: impl FnOnce(&R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_resource::<R>()
                     .map(f)
@@ -289,7 +298,28 @@ impl<R: Resource> AsyncResource<'_, R> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
+            lock.push(query);
+        }
+        async {
+            receiver.await.expect(CHANNEL_CLOSED)
+        }
+    }
+
+    /// Run a function on the [`Resource`] in parallel and obtain the result.
+    pub fn par_get<Out: Send + Sync + 'static>(&self, f: impl FnOnce(&R) -> Out + Send + Sync + 'static)
+            -> impl Future<Output = AsyncResult<Out>> {
+        let (sender, receiver) = sync_channel();
+        let query = ParallelQueryCallback::new(
+            move |world: &World| {
+                world.get_resource::<R>()
+                    .map(f)
+                    .ok_or(AsyncFailure::ResourceNotFound)
+            },
+            sender
+        );
+        {
+            let mut lock = self.executor.readonly.borrow_mut();
             lock.push(query);
         }
         async {
@@ -298,10 +328,10 @@ impl<R: Resource> AsyncResource<'_, R> {
     }
 
     /// Run a function on the mutable [`Resource`] and obtain the result.
-    pub fn set<Out: Send + 'static>(&self, f: impl FnOnce(&mut R) -> Out + Send + 'static)
+    pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_resource_mut::<R>()
                     .map(|mut x| f(x.as_mut()))
@@ -310,7 +340,7 @@ impl<R: Resource> AsyncResource<'_, R> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -319,10 +349,10 @@ impl<R: Resource> AsyncResource<'_, R> {
     }
 
     /// Run a repeatable function on the [`Resource`] and obtain the result once [`Some`] is returned.
-    pub fn watch<Out: Send + 'static>(&self, f: impl Fn(&R) -> Option<Out> + Send + 'static)
+    pub fn watch<Out: 'static>(&self, f: impl Fn(&R) -> Option<Out> + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 let Some(res) = world.get_resource_ref::<R>() 
                     else {return Some(Err(AsyncFailure::ResourceNotFound))};
@@ -335,7 +365,7 @@ impl<R: Resource> AsyncResource<'_, R> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {

@@ -2,13 +2,13 @@ use std::fmt::Debug;
 use std::{borrow::Borrow, marker::PhantomData};
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
 use bevy_ecs::{system::Resource, world::World};
-use futures::{channel::oneshot::channel, Future};
+use futures::Future;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use triomphe::Arc;
-
+use crate::channels::channel;
 use crate::{AsyncFailure, AsyncResult};
-use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, BoxedQueryCallback, CHANNEL_CLOSED};
+use crate::{signal_inner::SignalInner, AsyncExtension, AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
 use crate::signals::{SignalData, SignalId};
 
 /// A resource containing named signals.
@@ -60,14 +60,14 @@ impl AsyncWorldMut {
     pub fn signal<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = Arc<SignalData<T::Data>>> {
         let (sender, receiver) = channel();
         let name = name.into();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.signal::<T>(name)
             },
             sender
         );
         {
-            let mut lock = self.queue.queries.lock();
+            let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -79,14 +79,14 @@ impl AsyncWorldMut {
     pub fn poll<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = T::Data> {
         let (sender, receiver) = channel();
         let name = name.into();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.signal::<T>(name)
             },
             sender
         );
         {
-            let mut lock = self.queue.queries.lock();
+            let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -99,14 +99,14 @@ impl AsyncWorldMut {
     pub fn send<T: SignalId>(&self, name: impl Into<String>, value: T::Data) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let name = name.into();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 SignalInner::from(world.signal::<T>(name.clone())).write(value);
             },
             sender
         );
         {
-            let mut lock = self.queue.queries.lock();
+            let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -117,14 +117,14 @@ impl AsyncWorldMut {
     /// Send an [`Event`].
     pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = AsyncResult<EventId<E>>> {
         let (sender, receiver) = channel();
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.send_event(event).ok_or(AsyncFailure::EventNotRegistered)
             },
             sender
         );
         {
-            let mut lock = self.queue.queries.lock();
+            let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -140,7 +140,7 @@ impl AsyncWorldMut {
     pub fn poll_event<E: Event + Clone>(&self) -> impl Future<Output = E> {
         let (sender, receiver) = channel();
         let mut reader = None;
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 let events = world.get_resource::<Events<E>>()?;
                 let reader = match &mut reader {
@@ -160,7 +160,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.queue.queries.lock();
+            let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -176,7 +176,7 @@ impl AsyncWorldMut {
     pub fn poll_events<E: Event + Clone>(&self) -> impl Future<Output = Vec<E>> {
         let (sender, receiver) = channel();
         let mut reader = None;
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 let events = world.get_resource::<Events<E>>()?;
                 let reader = match &mut reader {
@@ -199,7 +199,7 @@ impl AsyncWorldMut {
             sender
         );
         {
-            let mut lock = self.queue.queries.lock();
+            let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
         async {

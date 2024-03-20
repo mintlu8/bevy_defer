@@ -1,6 +1,5 @@
-use std::{future::Future, ops::{Deref, DerefMut}};
+use std::{future::Future, ops::{Deref, DerefMut}, rc::Rc};
 use bevy_reflect::Reflect;
-use triomphe::Arc;
 use std::fmt::Debug;
 use std::pin::Pin;
 use bevy_ecs::{component::Component, entity::Entity};
@@ -35,7 +34,7 @@ macro_rules! async_system {
             use $crate::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
             use $crate::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
             use $crate::signals::{Sender, Receiver};
-            $crate::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::Arc<$crate::AsyncQueryQueue>, signals: &$crate::signals::Signals| {
+            $crate::AsyncSystem::new(move |entity: $crate::Entity, executor: ::std::rc::Rc<$crate::AsyncQueryQueue>, signals: &$crate::signals::Signals| {
                 $(let $field = <$ty as $crate::AsyncEntityParam>::fetch_signal(signals)?;)*
                 Some(async move {
                     $(let $field = <$ty as $crate::AsyncEntityParam>::from_async_context(entity, &executor, $field);)*
@@ -48,20 +47,20 @@ macro_rules! async_system {
     };
 }
 
-type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + Send + Sync + 'static>>;
+type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + 'static>>;
 
 /// An async system function.
 pub struct AsyncSystem {
     pub(crate) function: Box<dyn FnMut(
         Entity,
-        &Arc<AsyncQueryQueue>,
+        &Rc<AsyncQueryQueue>,
         &Signals,
     ) -> Option<PinnedFut> + Send + Sync> ,
     pub(crate) marker: ParentAlive,
 }
 
 impl AsyncSystem {
-    pub fn new<F>(mut f: impl FnMut(Entity, Arc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + Send + Sync + 'static {
+    pub fn new<F>(mut f: impl FnMut(Entity, Rc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + 'static {
         AsyncSystem {
             function: Box::new(move |entity, executor, signals| {
                 f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
@@ -134,7 +133,7 @@ pub trait AsyncEntityParam<'t>: Sized {
     /// Obtain `Self` from the async context.
     fn from_async_context(
         entity: Entity,
-        executor: &'t Arc<AsyncQueryQueue>,
+        executor: &'t Rc<AsyncQueryQueue>,
         signal: Self::Signal,
     ) -> Self;
 }

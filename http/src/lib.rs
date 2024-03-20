@@ -26,8 +26,8 @@ use http_body_util::BodyExt;
 use hyper::client::conn::http1::handshake;
 
 pub trait HyperHttpClientExt {
-    fn http_get(&self, uri: &str) -> impl Future<Output = Result<Vec<u8>, HttpError>> + Send;
-    fn http_request<T: Body + 'static>(&self, request: hyper::Request<T>) -> impl Future<Output = Result<Vec<u8>, HttpError>> + Send 
+    fn http_get(&self, uri: &str) -> impl Future<Output = Result<Vec<u8>, HttpError>>;
+    fn http_request<T: Body + 'static>(&self, request: hyper::Request<T>) -> impl Future<Output = Result<Vec<u8>, HttpError>> 
         where T: Send, T::Data: Send, T::Error: std::error::Error + Send + Sync;
 }
 

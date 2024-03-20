@@ -1,4 +1,4 @@
-use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, sync::atomic::Ordering, task::Poll};
+use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, rc::Rc, sync::atomic::Ordering, task::Poll};
 use std::future::Future;
 use bevy_reflect::Reflect;
 use triomphe::Arc;
@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 use crate::object::{Object, AsObject};
 use crate::{AsyncQueryQueue, AsyncEntityParam};
-use crate::signal_inner::{SignalInner, YieldNow};
+use crate::signal_inner::SignalInner;
 pub use crate::signal_inner::{Signal, SignalData};
 
 /// A marker type that indicates the type and purpose of a signal.
@@ -330,7 +330,7 @@ impl <'t, T: SignalId> AsyncEntityParam<'t> for Sender<T>  {
 
     fn from_async_context(
             _: Entity,
-            _: &Arc<AsyncQueryQueue>,
+            _: &Rc<AsyncQueryQueue>,
             signal: Self::Signal,
         ) -> Self {
         Sender(
@@ -426,8 +426,6 @@ impl<T: SignalId<Data = Object>> Receiver<T> {
             let obj = signal.async_read().await;
             if let Some(data) = obj.get() {
                 return data;
-            } else {
-                YieldNow::new().await
             }
         }
     }
@@ -443,7 +441,7 @@ impl <'t, T: SignalId> AsyncEntityParam<'t> for Receiver<T>  {
 
     fn from_async_context(
             _: Entity,
-            _: &Arc<AsyncQueryQueue>,
+            _: &Rc<AsyncQueryQueue>,
             signal: Self::Signal,
         ) -> Self {
         Receiver(

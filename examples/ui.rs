@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_defer::{async_system, signals::{Signals, TypedSignal}, ui::AsyncUIButton, world, AsyncExtension, AsyncSystems, DefaultAsyncPlugin};
+use bevy_defer::{async_system, signals::{Signals, TypedSignal}, ui::AsyncUIButton, world, AsyncCommandsExtension, AsyncSystems, DefaultAsyncPlugin};
 use bevy_defer::ui::{ui_reactor, UIClickCancelled, UIClick, UIInteractionChange, UILoseFocus, UIObtainFocus, UIPressed};
 use bevy_ui::RelativeCursorPosition;
 use futures::FutureExt;
@@ -170,7 +170,7 @@ fn setup(mut commands: Commands) {
             ));
         });
 
-    commands.spawn_task(async move {
+    commands.spawn_task(move || async move {
         let world = world();
         let entity = world.entity(btn_entity);
         let btn = entity.query::<AsyncUIButton>();

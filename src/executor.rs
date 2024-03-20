@@ -1,17 +1,18 @@
+use std::cell::RefCell;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::task::{Poll, Waker};
 use std::{mem, ops::Deref};
 use bevy_ecs::system::{NonSend, NonSendMut};
-use bevy_ecs::{entity::Entity, system::{Query, Res, Resource}, world::World};
+use bevy_ecs::{entity::Entity, system::Query, world::World};
 use bevy_log::trace;
-use bevy_reflect::Reflect;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
-use futures::channel::oneshot::Sender;
 use futures::executor::LocalPool;
 use futures::task::LocalSpawnExt;
 use futures::{Future, FutureExt};
 use parking_lot::Mutex;
 use triomphe::Arc;
+use crate::channels::Sender;
 use crate::{world_scope, AsyncSystems};
 use crate::signals::{Signals, DUMMY_SIGNALS};
 
@@ -102,14 +103,14 @@ impl Drop for ChildAlive {
 
 
 /// A deferred parallelizable query on a `World`.
-pub struct BoxedReadonlyCallback {
+pub struct ParallelQueryCallback {
     command: Option<Box<dyn FnOnce(&World) + Send + 'static>>
 }
 
-impl BoxedReadonlyCallback {
+impl ParallelQueryCallback {
     pub fn new<Out: Send + Sync + 'static>(
         query: impl (FnOnce(&World) -> Out) + Send + 'static,
-        channel: Sender<Out>
+        channel: futures::channel::oneshot::Sender<Out>
     ) -> Self {
         Self {
             command: Some(Box::new(move |w| {
@@ -123,13 +124,13 @@ impl BoxedReadonlyCallback {
 }
 
 /// A deferred query on a `World`.
-pub struct BoxedQueryCallback {
-    command: Box<dyn FnOnce(&mut World) -> Option<BoxedQueryCallback> + Send + 'static>
+pub struct QueryCallback {
+    command: Box<dyn FnOnce(&mut World) -> Option<QueryCallback> + 'static>
 }
 
-impl BoxedQueryCallback {
+impl QueryCallback {
     pub fn fire_and_forget(
-        query: impl (FnOnce(&mut World)) + Send + 'static,
+        query: impl (FnOnce(&mut World)) + 'static,
     ) -> Self {
         Self {
             command: Box::new(move |w| {
@@ -139,8 +140,8 @@ impl BoxedQueryCallback {
         }
     }
 
-    pub fn once<Out: Send + 'static>(
-        query: impl (FnOnce(&mut World) -> Out) + Send + 'static,
+    pub fn once<Out: 'static>(
+        query: impl (FnOnce(&mut World) -> Out) + 'static,
         channel: Sender<Out>
     ) -> Self {
         Self {
@@ -154,8 +155,8 @@ impl BoxedQueryCallback {
         }
     }
 
-    pub fn repeat<Out: Send + 'static>(
-        mut query: impl (FnMut(&mut World) -> Option<Out>) + Send + 'static,
+    pub fn repeat<Out: 'static>(
+        mut query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
         channel: Sender<Out>
     ) -> Self {
         Self {
@@ -168,7 +169,7 @@ impl BoxedQueryCallback {
                         None
                     }
                     None => {
-                        Some(BoxedQueryCallback::repeat(query, channel))
+                        Some(QueryCallback::repeat(query, channel))
                     }
                 }
 
@@ -181,8 +182,8 @@ impl BoxedQueryCallback {
 /// Queue for deferred queries applied on the [`World`].
 #[derive(Default)]
 pub struct AsyncQueryQueue {
-    pub readonly: Mutex<Vec<BoxedReadonlyCallback>>,
-    pub queries: Mutex<Vec<BoxedQueryCallback>>,
+    pub readonly: RefCell<Vec<ParallelQueryCallback>>,
+    pub queries: RefCell<Vec<QueryCallback>>,
 }
 
 /// Resource containing a reference to an async executor.
@@ -192,15 +193,15 @@ pub struct AsyncExecutor(pub(crate) LocalPool);
 impl std::fmt::Debug for AsyncQueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AsyncExecutor")
-            .field("readonly", &self.readonly.lock().len())
-            .field("queries", &self.queries.lock().len())
+            .field("readonly", &self.readonly.borrow().len())
+            .field("queries", &self.queries.borrow().len())
             .finish()
     }
 }
 
 /// Queue for deferred queries applied on the [`World`].
-#[derive(Default, Resource, Reflect)]
-pub struct QueryQueue(#[reflect(ignore)] pub(crate) Arc<AsyncQueryQueue>);
+#[derive(Default)]
+pub struct QueryQueue(pub(crate) Rc<AsyncQueryQueue>);
 
 impl Deref for QueryQueue {
     type Target = AsyncQueryQueue;
@@ -214,10 +215,10 @@ impl Deref for QueryQueue {
 pub fn run_async_queries(
     w: &mut World,
 ) {
-    let executor = w.resource::<QueryQueue>().0.clone();
+    let executor = w.non_send_resource::<QueryQueue>().0.clone();
     // always dropped
     let mut readonly: Vec<_> = {
-        let mut lock = executor.readonly.lock();
+        let mut lock = executor.readonly.borrow_mut();
         mem::take(lock.as_mut())
     };
 
@@ -229,7 +230,7 @@ pub fn run_async_queries(
     }
     
     {
-        let mut lock = executor.queries.lock();
+        let mut lock = executor.queries.borrow_mut();
         let inner: Vec<_> = mem::take(lock.as_mut());
         *lock = inner.into_iter().filter_map(|query| (query.command)(w)).collect();
     }
@@ -237,7 +238,7 @@ pub fn run_async_queries(
 
 /// Run [`AsyncExecutor`]
 pub fn run_async_executor(
-    queue: Res<QueryQueue>,
+    queue: NonSend<QueryQueue>,
     mut executor: NonSendMut<AsyncExecutor>
 ) {
     world_scope(&queue.0, executor.0.spawner(), || {
@@ -246,8 +247,8 @@ pub fn run_async_executor(
 }
 
 /// Push inactive [`AsyncSystems`] to the executor.
-pub fn push_async_systems(
-    executor: Res<QueryQueue>,
+pub(crate) fn push_async_systems(
+    executor: NonSend<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
     mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems)>
 ) {

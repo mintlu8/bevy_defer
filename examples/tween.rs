@@ -31,7 +31,7 @@ fn main() {
                 Vec3::new(-100.0, 100.0, 0.0)
             ).await.unwrap();
             entity.component::<Transform>().interpolate_to(
-                |t| t.translation, 
+                |t| t.translation,
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0, 

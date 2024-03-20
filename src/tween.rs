@@ -1,17 +1,34 @@
-use std::{cell::OnceCell, ops::{Add, Mul}, time::Duration};
+use std::{cell::{Cell, OnceCell}, ops::{Add, Mul}, rc::Rc, time::Duration};
 use bevy_ecs::{component::Component, world::World};
-use bevy_log::trace;
 use bevy_time::{Fixed, Time};
-use futures::channel::oneshot::channel;
+use crate::channels::channel;
 use ref_cast::RefCast;
 
 use crate::{AsyncComponent, AsyncFailure, AsyncResult, AsyncWorldMut, CHANNEL_CLOSED};
+
+#[derive(Debug, Clone)]
+pub struct Cancellation(Rc<Cell<bool>>);
+
+impl Cancellation {
+    pub fn new(&self) -> Cancellation {
+        Cancellation(Rc::new(Cell::new(false)))
+    }
+
+    pub fn cancel(&self) {
+        self.0.set(true)
+    }
+}
+
+pub struct FixedTask {
+    task: Box<dyn FnMut(&mut World, Duration) -> bool>,
+    cancel: Option<Cancellation>,
+}
 
 
 /// A non-send thread-local queue running on `FixedUpdate`.
 #[derive(Default)]
 pub struct FixedQueue{
-    inner: Vec<Box<dyn FnMut(&mut World, Duration) -> bool>>
+    inner: Vec<FixedTask>
 }
 
 pub fn run_fixed_queue(
@@ -19,29 +36,72 @@ pub fn run_fixed_queue(
 ) {
     let Some(mut queue) = world.remove_non_send_resource::<FixedQueue>() else { return; };
     let delta_time = world.resource::<Time<Fixed>>().delta();
-    queue.inner.retain_mut(|x| !x(world, delta_time));
+    queue.inner.retain_mut(|x| {
+        if let Some(cell) = &x.cancel {
+            if cell.0.get() {
+                return false;
+            }
+        }
+        !(x.task)(world, delta_time)
+    });
     world.insert_non_send_resource(queue);
 }
 
 impl AsyncWorldMut {
     /// Run a repeatable routine on `FixedUpdate`, with access to delta time.
-    pub async fn fixed_routine<T: Send + 'static>(&self, mut f: impl FnMut(&mut World, Duration) -> Option<T> + Send + 'static) -> T {
+    pub async fn fixed_routine<T: Send + 'static>(
+        &self, 
+        mut f: impl FnMut(&mut World, Duration) -> Option<T> + Send + 'static
+    ) -> T {
         let (sender, receiver) = channel();
         let mut sender = Some(sender);
         self.run(|w| {
             w.non_send_resource_mut::<FixedQueue>().inner.push(
-                Box::new(move |world, dt| {
-                    if let Some(item) = f(world, dt) {
-                        if let Some(sender) = sender.take() {
-                            if sender.send(item).is_err() {
-                                trace!("Error: one-shot channel closed.")
+                FixedTask {
+                    task: Box::new(move |world, dt| {
+                        if let Some(item) = f(world, dt) {
+                            if let Some(sender) = sender.take() {
+                                // We do not log errors here.
+                                let _ = sender.send(item);
                             }
+                            true
+                        } else {
+                            false
                         }
-                        true
-                    } else {
-                        false
-                    }
-                })
+                    }),
+                    cancel: None
+                }
+            )
+        }).await;
+        receiver.await.expect(CHANNEL_CLOSED)
+    }
+
+    /// Run a repeatable routine on `FixedUpdate`, with access to delta time.
+    /// 
+    /// Use cancellation to cancel the routine.
+    pub async fn fixed_routine_with_cancellation<T: Send + 'static>(
+        &self, 
+        mut f: impl FnMut(&mut World, Duration) -> Option<T> + Send + 'static, 
+        cancellation: Cancellation
+    ) -> T {
+        let (sender, receiver) = channel();
+        let mut sender = Some(sender);
+        self.run(|w| {
+            w.non_send_resource_mut::<FixedQueue>().inner.push(
+                FixedTask {
+                    task: Box::new(move |world, dt| {
+                        if let Some(item) = f(world, dt) {
+                            if let Some(sender) = sender.take() {
+                                // We do not log errors here.
+                                let _ = sender.send(item);
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }),
+                    cancel: Some(cancellation)
+                }
             )
         }).await;
         receiver.await.expect(CHANNEL_CLOSED)
@@ -126,13 +186,14 @@ impl<T: Component> AsyncComponent<'_, T> {
         mut curve: impl FnMut(f32) -> f32 + Send + 'static,
         duration: impl AsSeconds,
         mut span: impl FnMut(f32) -> V + Send + 'static,
-        playback: Playback
+        playback: Playback,
+        cancel: Cancellation,
     ) -> AsyncResult<()> {
         let world = AsyncWorldMut::ref_cast(self.executor.as_ref());
         let entity = self.entity;
         let duration = duration.as_secs();
         let mut t = 0.0;
-        world.fixed_routine(move |world, dt| {
+        world.fixed_routine_with_cancellation(move |world, dt| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
                 return Some(Err(AsyncFailure::EntityNotFound));
             };
@@ -156,6 +217,6 @@ impl<T: Component> AsyncComponent<'_, T> {
             } 
             access(component.as_mut(), span(curve(t)));
             None
-        }).await
+        }, cancel).await
     }
 }

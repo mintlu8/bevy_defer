@@ -1,33 +1,45 @@
-use std::{borrow::Cow, future::Future, marker::PhantomData, ops::Deref};
-use futures::channel::oneshot::channel;
+use std::{borrow::Cow, future::Future, marker::PhantomData, ops::Deref, rc::Rc};
+use bevy_log::error;
+use crate::channels::channel;
 use futures::executor::LocalSpawner;
 use futures::task::LocalSpawnExt;
 use futures::FutureExt;
-use triomphe::Arc;
-use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{Res, Resource, SystemParam}};
-use crate::{AsyncComponent, AsyncEntityParam, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam, QueryQueue};
+use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{NonSend, Resource, SystemParam}};
+use crate::{AsyncComponent, AsyncEntityParam, AsyncEntityQuery, AsyncExecutor, AsyncQuery, AsyncResource, AsyncResult, AsyncSystemParam, QueryQueue};
 use ref_cast::RefCast;
 use super::AsyncQueryQueue;
 
 /// [`SystemParam`] for obtaining an [`AsyncWorldMut`].
 #[derive(SystemParam)]
 pub struct AsyncWorld<'w, 's> {
-    executor: Res<'w, QueryQueue>,
+    queue: NonSend<'w, QueryQueue>,
+    executor: NonSend<'w, AsyncExecutor>,
     p: PhantomData<&'s ()>
+}
+
+impl AsyncWorld<'_, '_> {
+    pub fn spawn(&self, fut: impl Future<Output = AsyncResult> + 'static) {
+        let _ = self.executor.0.spawner().spawn_local(async move {
+            match fut.await {
+                Ok(()) => (),
+                Err(err) => error!("Async Failure: {err}.")
+            }
+        });
+    }
 }
 
 impl Deref for AsyncWorld<'_, '_> {
     type Target = AsyncWorldMut;
 
     fn deref(&self) -> &Self::Target {
-        AsyncWorldMut::ref_cast(&self.executor.as_ref().0)
+        AsyncWorldMut::ref_cast(&self.queue.0)
     }
 }
 
 scoped_tls::scoped_thread_local!(static ASYNC_WORLD: AsyncWorldMut);
 scoped_tls::scoped_thread_local!(static SPAWNER: LocalSpawner);
 
-pub(crate) fn world_scope<T>(executor: &Arc<AsyncQueryQueue>, pool: LocalSpawner, f: impl FnOnce() -> T) -> T{
+pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: LocalSpawner, f: impl FnOnce() -> T) -> T{
     ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), ||{
         SPAWNER.set(&pool, f)
     })
@@ -41,7 +53,7 @@ pub(crate) fn world_scope<T>(executor: &Arc<AsyncQueryQueue>, pool: LocalSpawner
 /// if dropped, the associated future will be dropped by the executor.
 ///
 /// Can only be used inside a `bevy_defer` future.
-pub fn spawn<T: Send + 'static>(fut: impl Future<Output = T> + Send + 'static) -> impl Future<Output = T> {
+pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
     }
@@ -86,7 +98,7 @@ use bevy_ecs::{world::World, system::Commands};
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
 pub struct AsyncWorldMut {
-    pub(crate) queue: Arc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
 }
 
 impl AsyncWorldMut {
@@ -143,7 +155,7 @@ impl AsyncWorldMut {
 /// Async version of `EntityMut` or `EntityCommands`.
 pub struct AsyncEntityMut<'t> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Cow<'t, Arc<AsyncQueryQueue>>,
+    pub(crate) executor: Cow<'t, Rc<AsyncQueryQueue>>,
 }
 
 impl Deref for AsyncEntityMut<'_> {
@@ -222,7 +234,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncWorldMut {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Arc<AsyncQueryQueue>,
+        executor: &'t Rc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut{
@@ -240,7 +252,7 @@ impl<'t> AsyncEntityParam<'t> for &'t AsyncWorldMut {
 
     fn from_async_context(
         _: Entity,
-        executor: &'t Arc<AsyncQueryQueue>,
+        executor: &'t Rc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut::ref_cast(executor)
@@ -256,7 +268,7 @@ impl<'t> AsyncEntityParam<'t> for AsyncEntityMut<'t> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &'t Arc<AsyncQueryQueue>,
+        executor: &'t Rc<AsyncQueryQueue>,
         _: Self::Signal,
     ) -> Self {
         AsyncEntityMut{

@@ -1,8 +1,8 @@
-use futures::channel::oneshot::channel;
+use crate::channels::channel;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
 use std::future::Future;
-use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, BoxedQueryCallback, CHANNEL_CLOSED};
+use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
 
 impl AsyncEntityMut<'_> {
 
@@ -10,7 +10,7 @@ impl AsyncEntityMut<'_> {
     pub fn insert(&self, bundle: impl Bundle) -> impl Future<Output = Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| {e.insert(bundle);})
@@ -19,7 +19,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -31,7 +31,7 @@ impl AsyncEntityMut<'_> {
     pub fn remove<T: Bundle>(&self) -> impl Future<Output = Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| {e.remove::<T>();})
@@ -40,7 +40,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -52,7 +52,7 @@ impl AsyncEntityMut<'_> {
     pub fn retain<T: Bundle>(&self) -> impl Future<Output = Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| {e.retain::<T>();})
@@ -61,7 +61,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -75,7 +75,7 @@ impl AsyncEntityMut<'_> {
     pub fn take<T: Bundle>(&self) -> impl Future<Output = Result<Option<T>, AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| e.take::<T>())
@@ -84,7 +84,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -96,7 +96,7 @@ impl AsyncEntityMut<'_> {
     pub fn spawn_child(&self, bundle: impl Bundle) -> impl Future<Output = AsyncResult<Entity>> {
         let (sender, receiver) = channel::<Option<Entity>>();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_entity_mut(entity).map(|mut entity| {
                     let mut id = Entity::PLACEHOLDER;
@@ -107,7 +107,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -120,7 +120,7 @@ impl AsyncEntityMut<'_> {
     pub fn add_child(&self, child: Entity) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut entity| {entity.add_child(child);})
@@ -129,7 +129,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -141,7 +141,7 @@ impl AsyncEntityMut<'_> {
     pub fn despawn(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 DespawnRecursive {
                     entity
@@ -150,7 +150,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -162,7 +162,7 @@ impl AsyncEntityMut<'_> {
     pub fn despawn_descendants(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 DespawnChildrenRecursive {
                     entity
@@ -171,7 +171,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -183,7 +183,7 @@ impl AsyncEntityMut<'_> {
     pub fn send<S: SignalId>(&self, data: S::Data) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
                     return Err(AsyncFailure::EntityNotFound)
@@ -197,7 +197,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
@@ -209,7 +209,7 @@ impl AsyncEntityMut<'_> {
     pub fn recv<S: SignalId>(&self) -> impl Future<Output = AsyncResult<S::Data>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = BoxedQueryCallback::once(
+        let query = QueryCallback::once(
             move |world: &mut World| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
                     return Err(AsyncFailure::EntityNotFound)
@@ -225,7 +225,7 @@ impl AsyncEntityMut<'_> {
             sender
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {

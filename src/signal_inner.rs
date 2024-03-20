@@ -4,7 +4,7 @@ use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 use triomphe::Arc;
 
 use std::sync::atomic::Ordering;
-use std::future::{poll_fn, Future};
+use std::future::poll_fn;
 use parking_lot::Mutex;
 
 use crate::{AsObject, Object};
@@ -26,7 +26,7 @@ pub struct SignalInner<T> {
     pub(crate) tick: AtomicU32,
 }
 
-/// A piece of shared data that contains a version number for synchronization.
+/// A piece of shared data that can be read once per write.
 #[derive(Debug, Default)]
 pub struct Signal<T> {
     pub(super) inner: Arc<SignalInner<T>>
@@ -40,26 +40,6 @@ impl<T> Clone for Signal<T> {
                 tick: AtomicU32::new(self.inner.tick.load(Ordering::Relaxed))
             })
         }
-    }
-}
-
-pub(crate) struct YieldNow(bool);
-
-impl YieldNow {
-    pub fn new() -> Self {
-        Self(false)
-    }
-}
-
-impl Future for YieldNow {
-    type Output = ();
-
-    fn poll(mut self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        if self.0 {
-            return Poll::Ready(());
-        }
-        self.0 = true;
-        Poll::Pending
     }
 }
 

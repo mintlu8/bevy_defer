@@ -3,10 +3,10 @@ use std::{borrow::Cow, ops::Deref, pin::pin};
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, query::QueryState, world::World};
 use bevy_hierarchy::Children;
-use futures::{channel::oneshot::channel, Future};
+use futures::Future;
 use ref_cast::RefCast;
-
-use crate::{AsyncEntityMut, AsyncWorldMut, BoxedQueryCallback, ResQueryCache, CHANNEL_CLOSED};
+use crate::channels::channel;
+use crate::{AsyncEntityMut, AsyncWorldMut, QueryCallback, ResQueryCache, CHANNEL_CLOSED};
 
 #[derive(RefCast)]
 #[repr(transparent)]
@@ -52,7 +52,7 @@ impl AsyncScene<'_> {
         let (sender, receiver) = channel();
         let name = name.into();
         let entity = self.entity;
-        let query = BoxedQueryCallback::repeat(
+        let query = QueryCallback::repeat(
             move |world: &mut World| {
                 match world.remove_resource::<ResQueryCache<Q, ()>>() {
                     Some(mut state) => {
@@ -67,12 +67,11 @@ impl AsyncScene<'_> {
                         result
                     }
                 }
-            }
-            ,
+            },
             sender,
         );
         {
-            let mut lock = self.executor.queries.lock();
+            let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
         async {
