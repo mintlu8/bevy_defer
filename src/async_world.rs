@@ -55,7 +55,7 @@ pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: LocalSpawner,
 /// if dropped, the associated future will be dropped by the executor.
 ///
 /// Can only be used inside a `bevy_defer` future.
-pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
+pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
     }
@@ -76,7 +76,7 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<
 /// Spawn a `bevy_defer` compatible future.
 /// 
 /// The spawned future will not be dropped until finished.
-pub fn spawn_and_forget<T: Send + 'static>(fut: impl Future<Output = T> + Send + 'static) {
+pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn_and_forget can only be used in a bevy_defer future.")
     }
@@ -154,6 +154,7 @@ impl AsyncWorldMut {
     }
 }
 
+#[derive(Debug, Clone)]
 /// Async version of `EntityMut` or `EntityCommands`.
 pub struct AsyncEntityMut {
     pub(crate) entity: Entity,

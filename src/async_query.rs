@@ -17,12 +17,14 @@ use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
 pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
 
 /// Async version of [`Query`]
+#[derive(Debug, Clone)]
 pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
 /// Async version of [`Query`] on a single entity.
+#[derive(Debug, Clone)]
 pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
     pub(crate) executor: Rc<AsyncQueryQueue>,

@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::atomic::AtomicBool
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
-use bevy_defer::{signal_ids, spawn, world, AsyncComponent, AsyncComponentDeref, AsyncExtension, AsyncFailure, DefaultAsyncPlugin};
+use bevy_defer::{signal_ids, spawn_scoped, world, AsyncComponent, AsyncComponentDeref, AsyncExtension, AsyncFailure, DefaultAsyncPlugin};
 use futures::FutureExt;
 use ref_cast::RefCast;
 signal_ids! {
@@ -120,7 +120,7 @@ pub fn main() {
         // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
         let animator = richard.component::<Animator>();
         animator.animate("Wave").await?;
-        let audio = spawn(sound_routine(richard_entity));
+        let audio = spawn_scoped(sound_routine(richard_entity));
         // Dance for 5 seconds with `select`.
         futures::select!(
             _ = animator.animate("Dance").fuse() => (),

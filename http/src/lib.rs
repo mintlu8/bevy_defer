@@ -35,7 +35,7 @@ impl<F> hyper::rt::Executor<F> for BevyDeferExecutor where
         F: Future + Send + 'static,
         F::Output: Send + 'static,{
     fn execute(&self, fut: F) {
-        bevy_defer::spawn_and_forget(fut);
+        bevy_defer::spawn(fut);
     }
 }
 

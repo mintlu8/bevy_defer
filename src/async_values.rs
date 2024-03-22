@@ -13,7 +13,7 @@ use crate::{AsyncEntityParam, CHANNEL_CLOSED};
 use super::{AsyncQueryQueue, AsyncFailure, QueryCallback, ParallelQueryCallback, AsyncResult};
 
 /// Async version of [`SystemParam`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AsyncSystemParam<P: SystemParam>{
     pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<P>
@@ -80,7 +80,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
 }
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AsyncComponent<C: Component>{
     pub(crate) entity: Entity,
     pub(crate) executor: Rc<AsyncQueryQueue>,
@@ -237,7 +237,7 @@ impl<C: Component> AsyncComponent<C> {
 }
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AsyncResource<R: Resource>{
     pub(crate) executor: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<R>

@@ -73,8 +73,11 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
 
 impl<T> Inner<T> {
     fn send(&self, t: T) -> Result<(), T> {
-        if self.complete.get() {
+        if self.complete.replace(true) {
             return Err(t);
+        }
+        if let Some(waker) = self.recv_waker.take() {
+            waker.wake()
         }
         self.data.set(t)
     }
