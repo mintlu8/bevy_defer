@@ -121,6 +121,11 @@ impl AsyncSystems {
         self.systems.push(sys);
         self
     }
+
+    pub fn extend(mut self, systems: AsyncSystems) -> Self {
+        self.systems.extend(systems.systems);
+        self
+    }
 }
 
 /// A parameter of an [`AsyncSystem`].

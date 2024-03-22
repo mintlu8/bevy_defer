@@ -407,6 +407,13 @@ impl<T: SignalId> RoleSignal<T> {
 }
 
 impl Signals {
+    pub fn extend(mut self, other: Signals) -> Signals {
+        self.senders.extend(other.senders);
+        self.receivers.extend(other.receivers);
+        self.adaptors.extend(other.adaptors);
+        self
+    }
+
     pub fn and<A: SignalId>(self, other: RoleSignal<A>) -> Signals {
         match other {
             RoleSignal::Sender(s) => self.with_sender::<A>(s),

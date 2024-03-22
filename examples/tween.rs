@@ -19,32 +19,36 @@ fn main() {
                 ..Default::default()
             }).await;
             entity.component::<Transform>().interpolate_to(
+                Vec3::new(-100.0, -100.0, 0.0),
                 |t| t.translation, 
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0, 
-                Vec3::new(-100.0, -100.0, 0.0)
+                ()
             ).await.unwrap();
             entity.component::<Transform>().interpolate_to(
+                Vec3::new(-100.0, 100.0, 0.0),
                 |t| t.translation, 
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0, 
-                Vec3::new(-100.0, 100.0, 0.0)
+                ()
             ).await.unwrap();
             entity.component::<Transform>().interpolate_to(
+                Vec3::new(100.0, 0.0, 0.0),
                 |t| t.translation,
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0, 
-                Vec3::new(100.0, 0.0, 0.0)
+                ()
             ).await.unwrap();
             entity.component::<Transform>().interpolate_to(
+                Vec3::new(0.0, 0.0, 0.0),
                 |t| t.translation, 
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0, 
-                Vec3::new(0.0, 0.0, 0.0)
+                ()
             ).await.unwrap();
             Ok(())
         })
@@ -62,30 +66,31 @@ fn main() {
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
             let _fut = spawn(comp.interpolate(
+                |x| Vec3::new(0.0, 200.0, 0.0).lerp(Vec3::new(0.0, -200.0, 0.0), x),
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0,
-                |x| Vec3::new(0.0, 200.0, 0.0).lerp(Vec3::new(0.0, -200.0, 0.0), x),
                 Playback::Bounce,
                 &cancel,
             ));
             world.sleep(Duration::from_secs(6)).await;
             cancel.cancel();
             comp.interpolate_to(
+                Vec3::new(0.0, 0.0, 0.0),
                 |t| t.translation, 
                 |t, v| t.translation = v, 
                 |x| x * x, 
                 2.0, 
-                Vec3::new(0.0, 0.0, 0.0)
+                (),
             ).await.unwrap();
             
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
             let _fut = spawn(comp.interpolate(
+                |x| Vec3::new(0.0, 0.0, 0.0).lerp(Vec3::new(200.0, 0.0, 0.0), x),
                 |t, v| t.translation = v, 
                 |x| x, 
                 2.0,
-                |x| Vec3::new(0.0, 0.0, 0.0).lerp(Vec3::new(200.0, 0.0, 0.0), x),
                 Playback::Loop,
                 &cancel,
             ));
