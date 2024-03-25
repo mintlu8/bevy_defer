@@ -3,7 +3,7 @@ use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt, Handle};
-use bevy_defer::{world, AsyncExtension, DefaultAsyncPlugin};
+use bevy_defer::{world, AsyncExtension, AsyncPlugin};
 use bevy_reflect::TypePath;
 
 #[derive(Debug, Asset, TypePath)]
@@ -40,14 +40,14 @@ pub fn procedural(){
     app.add_plugins(MinimalPlugins);
     app.init_asset_loader::<JsonNumberLoader>();
     app.init_asset::<JsonNumber>();
-    app.add_plugins(DefaultAsyncPlugin);
+    app.add_plugins(AsyncPlugin::default_settings());
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {
         let world = world();
-        let one: Handle<JsonNumber> = world.load_asset("1.json").await?;
-        let four: Handle<JsonNumber> = world.load_asset("4.json").await?;
-        let sixty_nine: Handle<JsonNumber> = world.load_asset("69.json").await?;
+        let one: Handle<JsonNumber> = world.load_asset("1.json");
+        let four: Handle<JsonNumber> = world.load_asset("4.json");
+        let sixty_nine: Handle<JsonNumber> = world.load_asset("69.json");
         assert_eq!(world.asset(&one, |x| x.0).await?, 1);
         assert_eq!(world.asset(&four, |x| x.0).await?, 4);
         assert_eq!(world.asset(&sixty_nine, |x| x.0).await?, 69);
@@ -71,16 +71,16 @@ pub fn concurrent(){
     app.add_plugins(MinimalPlugins);
     app.init_asset_loader::<JsonNumberLoader>();
     app.init_asset::<JsonNumber>();
-    app.add_plugins(DefaultAsyncPlugin);
+    app.add_plugins(AsyncPlugin::default_settings());
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {
         let world = world();
-        let (one, four, sixty_nine) = futures::try_join!(
+        let (one, four, sixty_nine) = (
             world.load_asset::<JsonNumber>("1.json"),
             world.load_asset::<JsonNumber>("4.json"),
             world.load_asset::<JsonNumber>("69.json"),
-        )?;
+        );
 
         let (one, four, sixty_nine) = futures::try_join!(
             world.asset(&one, |x| x.0),
@@ -110,7 +110,7 @@ pub fn direct(){
     app.add_plugins(MinimalPlugins);
     app.init_asset_loader::<JsonNumberLoader>();
     app.init_asset::<JsonNumber>();
-    app.add_plugins(DefaultAsyncPlugin);
+    app.add_plugins(AsyncPlugin::default_settings());
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {

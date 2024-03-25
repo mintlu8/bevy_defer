@@ -1,3 +1,6 @@
+//! Tweening for `bevy_defer`.
+
+
 use std::{cell::{Cell, OnceCell}, ops::{Add, Mul}, rc::Rc, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration};
 use bevy_ecs::{component::Component, world::World};
 use bevy_time::{Fixed, Time};
@@ -5,7 +8,8 @@ use futures::Future;
 use crate::channels::channel;
 use ref_cast::RefCast;
 
-use crate::{AsyncComponent, AsyncFailure, AsyncResult, AsyncWorldMut};
+use crate::{AsyncFailure, AsyncResult};
+use crate::access::{AsyncComponent, AsyncWorldMut};
 
 /// Shared object for cancelling a running task.
 #[derive(Debug, Clone, Default)]
@@ -65,78 +69,64 @@ impl SyncCancellation {
     }
 }
 
-mod sealed {
-    use std::{marker::PhantomData, sync::atomic::Ordering};
+/// Cancellation token for a running task.
+#[derive(Debug, Clone)]
+pub enum TaskCancellation {
+    Unsync(Cancellation),
+    Sync(SyncCancellation),
+    None
+}
 
-    use super::{CancelOnDrop, CancelOnDropSync, Cancellation, SyncCancellation};
-
-    /// Shared object for cancelling a running task.
-    #[derive(Debug, Clone)]
-    pub enum TaskCancellation {
-        Unsync(Cancellation),
-        Sync(SyncCancellation),
-        None
-    }
-
-    impl TaskCancellation {
-        pub fn cancelled(&self) -> bool {
-            match self {
-                TaskCancellation::Unsync(cell) => cell.0.get(),
-                TaskCancellation::Sync(b) => b.0.load(Ordering::Relaxed),
-                TaskCancellation::None => false,
-            }
-        }
-    }
-    impl Into<TaskCancellation> for () {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::None
-        }
-    }
-
-    impl<T> Into<TaskCancellation> for PhantomData<T> {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::None
-        }
-    }
-    
-    impl Into<TaskCancellation> for Cancellation {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::Unsync(self)
-        }
-    }
-
-    impl Into<TaskCancellation> for &Cancellation {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::Unsync(self.clone())
-        }
-    }
-
-    impl Into<TaskCancellation> for SyncCancellation {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::Sync(self)
-        }
-    }
-
-    impl Into<TaskCancellation> for &SyncCancellation {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::Sync(self.clone())
-        }
-    }
-
-    impl Into<TaskCancellation> for &CancelOnDrop {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::Unsync(self.0.clone())
-        }
-    }
-
-    impl Into<TaskCancellation> for &CancelOnDropSync {
-        fn into(self) -> TaskCancellation {
-            TaskCancellation::Sync(self.0.clone())
+impl TaskCancellation {
+    pub fn cancelled(&self) -> bool {
+        match self {
+            TaskCancellation::Unsync(cell) => cell.0.get(),
+            TaskCancellation::Sync(b) => b.0.load(Ordering::Relaxed),
+            TaskCancellation::None => false,
         }
     }
 }
+impl Into<TaskCancellation> for () {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::None
+    }
+}
 
-use sealed::*;
+impl Into<TaskCancellation> for Cancellation {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::Unsync(self)
+    }
+}
+
+impl Into<TaskCancellation> for &Cancellation {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::Unsync(self.clone())
+    }
+}
+
+impl Into<TaskCancellation> for SyncCancellation {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::Sync(self)
+    }
+}
+
+impl Into<TaskCancellation> for &SyncCancellation {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::Sync(self.clone())
+    }
+}
+
+impl Into<TaskCancellation> for &CancelOnDrop {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::Unsync(self.0.clone())
+    }
+}
+
+impl Into<TaskCancellation> for &CancelOnDropSync {
+    fn into(self) -> TaskCancellation {
+        TaskCancellation::Sync(self.0.clone())
+    }
+}
 
 
 /// A Task running on `FixedUpdate`.
@@ -152,6 +142,7 @@ pub struct FixedQueue{
     inner: Vec<FixedTask>
 }
 
+/// Run [`FixedQueue`] on `FixedUpdate`.
 pub fn run_fixed_queue(
     world: &mut World
 ) {
@@ -209,6 +200,7 @@ impl AsyncWorldMut {
     }
 }
 
+/// Looping information for tweening.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Playback {
     #[default]
@@ -217,6 +209,7 @@ pub enum Playback {
     Bounce,
 }
 
+/// Types that can be linearly interpolated.
 pub trait Lerp: Clone + Send + 'static {
     fn lerp(from: Self, to: Self, fac: f32) -> Self;
 }
@@ -247,9 +240,6 @@ impl AsSeconds for Duration {
 impl<T: Component> AsyncComponent<T> {
 
     /// Interpolate to a new value from the previous value.
-    /// 
-    /// `Into<TaskCancellation>` accepts `()`, 
-    /// [`Cancellation`](Cancellation) or [`SyncCancellation`](SyncCancellation).
     pub fn interpolate_to<V: Lerp>(
         &self, 
         to: V,
@@ -291,9 +281,6 @@ impl<T: Component> AsyncComponent<T> {
     /// 
     /// It is recommended to `spawn` the result instead of awaiting it directly
     /// if not [`Playback::Once`].
-    /// 
-    /// `Into<TaskCancellation>` accepts `()`, 
-    /// [`Cancellation`](Cancellation) or [`SyncCancellation`](SyncCancellation).
     /// 
     /// ```
     /// let fut = spawn(interpolate(.., Playback::Loop, &cancel));

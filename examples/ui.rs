@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_defer::{async_system, signals::{Signals, TypedSignal}, ui::AsyncUIButton, world, AsyncCommandsExtension, AsyncSystems, DefaultAsyncPlugin};
+use bevy_defer::{async_system, signals::{Signals, TypedSignal}, ui::AsyncUIButton, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
 use bevy_defer::ui::{ui_reactor, UIClickCancelled, UIClick, UIInteractionChange, UILoseFocus, UIObtainFocus, UIPressed};
 use bevy_ui::RelativeCursorPosition;
 use futures::FutureExt;
@@ -7,7 +7,7 @@ use futures::FutureExt;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(DefaultAsyncPlugin)
+        .add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, setup)
         .add_systems(Update, button_system)
         .add_systems(Update, ui_reactor)

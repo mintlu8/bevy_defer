@@ -1,3 +1,5 @@
+//! Reactors for `bevy_ui`.
+
 use crate::signal_ids;
 use bevy_math::Vec2;
 use crate::signals::Signals;
@@ -69,8 +71,8 @@ mod sealed {
     use bevy_ui::{Interaction, RelativeCursorPosition};
     use ref_cast::RefCast;
 
-    use crate::{AsyncEntityQuery, AsyncEntityQueryDeref};
-
+    use crate::access::AsyncEntityQuery;
+    use crate::extensions::AsyncEntityQueryDeref;
     /// [`QueryData`] for asynchronously accessing a UI button's state.
     #[derive(Debug, QueryData)]
     pub struct AsyncUIButton {

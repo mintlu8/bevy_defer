@@ -161,8 +161,3 @@ impl<T> Future for Receiver<T> {
         self.0.recv(cx)
     }
 }
-
-
-pub use futures::channel::oneshot::channel as sync_channel;
-pub use futures::channel::oneshot::Sender as SyncSender;
-pub use futures::channel::oneshot::Sender as SyncReceiver;

@@ -1,4 +1,4 @@
-use crate::{signals::Signals, QueryCallback, CHANNEL_CLOSED};
+use crate::{async_world::AsyncWorldMut, signals::Signals, QueryCallback, CHANNEL_CLOSED};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
@@ -11,8 +11,8 @@ use std::{
     borrow::Borrow, future::Future, marker::PhantomData, ops::Deref, rc::Rc
 };
 use crate::channels::channel;
-use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, AsyncEntityParam};
-
+use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, async_systems::AsyncEntityParam};
+use futures::FutureExt;
 #[derive(Debug, Resource)]
 pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
 
@@ -67,9 +67,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Run a function on the iterator returned by [`Query`] and obtain the result.
@@ -98,9 +96,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
 
@@ -111,10 +107,10 @@ impl<'t, T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, 
         Some(())
     }
 
-    fn from_async_context(entity: Entity, executor: &Rc<AsyncQueryQueue>, _: ()) -> Self {
+    fn from_async_context(entity: Entity, executor: &AsyncWorldMut, _: ()) -> Self {
         Self {
             entity,
-            executor: executor.clone(),
+            executor: executor.queue.clone(),
             p: PhantomData,
         }
     }
@@ -150,13 +146,13 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            match receiver.await {
+        receiver.map(|r| {
+            match r {
                 Ok(Some(out)) => Ok(out),
                 Ok(None) => Err(AsyncFailure::ComponentNotFound),
                 Err(_) => Err(AsyncFailure::ChannelClosed),
             }
-        }
+        })
     }
 
     /// Run a repeatable function on the [`Query`] and obtain the result once [`Some`] is returned.
@@ -186,9 +182,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
 

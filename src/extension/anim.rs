@@ -4,7 +4,7 @@ use bevy_animation::{AnimationClip, AnimationPlayer, RepeatAnimation};
 use bevy_asset::Handle;
 use ref_cast::RefCast;
 
-use crate::{AsyncComponent, AsyncComponentDeref, AsyncResult};
+use crate::{access::AsyncComponent, extensions::AsyncComponentDeref, AsyncResult};
 
 #[derive(RefCast)]
 #[repr(transparent)]
@@ -13,7 +13,7 @@ pub struct AsyncAnimationPlayer(AsyncComponent<AnimationPlayer>);
 impl AsyncComponentDeref for AnimationPlayer {
     type Target = AsyncAnimationPlayer;
 
-    fn async_deref(this: &crate::AsyncComponent<Self>) -> &Self::Target {
+    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target {
         AsyncAnimationPlayer::ref_cast(this)
     }
 }

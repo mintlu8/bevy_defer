@@ -1,11 +1,11 @@
 use std::{cell::OnceCell, future::Future, time::Duration};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
-use crate::channels::channel;
-use bevy_asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle};
+use crate::{channels::channel, locals::ASSET_SERVER};
+use bevy_asset::{Asset, AssetId, AssetPath, Assets, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
 use bevy_time::Time;
-use crate::{AsyncEntityMut, AsyncFailure, AsyncResult, AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
+use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
     /// Applies a command, causing it to mutate the world.
@@ -284,38 +284,31 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Run a function on an `Asset` and obtain the handle.
-    /// 
+    /// Load an asset from an [`AssetPath`], equivalent to `AssetServer::load`.
     /// Does not wait for `Asset` to be loaded.
+    /// 
+    /// # Panics
+    /// 
+    /// If `AssetServer` does not exist in the world.
     pub fn load_asset<A: Asset>(
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
-    ) -> impl Future<Output = AsyncResult<Handle<A>>> {
-        let (sender, receiver) = channel();
-        let query = QueryCallback::once(
-            move |world: &mut World| {
-                world.get_resource::<AssetServer>()
-                    .ok_or(AsyncFailure::ResourceNotFound)
-                    .map(|x| x.load(path))
-            },
-            sender
-        );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+    ) -> Handle<A> {
+        ASSET_SERVER.with(|s| s.load::<A>(path))
     }
 
-    /// Load an asset from a [`AssetPath`], then run a function on the loaded [`Asset`] to obtain the result.
+    /// Load an asset from a [`AssetPath`],
+    /// then run a function on the loaded [`Asset`] to obtain the result.
+    /// 
+    /// # Panics
+    /// 
+    /// If `AssetServer` does not exist in the world.
     pub async fn load_direct<A: Asset, T: Send + 'static>(
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
         mut f: impl FnMut(Handle<A>, &A) -> T + Send + 'static,
     ) -> AsyncResult<T> {
-        let handle = self.load_asset(path).await?;
+        let handle = self.load_asset(path);
         self.asset(&handle.clone_weak(), move |x| f(handle.clone(), x)).await
     }
 
@@ -324,7 +317,7 @@ impl AsyncWorldMut {
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
     ) -> AsyncResult<A> {
-        let handle = self.load_asset(path).await?;
+        let handle = self.load_asset(path);
         self.take_asset(&handle).await
     }
 }

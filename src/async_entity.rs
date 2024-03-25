@@ -1,6 +1,7 @@
 use crate::channels::channel;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
+use futures::FutureExt;
 use std::future::Future;
 use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
 
@@ -22,9 +23,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Removes any components in the [`Bundle`] from the entity.
@@ -43,9 +42,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Removes any components except those in the [`Bundle`] from the entity.
@@ -64,9 +61,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Removes all components in the [`Bundle`] from the entity and returns their previous values.
@@ -87,9 +82,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Spawns an entity with the given bundle and inserts it into the parent entity's Children.
@@ -110,10 +103,8 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-                .ok_or(AsyncFailure::EntityNotFound)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED)
+            .ok_or(AsyncFailure::EntityNotFound))
     }
 
     /// Adds a single child.
@@ -132,9 +123,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Despawns the given entity and all its children recursively.
@@ -153,9 +142,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Despawns the given entity's children recursively.
@@ -174,9 +161,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Send data through a signal on this entity.
@@ -200,9 +185,7 @@ impl AsyncEntityMut {
             let mut lock = self.executor.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Receive data from a signal on this entity.

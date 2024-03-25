@@ -1,9 +1,9 @@
-use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, rc::Rc, sync::atomic::Ordering, task::Poll};
+use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, sync::atomic::Ordering, task::Poll};
 use std::future::Future;
-use triomphe::Arc;
+use std::sync::Arc;
 use bevy_ecs::entity::Entity;
-use crate::object::{Object, AsObject};
-use crate::{AsyncQueryQueue, AsyncEntityParam};
+use crate::{async_world::AsyncWorldMut, object::{AsObject, Object}};
+use crate::async_systems::AsyncEntityParam;
 use super::{signal_component::Signals, signal_inner::SignalInner};
 pub use super::signal_inner::{Signal, SignalData};
 
@@ -180,7 +180,7 @@ impl<T: SignalId> AsyncEntityParam for Sender<T>  {
 
     fn from_async_context(
             _: Entity,
-            _: &Rc<AsyncQueryQueue>,
+            _: &AsyncWorldMut,
             signal: Self::Signal,
         ) -> Self {
         Sender(
@@ -291,7 +291,7 @@ impl<T: SignalId> AsyncEntityParam for Receiver<T>  {
 
     fn from_async_context(
             _: Entity,
-            _: &Rc<AsyncQueryQueue>,
+            _: &AsyncWorldMut,
             signal: Self::Signal,
         ) -> Self {
         Receiver(

@@ -1,11 +1,12 @@
 use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 use bevy_log::error;
 use crate::channels::channel;
+use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam};
 use futures::executor::LocalSpawner;
 use futures::task::LocalSpawnExt;
 use futures::FutureExt;
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{NonSend, Resource, SystemParam}};
-use crate::{AsyncComponent, AsyncEntityParam, AsyncEntityQuery, AsyncExecutor, AsyncQuery, AsyncResource, AsyncResult, AsyncSystemParam, QueryQueue};
+use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
 use ref_cast::RefCast;
 use super::AsyncQueryQueue;
 
@@ -93,6 +94,11 @@ pub fn world() -> AsyncWorldMut {
     ASYNC_WORLD.with(|w| AsyncWorldMut{ queue: w.queue.clone() })
 }
 
+/// Returns `true` if in async context, for diagnostics purpose only.
+pub fn in_async_context() -> bool {
+    ASYNC_WORLD.is_set()
+}
+
 #[allow(unused)]
 use bevy_ecs::{world::World, system::Commands};
 
@@ -126,7 +132,19 @@ impl AsyncWorldMut {
             executor: self.queue.clone(),
             p: PhantomData
         }
+    }
 
+
+    /// Obtain an [`AsyncNonSend`] of the entity.
+    /// 
+    /// # Note
+    /// 
+    /// This does not mean the resource exists in the world.
+    pub fn non_send_resource<R: 'static>(&self) -> AsyncNonSend<R> {
+        AsyncNonSend { 
+            executor: self.queue.clone(),
+            p: PhantomData
+        }
     }
 
     /// Obtain an [`AsyncQuery`].
@@ -229,11 +247,11 @@ impl AsyncEntityParam for AsyncWorldMut {
 
     fn from_async_context(
         _: Entity,
-        executor: &Rc<AsyncQueryQueue>,
+        executor: &AsyncWorldMut,
         _: Self::Signal,
     ) -> Self {
         AsyncWorldMut{
-            queue: executor.clone()
+            queue: executor.queue.clone()
         }
     }
 }
@@ -247,12 +265,12 @@ impl AsyncEntityParam for AsyncEntityMut {
 
     fn from_async_context(
         entity: Entity,
-        executor: &Rc<AsyncQueryQueue>,
+        executor: &AsyncWorldMut,
         _: Self::Signal,
     ) -> Self {
         AsyncEntityMut{
             entity,
-            executor: executor.clone()
+            executor: executor.queue.clone()
         }
     }
 }

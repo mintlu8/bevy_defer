@@ -13,6 +13,7 @@
 //! - [ ] WASM support.
 
 use std::{future::Future, net::TcpStream};
+use bevy_defer::access::AsyncWorldMut;
 use async_io::Async;
 use bevy_defer::spawn;
 pub use smol_hyper::rt::FuturesIo;
@@ -51,7 +52,7 @@ pub enum HttpError {
     InvalidUri(#[from] hyper::http::uri::InvalidUri),
 }
 
-impl HyperHttpClientExt for bevy_defer::AsyncWorldMut {
+impl HyperHttpClientExt for AsyncWorldMut {
 
     async fn http_get(&self, uri: &str) -> Result<Vec<u8>, HttpError> {
         let uri = uri.parse::<hyper::Uri>()?;
@@ -118,7 +119,7 @@ mod test {
     use std::sync::atomic::AtomicBool;
 
     use bevy::{app::App, MinimalPlugins};
-    use bevy_defer::{world, AsyncExtension, DefaultAsyncPlugin};
+    use bevy_defer::{world, AsyncExtension, AsyncPlugin};
 
     use crate::HyperHttpClientExt;
 
@@ -127,7 +128,7 @@ mod test {
         static LOCK: AtomicBool = AtomicBool::new(false);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.add_plugins(DefaultAsyncPlugin);
+        app.add_plugins(AsyncPlugin::default_settings());
         app.spawn_task(async {
             world().http_get("http://httpbin.org/ip").await.unwrap();
             LOCK.store(true, std::sync::atomic::Ordering::Relaxed);

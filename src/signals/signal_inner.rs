@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::task::Waker;
 use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
-use triomphe::Arc;
+use std::sync::Arc;
 
 use std::sync::atomic::Ordering;
 use std::future::poll_fn;

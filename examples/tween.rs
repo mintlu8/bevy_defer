@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy_defer::{spawn, tween::{Cancellation, Playback}, world, AsyncExtension, DefaultAsyncPlugin};
+use bevy_defer::{spawn, tween::{Cancellation, Playback}, world, AsyncExtension, AsyncPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(DefaultAsyncPlugin)
+        .add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, setup)
         .spawn_task(async {
             let world = world();

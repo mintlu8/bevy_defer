@@ -1,59 +1,11 @@
-use std::fmt::Debug;
-use std::{borrow::Borrow, marker::PhantomData};
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
-use bevy_ecs::{system::Resource, world::World};
+use bevy_ecs::world::World;
 use futures::Future;
-use parking_lot::Mutex;
-use rustc_hash::FxHashMap;
-use triomphe::Arc;
+use std::sync::Arc;
 use crate::channels::channel;
 use crate::{AsyncFailure, AsyncResult};
-use crate::{signals::SignalInner, AsyncExtension, AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
+use crate::{signals::SignalInner, AsyncExtension, access::AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
 use crate::signals::{SignalData, SignalId};
-
-/// A resource containing named signals.
-#[derive(Resource)]
-pub struct NamedSignals<T: SignalId>{
-    map: Mutex<FxHashMap<String, Arc<SignalData<T::Data>>>>,
-    p: PhantomData<T>
-}
-
-impl<T: SignalId> Debug for NamedSignals<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NamedSignals").field("map", &self.map.lock().len()).finish()
-    }
-}
-
-impl<T: SignalId> Default for NamedSignals<T> {
-    fn default() -> Self {
-        Self { map: Default::default(), p: Default::default() }
-    }
-}
-
-impl<T: SignalId> NamedSignals<T> {
-    /// Obtain a named signal.
-    pub fn get(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>{
-        if let Some(data) = self.map.get_mut().get(name.borrow()){
-            data.clone()
-        } else {
-            let data = Arc::new(SignalData::default());
-            self.map.get_mut().insert(name.into(), data.clone());
-            data
-        }
-    }
-
-    /// Obtain a named signal through locking.
-    pub fn get_from_ref(&self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>{
-        let mut map = self.map.lock();
-        if let Some(data) = map.get(name.borrow()){
-            data.clone()
-        } else {
-            let data = Arc::new(SignalData::default());
-            map.insert(name.into(), data.clone());
-            data
-        }
-    }
-}
 
 impl AsyncWorldMut {
     /// Obtain a named signal.

@@ -3,7 +3,7 @@ use bevy_ecs::component::Component;
 use bevy_log::debug;
 use bevy_reflect::Reflect;
 use rustc_hash::FxHashMap;
-use triomphe::Arc;
+use std::sync::Arc;
 use crate::Object;
 use super::{signal_inner::SignalInner, Signal, SignalId, SignalMapper, TypedSignal};
 

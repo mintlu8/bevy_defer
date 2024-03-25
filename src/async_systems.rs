@@ -1,13 +1,15 @@
-use std::{future::Future, ops::{Deref, DerefMut}, rc::Rc};
+//! Per-entity repeatable async functions.
+
+use std::{future::Future, ops::{Deref, DerefMut}, sync::Arc, task::{Poll, Waker}};
 use bevy_reflect::Reflect;
+use parking_lot::Mutex;
 use std::fmt::Debug;
 use std::pin::Pin;
 use bevy_ecs::{component::Component, entity::Entity};
-use crate::{signals::Signals, AsyncResult};
-use crate::ParentAlive;
-use super::{AsyncQueryQueue, AsyncFailure};
+use crate::{async_world::AsyncWorldMut, signals::Signals, AsyncResult};
+use super::AsyncFailure;
 #[allow(unused)]
-use crate::{AsyncComponent, signals::{Sender, Receiver}};
+use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 
 /// Macro for constructing an async system via the [`AsyncEntityParam`] abstraction.
 /// 
@@ -31,20 +33,78 @@ use crate::{AsyncComponent, signals::{Sender, Receiver}};
 macro_rules! async_system {
     (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
         {
-            use $crate::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
-            use $crate::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
+            use $crate::access::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
+            use $crate::access::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
             use $crate::signals::{Sender, Receiver};
-            $crate::AsyncSystem::new(move |entity: $crate::Entity, executor: ::std::rc::Rc<$crate::AsyncQueryQueue>, signals: &$crate::signals::Signals| {
-                $(let $field = <$ty as $crate::AsyncEntityParam>::fetch_signal(signals)?;)*
+            $crate::async_systems::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::access::AsyncWorldMut, signals: &$crate::signals::Signals| {
+                $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::fetch_signal(signals)?;)*
                 Some(async move {
-                    $(let $field = <$ty as $crate::AsyncEntityParam>::from_async_context(entity, &executor, $field);)*
+                    $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::from_async_context(entity, &executor, $field);)*
                     let _ = $body;
                     Ok(())
                 })
             })
         }
-        
     };
+}
+
+/// A shared storage that cleans up associated futures
+/// when their associated entity is destroyed.
+#[derive(Debug, Default)]
+pub(crate) struct ParentAlive(Arc<Mutex<Option<Waker>>>);
+
+impl ParentAlive {
+    pub fn new() -> Self {
+        ParentAlive::default()
+    }
+    pub fn other_alive(&self) -> bool {
+        Arc::strong_count(&self.0) > 1
+    }
+    pub fn clone_child(&self) -> ChildAlive {
+        ChildAlive {
+            inner: self.0.clone(),
+            init: false,
+        }
+    }
+}
+
+impl Drop for ParentAlive {
+    fn drop(&mut self) {
+        if let Some(waker) = self.0.lock().take() {
+            waker.wake()
+        }
+    }
+}
+
+
+/// A shared storage that cleans up associated futures
+/// when their associated entity is destroyed.
+#[derive(Debug, Default)]
+pub(crate) struct ChildAlive{
+    inner: Arc<Mutex<Option<Waker>>>,
+    init: bool,
+}
+
+impl Future for ChildAlive {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        if Arc::strong_count(&self.inner) <= 1 {
+            Poll::Ready(())
+        } else if !self.init {
+            self.init = true;
+            *self.inner.lock() = Some(cx.waker().clone());
+            Poll::Pending
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl Drop for ChildAlive {
+    fn drop(&mut self) {
+        *self.inner.lock() = None
+    }
 }
 
 type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + 'static>>;
@@ -53,14 +113,14 @@ type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + 'static
 pub struct AsyncSystem {
     pub(crate) function: Box<dyn FnMut(
         Entity,
-        &Rc<AsyncQueryQueue>,
+        &AsyncWorldMut,
         &Signals,
     ) -> Option<PinnedFut> + Send + Sync> ,
     pub(crate) marker: ParentAlive,
 }
 
 impl AsyncSystem {
-    pub fn new<F>(mut f: impl FnMut(Entity, Rc<AsyncQueryQueue>, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + 'static {
+    pub fn new<F>(mut f: impl FnMut(Entity, AsyncWorldMut, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + 'static {
         AsyncSystem {
             function: Box::new(move |entity, executor, signals| {
                 f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
@@ -138,7 +198,7 @@ pub trait AsyncEntityParam: Sized {
     /// Obtain `Self` from the async context.
     fn from_async_context(
         entity: Entity,
-        executor: &Rc<AsyncQueryQueue>,
+        executor: &AsyncWorldMut,
         signal: Self::Signal,
     ) -> Self;
 }

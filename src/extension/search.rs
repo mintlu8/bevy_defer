@@ -6,7 +6,7 @@ use bevy_hierarchy::Children;
 use futures::Future;
 use ref_cast::RefCast;
 use crate::channels::channel;
-use crate::{AsyncEntityMut, AsyncWorldMut, QueryCallback, ResQueryCache, CHANNEL_CLOSED};
+use crate::{access::{AsyncEntityMut, AsyncWorldMut}, QueryCallback, async_query::ResQueryCache, CHANNEL_CLOSED};
 
 #[derive(RefCast)]
 #[repr(transparent)]

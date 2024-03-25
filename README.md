@@ -6,16 +6,59 @@
 
 A simple asynchronous runtime for executing deferred queries.
 
-## Getting Started
+## Motivation
 
-There are two main ways to utilize this crate, `spawn_task` and `AsyncSystems`.
+Async rust is incredible for modelling wait centric tasks,
+not utilizing async in game development is a huge waste of potential.
 
-## Spawning in a Sync Context
+Imagine we want to model a rapid sword attack animation, in async rust this is straightforward:
 
-This is a straightforward way to implement some logic that can wait
-for signals, animations or other events to complete.
-In fact you can create your game logic
-entirely in async rust!
+```rust
+swing_animation().await;
+show_damage_number().await;
+damage_vfx().await;
+
+swing_animation().await;
+show_damage_number().await;
+damage_vfx().await;
+
+...
+```
+
+What if we want damage number and damage vfx to run concurrently and wait for both
+before out next attack? Simple!
+
+```rust
+futures::join! {
+    show_damage_number(),
+    damage_vfx()
+};
+
+swing_animation().await;
+```
+
+## Bridging Sync and Async
+
+Communicating between sync and async in notoriously difficult. See
+this amazing tokio article: <https://tokio.rs/tokio/topics/bridging>.
+Fortunately since we are running an executor on top of a event loop some
+of these issues can a alleviated.
+
+Communicating from sync to async is simple, async code can hand out channels
+and `await` on them, pausing the task.
+Once sync code sends data through the channel, it will
+wake and resume the corresponding task.
+
+Communicating from async to sync usually requires mutating the world in an async
+function, then a system can listen for that particular change in sync code.
+Fortunately for us, since systems run once per frame anyway this is not a huge cost.
+
+## Spawning
+
+Spawning is a straightforward way to run some logic immediately.
+
+You can use the task to control some local states or simply
+run your entire game in async rust!
 
 ```rust
 commands.spawn_task(async move {
@@ -32,7 +75,7 @@ commands.spawn_task(async move {
     let richard = world.entity(richard_entity);
     // We can also mutate the world asynchronously.
     richard.component::<HP>().set(|hp| hp.set(500)).await?;
-    // Move to a component's scope, does not verify the entity exists.
+    // Move to a component's scope, does not verify the entity or component exists.
     let animator = richard.component::<Animator>();
     // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
     animator.animate("Wave").await?;
@@ -55,9 +98,36 @@ commands.spawn_task(async move {
 
 You can call spawn on `Commands`, `World` or `App`.
 
+## The Types
+
+This crate provides types mimicking bevy's types:
+
+| Query Type | Corresponding Bevy/Sync Type |
+| ---- | ----- |
+| `AsyncWorldMut` | `World` / `Commands` |
+| `AsyncEntityMut` | `EntityMut` / `EntityCommands` |
+| `AsyncQuery` | `WorldQuery` |
+| `AsyncEntityQuery` | `WorldQuery` on `Entity` |
+| `AsyncSystemParam` | `SystemParam` |
+| `AsyncComponent` | `Component` |
+| `AsyncResource` | `Resource` |
+| `AsyncNonSend` | `NonSend` |
+
+`world` can be accessed by the `world()` method and
+for example a `Component` can be accessed by
+
+```rust
+world().entity(entity).component::<Transform>()
+```
+
+None of these verifies the item exists since we don't own the world,
+access methods may fail if the item does not exist.
+
 ## AsyncSystems
 
-`AsyncSystems` is a system-like async function capable of driving reactive UIs and other similar use cases.
+`AsyncSystem` is a system-like async function on a specific entity.
+
+
 
 The concept behind AsyncSystems is straightforward: by adding components `Signals` and `AsyncSystems`,
 we enable the execution of deferred queries through asynchronous semantics.

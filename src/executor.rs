@@ -1,19 +1,17 @@
 use std::cell::RefCell;
-use std::pin::Pin;
 use std::rc::Rc;
-use std::task::{Poll, Waker};
 use std::{mem, ops::Deref};
-use bevy_ecs::system::{Local, NonSend, NonSendMut};
+use bevy_asset::AssetServer;
+use bevy_ecs::system::{Local, NonSend, NonSendMut, Res, StaticSystemParam};
 use bevy_ecs::{entity::Entity, system::Query, world::World};
 use bevy_log::debug;
-use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use futures::executor::LocalPool;
 use futures::task::LocalSpawnExt;
-use futures::{Future, FutureExt};
-use parking_lot::Mutex;
-use triomphe::Arc;
+use futures::FutureExt;
+use ref_cast::RefCast;
+use crate::async_world::AsyncWorldMut;
 use crate::channels::Sender;
-use crate::{world_scope, AsyncSystems};
+use crate::{world_scope, async_systems::AsyncSystems, LocalResourceScope};
 use crate::signals::Signals;
 
 /// Standard errors for the async runtime.
@@ -40,87 +38,6 @@ pub enum AsyncFailure {
     ScheduleNotFound,
     #[error("system param error")]
     SystemParamError,
-}
-
-/// A shared storage that cleans up associated futures
-/// when their associated entity is destroyed.
-#[derive(Debug, Default)]
-pub(crate) struct ParentAlive(Arc<Mutex<Option<Waker>>>);
-
-impl ParentAlive {
-    pub fn new() -> Self {
-        ParentAlive::default()
-    }
-    pub fn other_alive(&self) -> bool {
-        Arc::count(&self.0) > 1
-    }
-    pub fn clone_child(&self) -> ChildAlive {
-        ChildAlive {
-            inner: self.0.clone(),
-            init: false,
-        }
-    }
-}
-
-impl Drop for ParentAlive {
-    fn drop(&mut self) {
-        if let Some(waker) = self.0.lock().take() {
-            waker.wake()
-        }
-    }
-}
-
-
-/// A shared storage that cleans up associated futures
-/// when their associated entity is destroyed.
-#[derive(Debug, Default)]
-pub(crate) struct ChildAlive{
-    inner: Arc<Mutex<Option<Waker>>>,
-    init: bool,
-}
-
-impl Future for ChildAlive {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        if Arc::count(&self.inner) <= 1 {
-            Poll::Ready(())
-        } else if !self.init {
-            self.init = true;
-            *self.inner.lock() = Some(cx.waker().clone());
-            Poll::Pending
-        } else {
-            Poll::Pending
-        }
-    }
-}
-
-impl Drop for ChildAlive {
-    fn drop(&mut self) {
-        *self.inner.lock() = None
-    }
-}
-
-
-/// A deferred parallelizable query on a `World`.
-pub struct ParallelQueryCallback {
-    command: Option<Box<dyn FnOnce(&World) + Send + 'static>>
-}
-
-impl ParallelQueryCallback {
-    pub fn new<Out: Send + Sync + 'static>(
-        query: impl (FnOnce(&World) -> Out) + Send + 'static,
-        channel: futures::channel::oneshot::Sender<Out>
-    ) -> Self {
-        Self {
-            command: Some(Box::new(move |w| {
-                let result = query(w);
-                if channel.send(result).is_err() {
-                    debug!("Error: one-shot channel closed.")
-                }
-            }))
-        }
-    }
 }
 
 /// A deferred query on a `World`.
@@ -182,7 +99,6 @@ impl QueryCallback {
 /// Queue for deferred queries applied on the [`World`].
 #[derive(Default)]
 pub struct AsyncQueryQueue {
-    pub readonly: RefCell<Vec<ParallelQueryCallback>>,
     pub queries: RefCell<Vec<QueryCallback>>,
 }
 
@@ -193,7 +109,6 @@ pub struct AsyncExecutor(pub(crate) LocalPool);
 impl std::fmt::Debug for AsyncQueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AsyncExecutor")
-            .field("readonly", &self.readonly.borrow().len())
             .field("queries", &self.queries.borrow().len())
             .finish()
     }
@@ -211,44 +126,34 @@ impl Deref for QueryQueue {
     }
 }
 
-/// Try resolve queries sent to the queue.
+/// System that tries to resolve queries sent to the queue.
 pub fn run_async_queries(
     w: &mut World,
 ) {
     let executor = w.non_send_resource::<QueryQueue>().0.clone();
-    // always dropped
-    let mut readonly: Vec<_> = {
-        let mut lock = executor.readonly.borrow_mut();
-        mem::take(lock.as_mut())
-    };
-
-    if !readonly.is_empty() {
-        let pool = ComputeTaskPool::get();
-        readonly.par_splat_map_mut(pool, None, |chunks| for item in chunks {
-            if let Some(f) = item.command.take() { f(w) }
-        });
-    }
-    
-    {
-        let mut lock = executor.queries.borrow_mut();    
-        let inner: Vec<_> = mem::take(lock.as_mut());
-        *lock = inner.into_iter().filter_map(|query| (query.command)(w)).collect();
-
-    }
+    let mut lock = executor.queries.borrow_mut();    
+    let inner: Vec<_> = mem::take(lock.as_mut());
+    *lock = inner.into_iter().filter_map(|query| (query.command)(w)).collect();
 }
 
-/// Run [`AsyncExecutor`]
-pub fn run_async_executor(
+/// System for running [`AsyncExecutor`].
+pub fn run_async_executor<R: LocalResourceScope>(
     queue: NonSend<QueryQueue>,
+    scoped: StaticSystemParam<R::Resource>,
+    // Since nobody needs mutable access to `AssetServer` this is enabled by default.
+    asset_server: Option<Res<AssetServer>>,
     mut executor: NonSendMut<AsyncExecutor>
 ) {
-    world_scope(&queue.0, executor.0.spawner(), || {
-        executor.0.run_until_stalled();
+    AssetServer::maybe_scoped(asset_server.as_ref(), ||{
+        R::scoped(&*scoped, ||world_scope(&queue.0, executor.0.spawner(), || {
+            executor.0.run_until_stalled();
+        }))
     })
+    
 }
 
-/// Push inactive [`AsyncSystems`] to the executor.
-pub(crate) fn push_async_systems(
+/// System that pushes inactive [`AsyncSystems`] to the executor.
+pub fn push_async_systems(
     dummy: Local<Signals>,
     executor: NonSend<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
@@ -261,7 +166,7 @@ pub(crate) fn push_async_systems(
             if !system.marker.other_alive() {
                 let alive = system.marker.clone_child();
 
-                let Some(fut) = (system.function)(entity, &executor.0, signals) else {continue};
+                let Some(fut) = (system.function)(entity, AsyncWorldMut::ref_cast(&executor.0), signals) else {continue};
                 let _ = spawner.spawn_local(async move {
                     futures::select_biased! {
                         _ = alive.fuse() => (),

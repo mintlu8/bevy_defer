@@ -3,7 +3,7 @@ use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
 use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
 use bevy_ecs::{component::Component, event::Event, query::With, system::{Commands, Local, Query}};
-use bevy_defer::{async_system, signal_ids, world, AsyncExtension, AsyncSystems, DefaultAsyncPlugin};
+use bevy_defer::{async_system, signal_ids, world, AsyncExtension, async_systems::AsyncSystems, AsyncPlugin};
 use bevy_defer::signals::{SignalSender, Signals, TypedSignal};
 signal_ids! {
     SigText: &'static str,
@@ -20,7 +20,7 @@ static LOCK: AtomicBool = AtomicBool::new(false);
 #[test]
 pub fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultAsyncPlugin)
+    app.add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, init)
         .add_systems(Update, update);
     app.update();
@@ -69,7 +69,7 @@ pub fn chat() {
     static ALICE: AtomicBool = AtomicBool::new(false);
     static BOB: AtomicBool = AtomicBool::new(false);
     let mut app = App::new();
-    app.add_plugins(DefaultAsyncPlugin);
+    app.add_plugins(AsyncPlugin::default_settings());
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
@@ -110,7 +110,7 @@ pub fn events() {
     static ALICE: AtomicBool = AtomicBool::new(false);
     static BOB: AtomicBool = AtomicBool::new(false);
     let mut app = App::new();
-    app.add_plugins(DefaultAsyncPlugin);
+    app.add_plugins(AsyncPlugin::default_settings());
     app.add_event::<AliceChat>();
     app.add_event::<BobChat>();
     app.add_plugins(MinimalPlugins);

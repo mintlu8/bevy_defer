@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::atomic::AtomicBool
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
-use bevy_defer::{signal_ids, spawn_scoped, world, AsyncComponent, AsyncComponentDeref, AsyncExtension, AsyncFailure, DefaultAsyncPlugin};
+use bevy_defer::{signal_ids, spawn_scoped, world, access::AsyncComponent, extensions::AsyncComponentDeref, AsyncExtension, AsyncFailure, AsyncPlugin};
 use futures::FutureExt;
 use ref_cast::RefCast;
 signal_ids! {
@@ -89,7 +89,7 @@ async fn sound_routine(entity: Entity) -> Result<(), AsyncFailure>{
 pub fn main() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.add_plugins(DefaultAsyncPlugin);
+    app.add_plugins(AsyncPlugin::default_settings());
     
     let e1 = app.world.spawn((
         HP(0),
