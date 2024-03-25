@@ -18,7 +18,7 @@ mod extension;
 mod locals;
 pub mod tween;
 pub mod channels;
-pub mod ui;
+pub mod picking;
 use bevy_ecs::{schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet}, system::{Command, Commands}, world::World};
 use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;

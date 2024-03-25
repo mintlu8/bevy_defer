@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use bevy_defer::{async_system, signals::{Signals, TypedSignal}, ui::AsyncUIButton, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
-use bevy_defer::ui::{ui_reactor, UIClickCancelled, UIClick, UIInteractionChange, UILoseFocus, UIObtainFocus, UIPressed};
+use bevy_defer::{async_system, signals::{Signals, TypedSignal}, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
+use bevy_defer::picking::{ui_reactor, AsyncUIButton, ClickCancelled, Click, UIInteractionChange, LoseFocus, ObtainFocus, Pressed};
 use bevy_ui::RelativeCursorPosition;
 use futures::FutureExt;
 
@@ -89,14 +89,14 @@ fn setup(mut commands: Commands) {
                     },
                     RelativeCursorPosition::default(),
                     Signals::new()
-                        .with_sender::<UIClick>(click.clone())
-                        .with_sender::<UIPressed>(press.clone())
-                        .with_sender::<UIObtainFocus>(focus.clone())
-                        .with_sender::<UILoseFocus>(lose.clone())
-                        .with_sender::<UIClickCancelled>(cancel.clone())
+                        .with_sender::<Click>(click.clone())
+                        .with_sender::<Pressed>(press.clone())
+                        .with_sender::<ObtainFocus>(focus.clone())
+                        .with_sender::<LoseFocus>(lose.clone())
+                        .with_sender::<ClickCancelled>(cancel.clone())
                         .with_sender::<UIInteractionChange>(state.clone()),
                     AsyncSystems::from_single(async_system!(
-                        |click: Sender<UIClick>, press: Sender<UIPressed>, focus: Sender<UIObtainFocus>, lose: Sender<UILoseFocus>, cancel: Sender<UIClickCancelled>| {
+                        |click: Sender<Click>, press: Sender<Pressed>, focus: Sender<ObtainFocus>, lose: Sender<LoseFocus>, cancel: Sender<ClickCancelled>| {
                             futures::select_biased! {
                                 pos = click.fuse() => println!("Clicked at {pos}"),
                                 pos = press.fuse() => println!("Pressed at {pos}"),
@@ -136,13 +136,13 @@ fn setup(mut commands: Commands) {
                     },
                 ),
                 Signals::new()
-                    .with_receiver::<UIClick>(click.clone())
-                    .with_receiver::<UIPressed>(press.clone())
-                    .with_receiver::<UIObtainFocus>(focus.clone())
-                    .with_receiver::<UILoseFocus>(lose.clone())
-                    .with_receiver::<UIClickCancelled>(cancel.clone()),
+                    .with_receiver::<Click>(click.clone())
+                    .with_receiver::<Pressed>(press.clone())
+                    .with_receiver::<ObtainFocus>(focus.clone())
+                    .with_receiver::<LoseFocus>(lose.clone())
+                    .with_receiver::<ClickCancelled>(cancel.clone()),
                 AsyncSystems::from_single(async_system!(
-                    |click: Receiver<UIClick>, press: Receiver<UIPressed>, focus: Receiver<UIObtainFocus>, lose: Receiver<UILoseFocus>, cancel: Receiver<UIClickCancelled>, this: AsyncComponent<Text>| {
+                    |click: Receiver<Click>, press: Receiver<Pressed>, focus: Receiver<ObtainFocus>, lose: Receiver<LoseFocus>, cancel: Receiver<ClickCancelled>, this: AsyncComponent<Text>| {
                         futures::select_biased! {
                             pos = click.fuse() => {
                                 let s = format!("Clicked at {pos}");

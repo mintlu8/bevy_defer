@@ -98,7 +98,7 @@ commands.spawn_task(async move {
 
 You can call spawn on `Commands`, `World` or `App`.
 
-## The Types
+## World Accessors
 
 This crate provides types mimicking bevy's types:
 
@@ -120,128 +120,93 @@ for example a `Component` can be accessed by
 world().entity(entity).component::<Transform>()
 ```
 
-None of these verifies the item exists since we don't own the world,
-access methods may fail if the item does not exist.
+See the `access` module for more detail.
 
-## AsyncSystems
-
-`AsyncSystem` is a system-like async function on a specific entity.
-
-
-
-The concept behind AsyncSystems is straightforward: by adding components `Signals` and `AsyncSystems`,
-we enable the execution of deferred queries through asynchronous semantics.
-This functionality can be implemented directly at entity creation site (via `Commands`) without the need for world access.
-
-`Signals` provide robust inter-entity communication, when used in conjunction with `AsyncSystems`.
-
-### Example
-
-To create an `AsyncSystems`, create an `AsyncSystem` first via a macro:
-
-```rust
-// Set scale based on received position
-let system = async_system!(|recv: Receiver<PositionChanged>, transform: AsyncComponent<Transform>|{
-    let pos: Vec3 = recv.recv().await;
-    transform.set(|transform| transform.scale = pos).await?;
-})
-```
-
-Then create a `AsyncSystems` from it:
-
-```rust
-let systems = AsyncSystems::from_single(system);
-// or
-let systems = AsyncSystems::from_iter([a, b, c, ...]);
-```
-
-Add the associated `Signal`:
-
-```rust
-let signal = Signals::from_receiver::<PositionChanged>(sig);
-```
-
-Spawn them as a `Bundle` and that's it! The async executor will
-handle it from here.
-
-### Let's break it down
-
-```rust
-Signals::from_receiver::<PositionChanged>(sig)
-```
-
-`PositionChanged` is a `SignalId`, or a discriminant + an associated type.
-In this case the type of the signal is `Vec3`. We can have multiple signals
-on an `Entity` with type `Vec3`, but not with the same `SignalId`.
-
-```rust
-|recv: Receiver<PositionChanged>, transform: AsyncComponent<Transform>| { .. }
-```
-
-`Receiver` receives the signal, `AsyncComponent` allows us to get or set data
-on a component within the same entity.
-
-Notice the function signature is a bit weird, since the macro roughly expands to
-
-```rust
-move | context | async move { 
-    let recv = from_context(context);
-    let transform = from_context(context);
-    {..}; 
-    return Ok(()); 
-}
-```
-
-The body of the `AsyncSystem`. Await will wait for queued queries to complete.
-
-```rust
-let pos: Vec3 = recv.recv().await;
-transform.set(|transform| transform.scale = pos).await?;
-```
-
-### How does this `AsyncSystem` run?
-
-You can treat this system like a loop
-
-1. At the start of the frame, run this function if not already running.
-2. Wait until something sends the signal.
-3. Write received position to the `Transform` component.
-4. Wait for the write query to complete.
-5. End and repeat step `1` on the next frame.
-
-## Supported System Params
-
-| Query Type | Corresponding Bevy/Sync Type |
-| ---- | ----- |
-| `AsyncWorldMut` | `World` / `Commands` |
-| `AsyncEntityMut` | `EntityMut` / `EntityCommands` |
-| `AsyncQuery` | `WorldQuery` |
-| `AsyncEntityQuery` | `WorldQuery` on `Entity` |
-| `AsyncSystemParam` | `SystemParam` |
-| `AsyncComponent` | `Component` |
-| `AsyncResource` | `Resource` |
-| `Sender` | `Signals` |
-| `Receiver` | `Signals` |
-
-You can create your own `AsyncEntityParam` by implementing it.
+You can add extension methods to these accessors via `Deref` if you own the
+underlying types. See the `extension` module for more details.
 
 ## Signals
 
+Signals are the cornerstone of reactive programming that bridges the sync and async world.
+The `Signals` component can be added to an entity and send data to the async world.
+
 Here are the guarantees of signals:
 
+* A `Signal` can hold only one value.
 * A `Signal` is read at most once per write for every reader.
 * Values are not guaranteed to be read if updated in rapid succession.
 * Value prior to reader creation will not be read by a new reader.
 
+`Signals` erases underlying types and utilizes the `SignalId` trait to disambiguate signals,
+this ensures no archetype fragmentation.
+
+In systems, you can use `SignalSender` and `SignalReceiver` just like you would in async,
+do keep in mind these parameters do not filter archetypes.
+
+## AsyncSystems
+
+`AsyncSystem` is a system-like async function on a specific entity.
+The component `AsyncSystems` is a collection of `AsyncSystem`s that runs independently.
+
+### Example
+
+To create an `AsyncSystem`, use a macro:
+
+```rust
+// Scale up for a second when clicked. 
+let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<Transform>|{
+    let pos: Vec3 = recv.recv().await;
+    transform.set(|transform| transform.scale = Vec3::splat(2.0)).await?;
+    world().sleep(1.0).await;
+    transform.set(|transform| transform.scale = Vec3::ONE).await?;
+})
+```
+
+The parameters implement `AsyncEntityParam`.
+
+### How an `AsyncSystem` Executes
+
+Think of an `AsyncSystem` like a loop:
+
+* if this `Future` is not running at the start of this frame, run it.
+* If the function finishes, rerun on the next frame.
+* If the entity is dropped, the `Future` will can cancelled.
+
+So this is similar to
+
+```rust
+spawn(async {
+    loop {
+        select! {
+            _ => async_system => (),
+            _ => cancel => break,
+        }
+    }
+})
+```
+
+## Thread Locals
+
+You can push resources, non-send resources and even `&World` (readonly) onto
+thread local storage during execution using the `with` function on the plugin.
+
+```rust
+AsyncPlugin::empty().with(MyResource).with(World);
+```
+
+This allows some access to be immediate without deferring.
+If `&world` is available, all `get` access is immediate.
+This would block parallelization so do keep that in mind.
+
 ## Implementation Details
 
 `bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
-this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run here.
+this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
 
 The executor runs synchronously as a part of the schedule.
 At each execution point, we will poll our futures until no progress can be made.
 
-Imagine `DefaultAsyncPlugin` is used, which means we have 3 execution points per frame, this code:
+Imagine `AsyncPlugin::default_settings()` is used, which means we have 3 execution points per frame, this code:
 
 ```rust
 let a = query1().await;
@@ -267,21 +232,6 @@ let (a, b, c, d, e, f) = futures::join! {
     query6,
 }.await;
 ```
-
-Since most methods on `AsyncWorldMut` queue the query
-immediately without needing to be polled,
-
-```rust
-let a = query1();
-let b = query2();
-let c = query3();
-
-let a = a.await;
-let b = b.await;
-let c = c.await;
-```
-
-is likely to work as well.
 
 ## Versions
 

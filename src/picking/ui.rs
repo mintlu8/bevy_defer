@@ -7,64 +7,41 @@ use bevy_ecs::{entity::Entity, system::{Query, Local}, query::Changed};
 use rustc_hash::FxHashMap;
 
 signal_ids! {
-    /// [`Interaction`](bevy_ui::Interaction) from any to `Pressed`.
-    /// 
-    /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition).
-    pub UIPressed: Vec2,
-    /// [`Interaction`](bevy_ui::Interaction) from `Pressed` to `Hovered`.
-    /// 
-    /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition).
-    pub UIClick: Vec2,
-    /// [`Interaction`](bevy_ui::Interaction) from `None` to `Hovered|Pressed`.
-    /// 
-    /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition).
-    pub UIObtainFocus: Vec2,
-    /// [`Interaction`](bevy_ui::Interaction) from `Hovered|Pressed` to `None`.
-    /// 
-    /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition).
-    pub UILoseFocus: Vec2,
-    /// [`Interaction`](bevy_ui::Interaction) from `Pressed` to `None`.
-    /// 
-    /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition).
-    pub UIClickCancelled: Vec2,
-}
-
-#[cfg(feature = "bevy_ui")]
-signal_ids! {
     /// [`Interaction`](bevy_ui::Interaction) changed in general.
     /// 
     /// Sends previous and current interaction.
     pub UIInteractionChange: (bevy_ui::Interaction, bevy_ui::Interaction)
 }
+
 /// System that provides reactivity for [`bevy_ui`], must be added manually.
-#[cfg(feature = "bevy_ui")]
 pub fn ui_reactor(
     mut prev: Local<FxHashMap<Entity, bevy_ui::Interaction>>,
     query: Query<(Entity, &Signals, &bevy_ui::Interaction, Option<&bevy_ui::RelativeCursorPosition>), Changed<bevy_ui::Interaction>>
 ) {
+    use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
+
     for (entity, signals, interaction, relative) in query.iter() {
         let previous = prev.insert(entity, *interaction).unwrap_or(bevy_ui::Interaction::None);
         let position = relative.and_then(|x| x.normalized).unwrap_or(Vec2::ZERO);
         signals.send::<UIInteractionChange>((previous, *interaction));
         use bevy_ui::Interaction;
         if interaction == &Interaction::Pressed {
-            signals.send::<UIPressed>(position);
+            signals.send::<Pressed>(position);
         }
         match (previous, interaction) {
-            (Interaction::Pressed, Interaction::Hovered) => signals.send::<UIClick>(position),
-            (Interaction::Pressed, Interaction::None) => signals.send::<UIClickCancelled>(position),
+            (Interaction::Pressed, Interaction::Hovered) => signals.send::<Click>(position),
+            (Interaction::Pressed, Interaction::None) => signals.send::<ClickCancelled>(position),
             _ => (),
         }
         if previous == Interaction::None {
-            signals.send::<UIObtainFocus>(position);
+            signals.send::<ObtainFocus>(position);
         }
         if interaction == &Interaction::None {
-            signals.send::<UILoseFocus>(position);
+            signals.send::<LoseFocus>(position);
         }
     }
 }
 
-#[cfg(feature = "bevy_ui")]
 mod sealed {
     use bevy_math::Vec2;
     use bevy_ecs::query::{QueryData, QueryFilter};
@@ -151,5 +128,4 @@ mod sealed {
     }
 }
 
-#[cfg(feature = "bevy_ui")]
 pub use sealed::AsyncUIButton;
