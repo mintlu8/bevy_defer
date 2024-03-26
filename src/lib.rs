@@ -42,7 +42,7 @@ pub mod extensions {
     //! Traits for adding extension methods on asynchronous accessors to the `World`.
     pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref};
     pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref};
-    pub use crate::event::AsyncEvent;
+    pub use crate::event::AsyncEventReader;
     pub use crate::async_asset::AsyncAsset;
 }
 

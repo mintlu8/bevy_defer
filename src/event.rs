@@ -89,18 +89,18 @@ impl AsyncWorldMut {
         }
     }
 
-    pub fn event<E: Event>(&self) -> AsyncEvent<E> {
-        AsyncEvent { queue: self.queue.clone(), reader: Default::default() }
+    pub fn event<E: Event>(&self) -> AsyncEventReader<E> {
+        AsyncEventReader { queue: self.queue.clone(), reader: Default::default() }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct AsyncEvent<E: Event> {
+pub struct AsyncEventReader<E: Event> {
     queue: Rc<AsyncQueryQueue>,
     reader: Rc<RefCell<ManualEventReader<E>>>
 }
 
-impl<E: Event> AsyncEvent<E> {
+impl<E: Event> AsyncEventReader<E> {
     /// Poll an [`Event`].
     /// 
     /// # Note
@@ -208,7 +208,7 @@ impl<E: Event> AsyncEvent<E> {
     }
 }
 
-impl<E: Event> AsyncEntityParam for AsyncEvent<E> {
+impl<E: Event> AsyncEntityParam for AsyncEventReader<E> {
     type Signal = ();
 
     fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
