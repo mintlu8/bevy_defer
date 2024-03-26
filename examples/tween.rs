@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy_defer::{spawn, tween::{Cancellation, Playback}, world, AsyncExtension, AsyncPlugin};
+use bevy_defer::{spawn, cancellation::Cancellation, tween::Playback, world, AsyncExtension, AsyncPlugin};
 
 fn main() {
     App::new()

@@ -487,3 +487,19 @@ impl<C> Deref for AsyncNonSend<C> where C: AsyncNonSendDeref{
         AsyncNonSendDeref::async_deref(self)
     }
 }
+
+/// Add method to [`AsyncSystemParam`] through deref.
+///
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
+pub trait AsyncSystemParamDeref: SystemParam + Sized {
+    type Target;
+    fn async_deref(this: &AsyncSystemParam<Self>) -> &Self::Target;
+}
+
+impl<C> Deref for AsyncSystemParam<C> where C: AsyncSystemParamDeref{
+    type Target = <C as AsyncSystemParamDeref>::Target;
+
+    fn deref(&self) -> &Self::Target {
+        AsyncSystemParamDeref::async_deref(self)
+    }
+}

@@ -1,8 +1,8 @@
-use std::{cell::OnceCell, future::Future, time::Duration};
+use std::{cell::OnceCell, future::Future};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::FutureExt;
-use crate::{async_asset::AsyncAsset, channels::channel, locals::ASSET_SERVER, signals::{Signal, SignalId, NAMED_SIGNALS}};
+use crate::{async_asset::AsyncAsset, channels::channel, locals::ASSET_SERVER, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
 use bevy_asset::{Asset, AssetPath, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
 use bevy_time::Time;
@@ -142,10 +142,11 @@ impl AsyncWorldMut {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Pause the future for the [`Duration`], according to the [`Time`] resource.
-    pub fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
+    /// Pause the future for the duration, according to the [`Time`] resource.
+    pub fn sleep(&self, duration: impl AsSeconds) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let time_cell = OnceCell::new();
+        let duration = duration.as_duration();
         let query = QueryCallback::repeat(
             move |world: &mut World| {
                 let time = world.get_resource::<Time>()?;

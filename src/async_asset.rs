@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{ops::Deref, rc::Rc};
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::world::World;
 use futures::{Future, FutureExt};
@@ -85,3 +85,19 @@ impl<A: Asset> AsyncAsset<A> {
     }
 }
 
+
+/// Add method to [`AsyncAsset`] through deref.
+///
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
+pub trait AsyncAssetDeref: Asset + Sized {
+    type Target;
+    fn async_deref(this: &AsyncAsset<Self>) -> &Self::Target;
+}
+
+impl<C> Deref for AsyncAsset<C> where C: AsyncAssetDeref{
+    type Target = <C as AsyncAssetDeref>::Target;
+
+    fn deref(&self) -> &Self::Target {
+        AsyncAssetDeref::async_deref(self)
+    }
+}

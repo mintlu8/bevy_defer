@@ -3,6 +3,7 @@ use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
 use bevy_ecs::world::World;
 use futures::Future;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::rc::Rc;
 use crate::async_systems::AsyncEntityParam;
 use crate::channels::channel;
@@ -162,5 +163,21 @@ impl<E: Event> AsyncEntityParam for AsyncEventReader<E> {
         _: &[Entity],
     ) -> Option<Self> {
         Some(executor.event::<E>())
+    }
+}
+
+/// Add method to [`AsyncEventReaderDeref`] through deref.
+///
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
+pub trait AsyncEventReaderDeref: Event + Sized {
+    type Target;
+    fn async_deref(this: &AsyncEventReader<Self>) -> &Self::Target;
+}
+
+impl<C> Deref for AsyncEventReader<C> where C: AsyncEventReaderDeref{
+    type Target = <C as AsyncEventReaderDeref>::Target;
+
+    fn deref(&self) -> &Self::Target {
+        AsyncEventReaderDeref::async_deref(self)
     }
 }

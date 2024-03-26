@@ -10,20 +10,23 @@ mod async_values;
 mod async_asset;
 pub mod async_systems;
 mod async_query;
-mod event;
+mod async_event;
 pub mod signals;
 //mod object;
 mod executor;
 mod commands;
 mod extension;
 mod locals;
+mod fixed_queue;
+pub use fixed_queue::FixedQueue;
+pub mod cancellation;
 pub mod tween;
 pub mod channels;
 pub mod picking;
 use bevy_ecs::{schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet}, system::{Command, Commands}, world::World};
 use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
-pub use executor::{AsyncFailure, AsyncExecutor, QueryQueue, QueryCallback};
+pub use executor::{AsyncExecutor, QueryQueue, QueryCallback};
 use executor::AsyncQueryQueue;
 
 pub use crate::async_world::{world, in_async_context, spawn, spawn_scoped};
@@ -36,21 +39,23 @@ pub mod access {
     pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut};
     pub use crate::async_query::{AsyncQuery, AsyncEntityQuery};
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
+    pub use crate::async_event::AsyncEventReader;
+    pub use crate::async_asset::AsyncAsset;
 }
 
 pub mod extensions {
-    //! Traits for adding extension methods on asynchronous accessors to the `World`.
-    pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref};
+    //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
+    pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref, AsyncSystemParamDeref};
     pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref};
-    pub use crate::event::AsyncEventReader;
-    pub use crate::async_asset::AsyncAsset;
+    pub use crate::async_event::AsyncEventReaderDeref;
+    pub use crate::async_asset::AsyncAssetDeref;
 }
 
 pub mod systems {
     //! Systems in `bevy_defer`.
     pub use crate::executor::{run_async_executor, run_async_queries};
     pub use crate::async_systems::push_async_systems;
-    pub use crate::tween::run_fixed_queue;
+    pub use crate::fixed_queue::run_fixed_queue;
 }
 
 use futures::{task::LocalSpawnExt, Future};
@@ -68,7 +73,7 @@ pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 pub use scoped_tls::scoped_thread_local;
 
 use signals::{NamedSignals, SignalData, SignalId, Signals};
-use tween::{run_fixed_queue, FixedQueue};
+use fixed_queue::run_fixed_queue;
 
 /// Result type of `AsyncSystemFunction`.
 pub type AsyncResult<T = ()> = Result<T, AsyncFailure>;
@@ -241,3 +246,31 @@ impl Command for SpawnFn {
     }
 }
 
+
+/// Standard errors for the async runtime.
+/// 
+/// This type is designed to be match friendly but not necessarily carry all the debugging information.
+/// It might me more correct to either match or unwrap this error instead of propagating it.
+#[derive(Debug, thiserror::Error)]
+pub enum AsyncFailure {
+    #[error("async channel closed")]
+    ChannelClosed,
+    #[error("entity not found")]
+    EntityNotFound,
+    #[error("entity not found in query")]
+    EntityQueryNotFound,
+    #[error("child index missing")]
+    ChildNotFound,
+    #[error("component not found")]
+    ComponentNotFound,
+    #[error("resource not found")]
+    ResourceNotFound,
+    #[error("event not registered")]
+    EventNotRegistered,
+    #[error("signal not found")]
+    SignalNotFound,
+    #[error("schedule not found")]
+    ScheduleNotFound,
+    #[error("system param error")]
+    SystemParamError,
+}
