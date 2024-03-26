@@ -4,11 +4,11 @@
 [![Docs](https://docs.rs/bevy_defer/badge.svg)](https://docs.rs/bevy_defer/latest/bevy_defer/)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
 
-A simple asynchronous runtime for executing deferred queries.
+A simple asynchronous runtime for executing async coroutines.
 
 ## Motivation
 
-Async rust is incredible for modelling wait centric tasks.
+Async rust is incredible for modelling wait centric tasks like coroutines.
 Not utilizing async in game development is a huge waste of potential.
 
 Imagine we want to model a rapid sword attack animation, in async rust this is straightforward:
@@ -41,27 +41,30 @@ swing_animation().await;
 
 Communicating between sync and async in notoriously difficult. See
 this amazing tokio article: <https://tokio.rs/tokio/topics/bridging>.
-Fortunately since we are running an executor on top of a event loop some
-of these issues can be alleviated.
+
+Fortunately we are running in lock step with bevy, so a lot of those headache
+can be mitigated by using proper communication methods.
 
 Communicating from sync to async is simple, async code can hand out channels
 and `await` on them, pausing the task.
 Once sync code sends data through the channel, it will
 wake and resume the corresponding task.
+`bevy_defer` heavily utilizes one-shot channels to perform its operations.
 
 Communicating from async to sync usually requires mutating the world in an async
 function, then a system can listen for that particular change in sync code.
-Fortunately for us, since systems run once per frame anyway this is not a huge cost.
+This is pretty seamless with regular bevy workflow.
 
 ## Spawning
 
 Spawning is a straightforward way to run some logic immediately.
 
-You can use a task to control some local states or simply
-run your entire game in async rust!
+You can spawn a coroutine to schedule some tasks.
+The main benefit is this function can take as long as it needs
+to complete, instead of a single frame like a normal system.
 
 ```rust
-commands.spawn_task(async move {
+commands.spawn_task(|| async move {
     // This is an `AsyncWorldMut`.
     // like tokio::spawn() this only works in the async context.
     let world = world();
@@ -96,11 +99,11 @@ commands.spawn_task(async move {
 });
 ```
 
-You can call spawn on `Commands`, `World` or `App`.
+In fact a single function can drive the entire game!
 
 ## World Accessors
 
-This crate provides types mimicking bevy's types:
+We provide types mimicking bevy's types:
 
 | Query Type | Corresponding Bevy/Sync Type |
 | ---- | ----- |
@@ -130,7 +133,8 @@ underlying types. See the `extension` module for more detail.
 ## Signals
 
 Signals are the cornerstone of reactive programming that bridges the sync and async world.
-The `Signals` component can be added to an entity and send data to the async world.
+The `Signals` component can be added to an entity, and the `NamedSignals` resource can be used to
+provide matching signals when needed.
 
 Here are the guarantees of signals:
 

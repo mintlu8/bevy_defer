@@ -7,6 +7,7 @@ use bevy_ecs::world::World;
 use bevy_log::debug;
 use futures::executor::{LocalPool, LocalSpawner};
 use crate::channels::Sender;
+use crate::signals::NamedSignals;
 use crate::{world_scope, LocalResourceScope};
 
 /// Standard errors for the async runtime.
@@ -145,12 +146,15 @@ pub fn run_async_executor<R: LocalResourceScope>(
     scoped: StaticSystemParam<R::Resource>,
     // Since nobody needs mutable access to `AssetServer` this is enabled by default.
     asset_server: Option<Res<AssetServer>>,
+    named_signal: Res<NamedSignals>,
     executor: NonSend<AsyncExecutor>
 ) {
     AssetServer::maybe_scoped(asset_server.as_ref(), ||{
-        R::scoped(&*scoped, ||world_scope(&queue.0, executor.spawner(), || {
-            executor.0.borrow_mut().run_until_stalled();
-        }))
+        NamedSignals::scoped(&named_signal, || {
+            R::scoped(&*scoped, ||world_scope(&queue.0, executor.spawner(), || {
+                executor.0.borrow_mut().run_until_stalled();
+            }))
+        })
     })
     
 }

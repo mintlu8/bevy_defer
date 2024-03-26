@@ -73,17 +73,17 @@ pub fn chat() {
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
-        assert_eq!(world.poll::<Message>("Alice").await, "Hello, Alice.");
+        assert_eq!(world.signal::<Message>("Alice").poll().await, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
-        world.send::<Message>("Bob", "Hello, Bob.".to_owned()).await;
+        world.signal::<Message>("Bob").send("Hello, Bob.".to_owned());
         ALICE.store(true, Ordering::Relaxed);
         Ok(())
     });
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
-        world.send::<Message>("Alice", "Hello, Alice.".to_owned()).await;
-        assert_eq!(world.poll::<Message>("Bob").await, "Hello, Bob.");
+        world.signal::<Message>("Alice").send("Hello, Alice.".to_owned());
+        assert_eq!(world.signal::<Message>("Bob").poll().await, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });

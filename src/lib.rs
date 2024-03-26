@@ -85,6 +85,7 @@ impl Plugin for CoreAsyncPlugin {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
             .init_non_send_resource::<FixedQueue>()
+            .init_resource::<NamedSignals>()
             .register_type::<async_systems::AsyncSystems>()
             .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
@@ -192,7 +193,7 @@ impl AsyncExtension for World {
     }
 
     fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
-        self.get_resource_or_insert_with::<NamedSignals<T>>(Default::default).get(name)
+        self.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
     }
 }
 
@@ -208,7 +209,7 @@ impl AsyncExtension for App {
     }
 
     fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
-        self.world.get_resource_or_insert_with::<NamedSignals<T>>(Default::default).get(name)
+        self.world.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
     }
 }
 

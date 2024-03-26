@@ -37,13 +37,22 @@ macro_rules! signal_ids {
     };
 }
 
-/// `AsyncSystemParam` for sending a signal.
+/// Standard [`SignalId`] for every type.
+pub enum Fac<T:  Clone + Default + Send + Sync + 'static> {
+    __Phantom(PhantomData<T>, std::convert::Infallible)
+}
+
+impl<T: Clone + Default + Send + Sync + 'static> SignalId for Fac<T> {
+    type Data = T;
+}
+
+/// [`AsyncEntityParam`] for sending a signal.
 pub struct Sender<T: SignalId>(Arc<SignalInner<T::Data>>, PhantomData<T>);
 
 impl<T: SignalId> Sender<T> {
     /// Send a value with a signal, can be polled by the same sender.
     pub fn send(self, item: T::Data) -> impl FnOnce() + Send + Sync + 'static  {
-        move ||self.0.write(item)
+        move ||self.0.send(item)
     }
 
     /// Send a value with a signal, cannot be polled by the same sender.
@@ -77,7 +86,7 @@ impl<T: SignalId> AsyncEntityParam for Sender<T>  {
     }
 }
 
-/// `AsyncSystemParam` for receiving a signal.
+/// [`AsyncEntityParam`] for receiving a signal.
 pub struct Receiver<T: SignalId>(Arc<SignalInner<T::Data>>, PhantomData<T>);
 
 impl<T: SignalId> Future for &Receiver<T> {
@@ -85,7 +94,7 @@ impl<T: SignalId> Future for &Receiver<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        pin!(signal.async_read()).poll(cx)
+        pin!(signal.poll()).poll(cx)
     }
 }
 
@@ -94,7 +103,7 @@ impl<T: SignalId> Future for &Sender<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        pin!(signal.async_read()).poll(cx)
+        pin!(signal.poll()).poll(cx)
     }
 }
 
@@ -103,7 +112,7 @@ impl<T: SignalId> Future for Receiver<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        pin!(signal.async_read()).poll(cx)
+        pin!(signal.poll()).poll(cx)
     }
 }
 
@@ -112,7 +121,7 @@ impl<T: SignalId> Future for Sender<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        pin!(signal.async_read()).poll(cx)
+        pin!(signal.poll()).poll(cx)
     }
 }
 
@@ -213,15 +222,3 @@ mod sealed {
 }
 
 pub use sealed::{SignalSender, SignalReceiver};
-
-impl Signals {
-    pub fn extend(mut self, other: Signals) -> Signals {
-        self.senders.extend(other.senders);
-        self.receivers.extend(other.receivers);
-        self
-    }
-
-    pub fn into_signals(self) -> Signals {
-        self
-    }
-}

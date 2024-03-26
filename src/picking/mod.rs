@@ -1,3 +1,5 @@
+//! Reactors for cursor interactions.
+
 use crate::signal_ids;
 use bevy_math::Vec2;
 

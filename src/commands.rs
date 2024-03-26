@@ -2,7 +2,7 @@ use std::{cell::OnceCell, future::Future, time::Duration};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::FutureExt;
-use crate::{async_asset::AsyncAsset, channels::channel, locals::ASSET_SERVER};
+use crate::{async_asset::AsyncAsset, channels::channel, locals::ASSET_SERVER, signals::{Signal, SignalId, NAMED_SIGNALS}};
 use bevy_asset::{Asset, AssetPath, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
 use bevy_time::Time;
@@ -230,6 +230,13 @@ impl AsyncWorldMut {
             queue: self.queue.clone(),
             handle: ASSET_SERVER.with(|s| s.load::<A>(path)),
         }
-        
+    }
+
+    /// Obtain or init a signal by name and [`SignalId`].
+    pub fn signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
+        if !NAMED_SIGNALS.is_set() {
+            panic!("Can only obtain named signal in async context.")
+        }
+        NAMED_SIGNALS.with(|signals| signals.get_from_ref::<T>(name)).into()
     }
 }

@@ -52,7 +52,7 @@ impl Signals {
     /// Send a signal, can be polled through the sender.
     pub fn send<T: SignalId>(&self, item: T::Data) {
         if let Some(sig) = self.senders.get(&TypeId::of::<T>()).and_then(|x| x.downcast_ref::<Signal<T::Data>>()) {
-            sig.write(item)
+            sig.send(item)
         }
     }
 
@@ -112,5 +112,15 @@ impl Signals {
     }
     pub fn has_receiver<T: SignalId>(&self) ->  bool {
         self.receivers.contains_key(&TypeId::of::<T>())
+    }
+    
+    pub fn extend(mut self, other: Signals) -> Signals {
+        self.senders.extend(other.senders);
+        self.receivers.extend(other.receivers);
+        self
+    }
+
+    pub fn into_signals(self) -> Signals {
+        self
     }
 }

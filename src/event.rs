@@ -4,73 +4,13 @@ use bevy_ecs::world::World;
 use futures::Future;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
 use crate::async_systems::AsyncEntityParam;
 use crate::channels::channel;
 use crate::executor::AsyncQueryQueue;
 use crate::{AsyncFailure, AsyncResult};
-use crate::{signals::SignalInner, AsyncExtension, access::AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
-use crate::signals::{SignalData, SignalId};
+use crate::{access::AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
-    /// Obtain a named signal.
-    pub fn signal<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = Arc<SignalData<T::Data>>> {
-        let (sender, receiver) = channel();
-        let name = name.into();
-        let query = QueryCallback::once(
-            move |world: &mut World| {
-                world.signal::<T>(name)
-            },
-            sender
-        );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
-    }
-
-    /// Poll a named signal.
-    pub fn poll<T: SignalId>(&self, name: impl Into<String>) -> impl Future<Output = T::Data> {
-        let (sender, receiver) = channel();
-        let name = name.into();
-        let query = QueryCallback::once(
-            move |world: &mut World| {
-                world.signal::<T>(name)
-            },
-            sender
-        );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            let signal = receiver.await.expect(CHANNEL_CLOSED);
-            Arc::new(SignalInner::from(signal)).async_read().await
-        }
-    }
-
-    /// Send data through a named signal.
-    pub fn send<T: SignalId>(&self, name: impl Into<String>, value: T::Data) -> impl Future<Output = ()> {
-        let (sender, receiver) = channel();
-        let name = name.into();
-        let query = QueryCallback::once(
-            move |world: &mut World| {
-                SignalInner::from(world.signal::<T>(name.clone())).write(value);
-            },
-            sender
-        );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
-    }
-
     /// Send an [`Event`].
     pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = AsyncResult<EventId<E>>> {
         let (sender, receiver) = channel();

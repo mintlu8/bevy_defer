@@ -88,8 +88,8 @@ impl<T> From<Arc<SignalData<T>>> for SignalInner<T>{
 }
 
 impl<T: Send + Sync + 'static> SignalInner<T> {
-    /// Note: This does not increment the read counter.
-    pub fn write(&self, value: T) {
+    /// Send a value, does not increment the read tick.
+    pub fn send(&self, value: T) {
         let mut lock = self.inner.data.lock();
         *lock = value;
         self.inner.tick.fetch_add(1, Ordering::Relaxed);
@@ -97,8 +97,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         wakers.drain(..).for_each(|x| x.wake());
     }
 
-    /// Note: This does not increment the read counter.
-    pub fn write_if_changed(&self, value: T) where T: PartialEq {
+    /// Send a value if changed, does not increment the read tick.
+    pub fn send_if_changed(&self, value: T) where T: PartialEq {
         let mut lock = self.inner.data.lock();
         if *lock != value {
             *lock = value;
@@ -108,7 +108,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         }
     }
 
-    /// This increases the read counter.
+    /// Send a value and increment the read tick.
     pub fn broadcast(&self, value: T) {
         let mut lock = self.inner.data.lock();
         *lock = value;
@@ -119,7 +119,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     }
 
 
-    /// Note: This does not increment the read counter.
+    /// Send a value and increment the read tick.
     pub fn broadcast_if_changed(&self, value: T) where T: PartialEq {
         let mut lock = self.inner.data.lock();
         if *lock != value {
@@ -148,8 +148,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         self.inner.data.lock().clone()
     }
 
-    /// Reads the underlying value asynchronously when changed.
-    pub fn async_read(self: &Arc<Self>) -> impl Future<Output = T> where T: Clone {
+    /// Poll the signal value asynchronously.
+    pub fn poll(self: &Arc<Self>) -> impl Future<Output = T> where T: Clone {
         let this = self.clone();
         async move {
             let mut first = true;
