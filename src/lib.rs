@@ -126,7 +126,7 @@ impl<S: LocalResourceScope> AsyncPlugin<S> {
 
     /// Push `&World` to thread local storage, this blocks all write access
     /// during execution but allows `get` to resolve immediately.
-    pub fn with_world_access<A: LocalResourceScope>(self) -> AsyncPlugin<(S, World)> {
+    pub fn with_world_access(self) -> AsyncPlugin<(S, World)> {
         AsyncPlugin { schedules: self.schedules, p: PhantomData}
     }
 
@@ -182,7 +182,7 @@ pub trait AsyncExtension {
 
 impl AsyncExtension for World {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult>  + 'static) -> &mut Self {
-        let _ = self.non_send_resource::<AsyncExecutor>().0.spawner().spawn_local(async move {
+        let _ = self.non_send_resource::<AsyncExecutor>().spawner().spawn_local(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")
@@ -198,7 +198,7 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self {
-        let _ = self.world.non_send_resource::<AsyncExecutor>().0.spawner().spawn_local(async move {
+        let _ = self.world.non_send_resource::<AsyncExecutor>().spawner().spawn_local(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")

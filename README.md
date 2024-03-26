@@ -180,8 +180,8 @@ So this is similar to
 spawn(async {
     loop {
         futures::select! {
-            _ => async_system => (),
-            _ => cancel => break,
+            _ = async_system => (),
+            _ = cancel => break,
         }
     }
 })

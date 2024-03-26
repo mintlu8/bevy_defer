@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::{mem, ops::Deref};
 use bevy_asset::AssetServer;
-use bevy_ecs::system::{NonSend, NonSendMut, Res, StaticSystemParam};
+use bevy_ecs::system::{NonSend, Res, StaticSystemParam};
 use bevy_ecs::world::World;
 use bevy_log::debug;
-use futures::executor::LocalPool;
+use futures::executor::{LocalPool, LocalSpawner};
 use crate::channels::Sender;
 use crate::{world_scope, LocalResourceScope};
 
@@ -101,7 +101,13 @@ pub struct AsyncQueryQueue {
 
 /// Resource containing a reference to an async executor.
 #[derive(Debug, Default)]
-pub struct AsyncExecutor(pub(crate) LocalPool);
+pub struct AsyncExecutor(pub(crate) RefCell<LocalPool>);
+
+impl AsyncExecutor {
+    pub fn spawner(&self) -> LocalSpawner {
+        self.0.borrow().spawner()
+    }
+}
 
 impl std::fmt::Debug for AsyncQueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -139,11 +145,11 @@ pub fn run_async_executor<R: LocalResourceScope>(
     scoped: StaticSystemParam<R::Resource>,
     // Since nobody needs mutable access to `AssetServer` this is enabled by default.
     asset_server: Option<Res<AssetServer>>,
-    mut executor: NonSendMut<AsyncExecutor>
+    executor: NonSend<AsyncExecutor>
 ) {
     AssetServer::maybe_scoped(asset_server.as_ref(), ||{
-        R::scoped(&*scoped, ||world_scope(&queue.0, executor.0.spawner(), || {
-            executor.0.run_until_stalled();
+        R::scoped(&*scoped, ||world_scope(&queue.0, executor.spawner(), || {
+            executor.0.borrow_mut().run_until_stalled();
         }))
     })
     

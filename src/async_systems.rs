@@ -216,7 +216,7 @@ pub fn push_async_systems(
     exec: NonSend<AsyncExecutor>,
     mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems, Option<&Children>)>
 ) {
-    let spawner = exec.0.spawner();
+    let spawner = exec.spawner();
     for (entity, signals, mut systems, children) in query.iter_mut() {
         let signals = signals.unwrap_or(&dummy);
         for system in systems.systems.iter_mut(){

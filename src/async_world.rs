@@ -23,7 +23,7 @@ pub struct AsyncWorld<'w, 's> {
 
 impl AsyncWorld<'_, '_> {
     pub fn spawn(&self, fut: impl Future<Output = AsyncResult> + 'static) {
-        let _ = self.executor.0.spawner().spawn_local(async move {
+        let _ = self.executor.spawner().spawn_local(async move {
             match fut.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")

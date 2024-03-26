@@ -3,6 +3,7 @@
 
 use std::{cell::{Cell, OnceCell}, ops::{Add, Mul}, rc::Rc, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration};
 use bevy_ecs::{component::Component, world::World};
+use bevy_math::Quat;
 use bevy_time::{Fixed, Time};
 use futures::Future;
 use crate::channels::channel;
@@ -220,6 +221,17 @@ impl<T> Lerp for T where T: Add<T, Output = T> + Mul<f32, Output = T> + Clone + 
         from * (1.0 - fac) + to * fac
     }
 }
+
+/// Performs a spherical linear interpolation on [`Quat`].
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SLerp(pub Quat);
+
+impl Lerp for SLerp {
+    fn lerp(from: Self, to: Self, fac: f32) -> Self {
+        SLerp(Quat::slerp(from.0, to.0, fac))
+    }
+}
+
 
 /// [`f32`] or [`Duration`].
 pub trait AsSeconds {
