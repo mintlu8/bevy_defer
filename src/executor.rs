@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::{mem, ops::Deref};
 use bevy_asset::AssetServer;
-use bevy_ecs::system::{NonSend, Res, StaticSystemParam};
+use bevy_ecs::system::{CommandQueue, Commands, NonSend, Res, StaticSystemParam};
 use bevy_ecs::world::World;
-use bevy_log::debug;
 use futures::executor::{LocalPool, LocalSpawner};
 use crate::channels::Sender;
 use crate::signals::NamedSignals;
@@ -16,6 +15,9 @@ pub struct QueryCallback {
 }
 
 impl QueryCallback {
+    /// Spawn a non-send command that runs once.
+    /// 
+    /// Use `AsyncWorldMut::add_command` if possible since that is more optimized.
     pub fn fire_and_forget(
         query: impl (FnOnce(&mut World)) + 'static,
     ) -> Self {
@@ -27,46 +29,43 @@ impl QueryCallback {
         }
     }
 
+    /// Spawn a non-send command that runs once and returns a result through a channel.
     pub fn once<Out: 'static>(
         query: impl (FnOnce(&mut World) -> Out) + 'static,
         channel: Sender<Out>
     ) -> Self {
         Self {
             command: Box::new(move |w| {
+                if channel.is_closed() { return None } 
                 let result = query(w);
-                if channel.send(result).is_err() {
-                    debug!("Error: one-shot channel closed.")
-                }
+                let _ = channel.send(result);
                 None
             })
         }
     }
 
+    /// Spawn a non-send command and wait until it returns `Some`.
     pub fn repeat<Out: 'static>(
         mut query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
         channel: Sender<Out>
     ) -> Self {
         Self {
             command: Box::new(move |w| {
+                if channel.is_closed() { return None } 
                 match query(w) {
-                    Some(x) => {
-                        if channel.send(x).is_err() {
-                            debug!("Error: one-shot channel closed.")
-                        }
+                    Some(result) => {
+                        let _ = channel.send(result);
                         None
-                    }
-                    None => {
-                        Some(QueryCallback::repeat(query, channel))
-                    }
+                    },
+                    None => Some(QueryCallback::repeat(query, channel))
                 }
-
             })
         }
     }
 }
 
 
-/// Queue for deferred queries applied on the [`World`].
+/// Queue for deferred non-send queries applied on the [`World`].
 #[derive(Default)]
 pub struct AsyncQueryQueue {
     pub queries: RefCell<Vec<QueryCallback>>,
@@ -112,8 +111,11 @@ pub fn run_async_queries(
     *lock = inner.into_iter().filter_map(|query| (query.command)(w)).collect();
 }
 
+scoped_tls::scoped_thread_local! {pub(crate) static COMMAND_QUEUE: RefCell<CommandQueue>}
+
 /// System for running [`AsyncExecutor`].
 pub fn run_async_executor<R: LocalResourceScope>(
+    mut commands: Commands,
     queue: NonSend<QueryQueue>,
     scoped: StaticSystemParam<R::Resource>,
     // Since nobody needs mutable access to `AssetServer` this is enabled by default.
@@ -121,12 +123,15 @@ pub fn run_async_executor<R: LocalResourceScope>(
     named_signal: Res<NamedSignals>,
     executor: NonSend<AsyncExecutor>
 ) {
-    AssetServer::maybe_scoped(asset_server.as_ref(), ||{
-        NamedSignals::scoped(&named_signal, || {
-            R::scoped(&*scoped, ||world_scope(&queue.0, executor.spawner(), || {
-                executor.0.borrow_mut().run_until_stalled();
-            }))
+    let mut cmd_queue = RefCell::new(CommandQueue::default());
+    COMMAND_QUEUE.set(&cmd_queue, || {
+        AssetServer::maybe_scoped(asset_server.as_ref(), ||{
+            NamedSignals::scoped(&named_signal, || {
+                R::scoped(&*scoped, ||world_scope(&queue.0, executor.spawner(), || {
+                    executor.0.borrow_mut().run_until_stalled();
+                }))
+            })
         })
-    })
-    
+    });
+    commands.append(cmd_queue.get_mut())
 }

@@ -43,7 +43,7 @@ fn setup(
                 } else {
                     sp.set(|s| s.custom_size.as_mut().unwrap().x = 200.0).await?;
                 }
-            })
+            }),
         ])
     ));
     

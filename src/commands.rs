@@ -2,22 +2,39 @@ use std::{cell::OnceCell, future::Future};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::FutureExt;
-use crate::{async_asset::AsyncAsset, channels::channel, locals::ASSET_SERVER, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
+use crate::{async_asset::AsyncAsset, channels::channel, executor::COMMAND_QUEUE, locals::ASSET_SERVER, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
 use bevy_asset::{Asset, AssetPath, Handle};
-use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
+use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::{Command, CommandQueue}, world::World};
 use bevy_time::Time;
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
-    /// Applies a command, causing it to mutate the world.
-    pub fn apply_command(&self, command: impl Command) -> impl Future<Output = ()> {
-        let (sender, receiver) = channel::<()>();
-        let query = QueryCallback::once(
-            move |world: &mut World| {
-                command.apply(world)
-            },
-            sender
-        );
+    /// Apply a command, does not wait for it to complete.
+    /// 
+    /// Use [`AsyncWorldMut::run`] to wait for and obtain a result.
+    pub fn apply_command(&self, command: impl Command) {
+        if !COMMAND_QUEUE.is_set() {
+            panic!("Cannot use `apply_command` in non_async context, use `run` instead.")
+        }
+        COMMAND_QUEUE.with(|q| q.borrow_mut().push(command))
+    }
+
+    /// Apply a [`CommandQueue`], does not wait for it to complete.
+    pub fn apply_command_queue(&self, mut commands: CommandQueue) {
+        if !COMMAND_QUEUE.is_set() {
+            panic!("Cannot use `apply_command_queue` in non_async context, use `run` instead.")
+        }
+        COMMAND_QUEUE.with(|q| q.borrow_mut().append(&mut commands))
+    }
+
+    /// Apply a function on the [`World`] and obtain the result.
+    /// 
+    /// ## Note
+    /// 
+    /// Dropping the future will stop the task.
+    pub fn run<T: Send + 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
+        let (sender, receiver) = channel();
+        let query = QueryCallback::once(f, sender);
         {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
@@ -25,10 +42,14 @@ impl AsyncWorldMut {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Apply a function on the [`World`] and obtain the result.
-    pub fn run<T: Send + 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
+    /// Apply a function on the [`World`], repeat until it returns `Some`.
+    /// 
+    /// ## Note
+    /// 
+    /// Dropping the future will stop the task.
+    pub fn watch<T: Send + 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(f, sender);
+        let query = QueryCallback::repeat(f, sender);
         {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);

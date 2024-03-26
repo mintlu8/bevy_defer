@@ -25,8 +25,11 @@ damage_vfx().await;
 ...
 ```
 
+At each `await` point we wait for something to complete, without wasting resources
+spin looping a thread or defining a complex state machine in a system.
+
 What if we want damage number and damage vfx to run concurrently and wait for both
-before out next attack? Simple!
+before out next attack? It's simple with `async` semantics!
 
 ```rust
 futures::join! {
@@ -143,7 +146,7 @@ Here are the guarantees of signals:
 * Values are not guaranteed to be read if updated in rapid succession.
 * Value prior to reader creation will not be read by a new reader.
 
-`Signals` erases underlying types and utilizes the `SignalId` trait to disambiguate signals,
+`Signals` erases the underlying types and utilizes the `SignalId` trait to disambiguate signals,
 this ensures no archetype fragmentation.
 
 In systems, you can use `SignalSender` and `SignalReceiver` just like you would in async,

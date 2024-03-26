@@ -2,18 +2,20 @@
 use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
 use futures::Future;
 
+/// Sender for a `!Send` oneshot channel.
 #[derive(Debug)]
 pub struct Sender<T>(Rc<Inner<T>>);
 
 impl<T> Unpin for Sender<T> {}
 
+/// Receiver for a `!Send` oneshot channel.
 #[derive(Debug)]
 pub struct Receiver<T>(Rc<Inner<T>>);
 
 impl<T> Unpin for Receiver<T> {}
 
 #[derive(Debug)]
-pub struct Lock<T>(RefCell<Option<T>>);
+struct Lock<T>(RefCell<Option<T>>);
 
 impl<T> Lock<T> {
     fn new() -> Self {
@@ -110,6 +112,10 @@ impl<T> Sender<T> {
         self.0.send(t)
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.0.complete.get()
+    }
+
     pub fn cancellation(&mut self) -> ChannelCancel<T> {
         ChannelCancel(self)
     }
@@ -139,6 +145,7 @@ impl<T> Drop for Receiver<T> {
     }
 }
 
+/// Future for a `!Send` oneshot channel being closed.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[derive(Debug)]
 pub struct ChannelCancel<'a, T>(&'a mut Sender<T>);
@@ -151,8 +158,17 @@ impl<T> Future for ChannelCancel<'_, T> {
     }
 }
 
+/// Error for channel being closed.
 #[derive(Debug)]
 pub struct Canceled;
+
+impl std::fmt::Display for Canceled {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Oneshot channel closed.")
+    }
+}
+
+impl std::error::Error for Canceled {}
 
 impl<T> Future for Receiver<T> {
     type Output = Result<T, Canceled>;
