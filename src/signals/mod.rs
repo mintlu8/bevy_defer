@@ -8,4 +8,5 @@ mod named;
 pub use signal_utils::*;
 pub use signal_inner::{Signal, SignalData};
 pub use signal_component::Signals;
-pub use named::NAMED_SIGNALS;
+pub use named::NamedSignals;
+pub(crate) use named::NAMED_SIGNALS;

@@ -36,8 +36,7 @@ use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 macro_rules! async_system {
     (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
         {
-            use $crate::access::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
-            use $crate::access::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
+            use $crate::access::*;
             use $crate::signals::{Sender, Receiver};
             $crate::async_systems::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::access::AsyncWorldMut, signals: &$crate::signals::Signals, children: &[$crate::Entity]| {
                 $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::fetch_signal(signals)?;)*
