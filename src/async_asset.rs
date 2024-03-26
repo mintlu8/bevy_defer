@@ -6,7 +6,7 @@ use futures::{Future, FutureExt};
 use crate::{channel, executor::AsyncQueryQueue, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
 
 
-/// Async version of [`SystemParam`].
+/// Async version of [`Handle`].
 #[derive(Debug, Clone)]
 pub struct AsyncAsset<A: Asset>{
     pub(crate) queue: Rc<AsyncQueryQueue>,
@@ -14,7 +14,7 @@ pub struct AsyncAsset<A: Asset>{
 }
 
 impl<A: Asset> AsyncAsset<A> {
-    /// Obtain the underlying [`Handle`]
+    /// Obtain the underlying [`Handle`].
     pub fn handle(&self) -> &Handle<A> {
         &self.handle
     }

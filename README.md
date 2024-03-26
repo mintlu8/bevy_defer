@@ -8,8 +8,8 @@ A simple asynchronous runtime for executing deferred queries.
 
 ## Motivation
 
-Async rust is incredible for modelling wait centric tasks,
-not utilizing async in game development is a huge waste of potential.
+Async rust is incredible for modelling wait centric tasks.
+Not utilizing async in game development is a huge waste of potential.
 
 Imagine we want to model a rapid sword attack animation, in async rust this is straightforward:
 
@@ -42,7 +42,7 @@ swing_animation().await;
 Communicating between sync and async in notoriously difficult. See
 this amazing tokio article: <https://tokio.rs/tokio/topics/bridging>.
 Fortunately since we are running an executor on top of a event loop some
-of these issues can a alleviated.
+of these issues can be alleviated.
 
 Communicating from sync to async is simple, async code can hand out channels
 and `await` on them, pausing the task.
@@ -57,7 +57,7 @@ Fortunately for us, since systems run once per frame anyway this is not a huge c
 
 Spawning is a straightforward way to run some logic immediately.
 
-You can use the task to control some local states or simply
+You can use a task to control some local states or simply
 run your entire game in async rust!
 
 ```rust
@@ -112,6 +112,8 @@ This crate provides types mimicking bevy's types:
 | `AsyncComponent` | `Component` |
 | `AsyncResource` | `Resource` |
 | `AsyncNonSend` | `NonSend` |
+| `AsyncEventReader` | `EventReader` |
+| `AsyncAsset` | `Handle` |
 
 `world` can be accessed by the `world()` method and
 for example a `Component` can be accessed by
@@ -123,7 +125,7 @@ world().entity(entity).component::<Transform>()
 See the `access` module for more detail.
 
 You can add extension methods to these accessors via `Deref` if you own the
-underlying types. See the `extension` module for more details.
+underlying types. See the `extension` module for more detail.
 
 ## Signals
 
@@ -164,22 +166,36 @@ let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<T
 
 The parameters implement `AsyncEntityParam`.
 
-### How an `AsyncSystem` Executes
+### How an `AsyncSystem` executes
 
 Think of an `AsyncSystem` like a loop:
 
 * if this `Future` is not running at the start of this frame, run it.
 * If the function finishes, rerun on the next frame.
-* If the entity is dropped, the `Future` will can cancelled.
+* If the entity is dropped, the `Future` will be cancelled.
 
 So this is similar to
 
 ```rust
 spawn(async {
     loop {
-        select! {
+        futures::select! {
             _ => async_system => (),
             _ => cancel => break,
+        }
+    }
+})
+```
+
+If you want some state to persist, for example keeping a handle alive or using a
+`AsyncEventReader`, you might want to implement the async system as a loop:
+
+```rust
+let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventReader<Input<MouseWheel>>|{
+    loop {
+        futures::select! {
+            _ = recv.recv().fused() => ..,
+            pos = mouse_wheel.poll().fused() => ..
         }
     }
 })
@@ -188,7 +204,7 @@ spawn(async {
 ## Thread Locals
 
 You can push resources, non-send resources and even `&World` (readonly) onto
-thread local storage during execution using the `with` function on the plugin.
+thread local storage during execution by adding them to the plugin:
 
 ```rust
 AsyncPlugin::empty().with(MyResource).with(World);
@@ -196,7 +212,7 @@ AsyncPlugin::empty().with(MyResource).with(World);
 
 This allows some access to be immediate without deferring.
 If `&world` is available, all `get` access is immediate.
-This would block parallelization so do keep that in mind.
+This would block parallelization, however.
 
 ## Implementation Details
 
