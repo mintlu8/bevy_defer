@@ -7,6 +7,7 @@ use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 mod async_world;
 mod async_entity;
 mod async_values;
+mod async_asset;
 pub mod async_systems;
 mod async_query;
 mod event;
@@ -41,6 +42,8 @@ pub mod extensions {
     //! Traits for adding extension methods on asynchronous accessors to the `World`.
     pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref};
     pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref};
+    pub use crate::event::AsyncEvent;
+    pub use crate::async_asset::AsyncAsset;
 }
 
 pub mod systems {

@@ -2,11 +2,11 @@ use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time
 
 use bevy::MinimalPlugins;
 use bevy_app::App;
-use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt, Handle};
+use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt};
 use bevy_defer::{world, AsyncExtension, AsyncPlugin};
 use bevy_reflect::TypePath;
 
-#[derive(Debug, Asset, TypePath)]
+#[derive(Debug, Asset, TypePath, Clone, PartialEq)]
 pub struct JsonNumber(i64);
 
 #[derive(Default)]
@@ -45,12 +45,12 @@ pub fn procedural(){
     let lock2 = lock.clone();
     app.spawn_task(async move {
         let world = world();
-        let one: Handle<JsonNumber> = world.load_asset("1.json");
-        let four: Handle<JsonNumber> = world.load_asset("4.json");
-        let sixty_nine: Handle<JsonNumber> = world.load_asset("69.json");
-        assert_eq!(world.asset(&one, |x| x.0).await?, 1);
-        assert_eq!(world.asset(&four, |x| x.0).await?, 4);
-        assert_eq!(world.asset(&sixty_nine, |x| x.0).await?, 69);
+        let one = world.load_asset::<JsonNumber>("1.json");
+        let four = world.load_asset::<JsonNumber>("4.json");
+        let sixty_nine = world.load_asset::<JsonNumber>("69.json");
+        assert_eq!(one.get(|x| x.0).await?, 1);
+        assert_eq!(four.get(|x| x.0).await?, 4);
+        assert_eq!(sixty_nine.get(|x| x.0).await?, 69);
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -83,9 +83,9 @@ pub fn concurrent(){
         );
 
         let (one, four, sixty_nine) = futures::try_join!(
-            world.asset(&one, |x| x.0),
-            world.asset(&four, |x| x.0),
-            world.asset(&sixty_nine, |x| x.0),
+            one.get(|x| x.0),
+            four.get(|x| x.0),
+            sixty_nine.get(|x| x.0),
         )?;
         assert_eq!(one, 1);
         assert_eq!(four, 4);
@@ -104,7 +104,7 @@ pub fn concurrent(){
 }
 
 #[test]
-pub fn direct(){
+pub fn cloned(){
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
     app.add_plugins(MinimalPlugins);
@@ -115,14 +115,57 @@ pub fn direct(){
     let lock2 = lock.clone();
     app.spawn_task(async move {
         let world = world();
+        let (one, four, sixty_nine) = (
+            world.load_asset::<JsonNumber>("1.json"),
+            world.load_asset::<JsonNumber>("4.json"),
+            world.load_asset::<JsonNumber>("69.json"),
+        );
         let (one, four, sixty_nine) = futures::try_join!(
-            world.load_direct::<JsonNumber, _>("1.json", |_, x| x.0),
-            world.load_direct::<JsonNumber, _>("4.json", |_, x| x.0),
-            world.load_direct::<JsonNumber, _>("69.json", |_, x| x.0),
+            one.cloned(),
+            four.cloned(),
+            sixty_nine.cloned(),
         )?;
-        assert_eq!(one, 1);
-        assert_eq!(four, 4);
-        assert_eq!(sixty_nine, 69);
+        assert_eq!(one.0, 1);
+        assert_eq!(four.0, 4);
+        assert_eq!(sixty_nine.0, 69);
+        lock2.store(true, Ordering::Relaxed);
+        Ok(())
+    });
+    app.spawn_task(async {
+        let world = world();
+        world.sleep(Duration::from_millis(500)).await;
+        world.quit().await;
+        Ok(())
+    });
+    app.run();
+    assert!(lock.load(Ordering::Relaxed));
+}
+
+#[test]
+pub fn take(){
+    let mut app = App::new();
+    app.add_plugins(AssetPlugin::default());
+    app.add_plugins(MinimalPlugins);
+    app.init_asset_loader::<JsonNumberLoader>();
+    app.init_asset::<JsonNumber>();
+    app.add_plugins(AsyncPlugin::default_settings());
+    let lock = Arc::new(AtomicBool::new(false));
+    let lock2 = lock.clone();
+    app.spawn_task(async move {
+        let world = world();
+        let (one, four, sixty_nine) = (
+            world.load_asset::<JsonNumber>("1.json"),
+            world.load_asset::<JsonNumber>("4.json"),
+            world.load_asset::<JsonNumber>("69.json"),
+        );
+        let (one, four, sixty_nine) = futures::try_join!(
+            one.take(),
+            four.take(),
+            sixty_nine.take(),
+        )?;
+        assert_eq!(one.0, 1);
+        assert_eq!(four.0, 4);
+        assert_eq!(sixty_nine.0, 69);
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });

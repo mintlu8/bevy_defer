@@ -5,7 +5,6 @@ use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use super::{signal_inner::SignalInner, Signal, SignalId};
 
-
 /// A composable component that contains signals on an `Entity`.
 #[derive(Debug, Component, Default, Reflect)]
 pub struct Signals {
