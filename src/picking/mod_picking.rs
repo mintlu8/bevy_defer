@@ -5,24 +5,28 @@ use bevy_math::Vec2;
 use crate::signals::Signals;
 use bevy_ecs::{entity::Entity, system::{Query, Local}, query::Changed};
 use rustc_hash::FxHashMap;
-use bevy_mod_picking::{focus::PickingInteraction, pointer::PointerLocation};
+use bevy_mod_picking::{focus::PickingInteraction, pointer::PointerLocation, selection::PickSelection};
+use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
 
 signal_ids! {
-    /// [`Interaction`](bevy_ui::Interaction) changed in general.
+    /// [`PickingInteraction`] changed in general.
     /// 
     /// Sends previous and current interaction.
-    pub PickingInteractionChange: (PickingInteraction, PickingInteraction)
+    pub PickingInteractionChange: (PickingInteraction, PickingInteraction),
+    /// [`PickSelection`] changed.
+    pub PickingSelected: bool,
 }
 
-/// System that provides reactivity for [`bevy_ui`], must be added manually.
+/// System that provides reactivity for [`bevy_mod_picking`], must be added manually.
 pub fn picking_reactor(
     mut prev: Local<FxHashMap<Entity, PickingInteraction>>,
-    query: Query<(Entity, &Signals, &PickingInteraction, Option<&PointerLocation>), Changed<bevy_ui::Interaction>>
+    mut prev_select: Local<FxHashMap<Entity, bool>>,
+    interactions: Query<(Entity, &Signals, &PickingInteraction, Option<&PointerLocation>), Changed<PickingInteraction>>,
+    selections: Query<(Entity, &Signals, &PickSelection), Changed<PickSelection>>
 ) {
-    use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
-
-    for (entity, signals, interaction, relative) in query.iter() {
+    for (entity, signals, interaction, relative) in interactions.iter() {
         let previous = prev.insert(entity, *interaction).unwrap_or(PickingInteraction::None);
+        if interaction == &previous { continue; }
         let position = relative.and_then(|x| x.location().map(|x| x.position)).unwrap_or(Vec2::ZERO);
         signals.send::<PickingInteractionChange>((previous, *interaction));
         if interaction == &PickingInteraction::Pressed {
@@ -40,6 +44,13 @@ pub fn picking_reactor(
             signals.send::<LoseFocus>(position);
         }
     }
+
+    for (entity, signals, selection) in selections.iter() {
+        let selection = selection.is_selected;
+        let previous = prev_select.insert(entity, selection).unwrap_or(false);
+        if selection == previous { continue; }
+        signals.send::<PickingSelected>(selection);
+    }
 }
 
 mod sealed {
@@ -51,7 +62,7 @@ mod sealed {
 
     use crate::access::AsyncEntityQuery;
     use crate::extensions::AsyncEntityQueryDeref;
-    /// [`QueryData`] for asynchronously accessing a UI button's state.
+    /// [`QueryData`] for asynchronously accessing a `bevy_mod_picking` pickable's state.
     #[derive(Debug, QueryData)]
     pub struct AsyncPicking {
         interaction: &'static PickingInteraction,
