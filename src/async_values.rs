@@ -33,12 +33,13 @@ impl<P: SystemParam> AsyncEntityParam for AsyncSystemParam<P> {
     fn from_async_context(
         _: Entity,
         executor: &AsyncWorldMut,
-        _: ()
-    ) -> Self {
-        AsyncSystemParam {
+        _: (),
+        _: &[Entity]
+    ) -> Option<Self> {
+        Some(AsyncSystemParam {
             executor: executor.queue.clone(),
             p: PhantomData
-        }
+        })
     }
     
 }
@@ -99,13 +100,14 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
     fn from_async_context(
         entity: Entity,
         executor: &AsyncWorldMut,
-        _: ()
-    ) -> Self {
-        Self {
+        _: (),
+        _: &[Entity]
+    ) -> Option<Self> {
+        Some(Self {
             entity,
             executor: executor.queue.clone(),
             p: PhantomData
-        }
+        })
     }
 }
 
@@ -232,12 +234,13 @@ impl<R: 'static> AsyncEntityParam for AsyncNonSend<R> {
     fn from_async_context(
         _: Entity,
         executor: &AsyncWorldMut,
-        _: ()
-    ) -> Self {
-        Self {
+        _: (),
+        _: &[Entity]
+    ) -> Option<Self> {
+        Some(Self {
             executor: executor.queue.clone(),
             p: PhantomData
-        }
+        })
     }
 }
 
@@ -311,7 +314,7 @@ impl<R: 'static> AsyncNonSend<R> {
             move |world: &mut World| {
                 let Some(res) = world.get_non_send_resource::<R>() 
                     else {return Some(Err(AsyncFailure::ResourceNotFound))};
-                Ok(f(&res)).transpose()
+                Ok(f(res)).transpose()
             },
             sender
         );
@@ -341,12 +344,13 @@ impl<R: Resource> AsyncEntityParam for AsyncResource<R> {
     fn from_async_context(
         _: Entity,
         executor: &AsyncWorldMut,
-        _: ()
-    ) -> Self {
-        Self {
+        _: (),
+        _: &[Entity]
+    ) -> Option<Self> {
+        Some(Self {
             executor: executor.queue.clone(),
             p: PhantomData
-        }
+        })
     }
 }
 

@@ -86,45 +86,46 @@ impl TaskCancellation {
         }
     }
 }
-impl Into<TaskCancellation> for () {
-    fn into(self) -> TaskCancellation {
+
+impl From<()> for TaskCancellation {
+    fn from(_: ()) -> Self {
         TaskCancellation::None
     }
 }
 
-impl Into<TaskCancellation> for Cancellation {
-    fn into(self) -> TaskCancellation {
-        TaskCancellation::Unsync(self)
+impl From<Cancellation> for TaskCancellation {
+    fn from(val: Cancellation) -> Self {
+        TaskCancellation::Unsync(val)
     }
 }
 
-impl Into<TaskCancellation> for &Cancellation {
-    fn into(self) -> TaskCancellation {
-        TaskCancellation::Unsync(self.clone())
+impl From<&Cancellation> for TaskCancellation {
+    fn from(val: &Cancellation) -> Self {
+        TaskCancellation::Unsync(val.clone())
     }
 }
 
-impl Into<TaskCancellation> for SyncCancellation {
-    fn into(self) -> TaskCancellation {
-        TaskCancellation::Sync(self)
+impl From<SyncCancellation> for TaskCancellation {
+    fn from(val: SyncCancellation) -> Self {
+        TaskCancellation::Sync(val)
     }
 }
 
-impl Into<TaskCancellation> for &SyncCancellation {
-    fn into(self) -> TaskCancellation {
-        TaskCancellation::Sync(self.clone())
+impl From<&SyncCancellation> for TaskCancellation {
+    fn from(val: &SyncCancellation) -> Self {
+        TaskCancellation::Sync(val.clone())
     }
 }
 
-impl Into<TaskCancellation> for &CancelOnDrop {
-    fn into(self) -> TaskCancellation {
-        TaskCancellation::Unsync(self.0.clone())
+impl From<&CancelOnDrop> for TaskCancellation {
+    fn from(val: &CancelOnDrop) -> Self {
+        TaskCancellation::Unsync(val.0.clone())
     }
 }
 
-impl Into<TaskCancellation> for &CancelOnDropSync {
-    fn into(self) -> TaskCancellation {
-        TaskCancellation::Sync(self.0.clone())
+impl From<&CancelOnDropSync> for TaskCancellation {
+    fn from(val: &CancelOnDropSync) -> Self {
+        TaskCancellation::Sync(val.0.clone())
     }
 }
 

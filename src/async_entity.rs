@@ -213,7 +213,7 @@ impl AsyncEntityMut {
         }
         async {
             match receiver.await.expect(CHANNEL_CLOSED) {
-                Ok(fut) => Ok(fut.async_read().await.get().expect("downcast error")),
+                Ok(fut) => Ok(fut.async_read().await),
                 Err(e) => Err(e),
             }
         }

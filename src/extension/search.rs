@@ -13,13 +13,14 @@ use crate::{access::{AsyncEntityMut, AsyncWorldMut}, QueryCallback, async_query:
 pub struct AsyncScene(AsyncEntityMut);
 
 impl AsyncWorldMut {
+    /// Spawn a bundle but returns a [`AsyncScene`] with scene specific utilities.
     pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncScene{
         let entity = self.spawn_bundle(bun).await.id();
         AsyncScene(self.entity(entity))
     }
 }
 
-impl<'t> Deref for AsyncScene {
+impl Deref for AsyncScene {
     type Target = AsyncEntityMut;
 
     fn deref(&self) -> &Self::Target {

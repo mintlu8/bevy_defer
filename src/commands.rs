@@ -1,6 +1,7 @@
 use std::{cell::OnceCell, future::Future, time::Duration};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
+use futures::FutureExt;
 use crate::{channels::channel, locals::ASSET_SERVER};
 use bevy_asset::{Asset, AssetId, AssetPath, Assets, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Command, world::World};
@@ -21,9 +22,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED) 
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Apply a function on the world and obtain the result.
@@ -34,9 +33,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED) 
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Runs the schedule a single time.
@@ -53,9 +50,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED) 
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Spawns a new [`Entity`] with no components.
@@ -71,9 +66,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Spawn a new Entity with a given Bundle of components.
@@ -113,9 +106,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Obtain a [`States`].
@@ -131,9 +122,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Wait until a [`States`] is entered.
@@ -150,9 +139,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Pause the future for the [`Duration`], according to the [`Time`] resource.
@@ -172,9 +159,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Pause the future for some frames, according to the [`FrameCount`] resource.
@@ -201,9 +186,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Shutdown the bevy app.
@@ -219,9 +202,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Run a function on an `Asset` and obtain the result,
@@ -250,9 +231,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Remove an `Asset` and obtain it and repeat until the asset is loaded.
@@ -279,9 +258,7 @@ impl AsyncWorldMut {
             let mut lock = self.queue.queries.borrow_mut();
             lock.push(query);
         }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Load an asset from an [`AssetPath`], equivalent to `AssetServer::load`.

@@ -3,8 +3,8 @@ use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
 use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
 use bevy_ecs::{component::Component, event::Event, query::With, system::{Commands, Local, Query}};
-use bevy_defer::{async_system, signal_ids, world, AsyncExtension, async_systems::AsyncSystems, AsyncPlugin};
-use bevy_defer::signals::{SignalSender, Signals, TypedSignal};
+use bevy_defer::{async_system, async_systems::AsyncSystems, signal_ids, signals::{Signal, SignalSender}, world, AsyncExtension, AsyncPlugin};
+use bevy_defer::signals::Signals;
 signal_ids! {
     SigText: &'static str,
 }
@@ -31,7 +31,7 @@ pub fn main() {
 }
 
 pub fn init(mut commands: Commands) {
-    let signal = TypedSignal::new();
+    let signal = Signal::default();
     commands.spawn((
         Marker1, 
         Signals::from_sender::<SigText>(signal.clone())
@@ -116,7 +116,7 @@ pub fn events() {
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
-        assert_eq!(world.poll_event::<AliceChat>().await.0, "Hello, Alice.");
+        assert_eq!(world.event::<AliceChat>().poll().await.0, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(BobChat("Hello, Bob.".to_owned())).await?;
         ALICE.store(true, Ordering::Relaxed);
@@ -126,7 +126,7 @@ pub fn events() {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(AliceChat("Hello, Alice.".to_owned())).await?;
-        assert_eq!(world.poll_event::<BobChat>().await.0, "Hello, Bob.");
+        assert_eq!(world.event::<BobChat>().poll().await.0, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });

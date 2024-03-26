@@ -5,11 +5,8 @@ use std::sync::Arc;
 
 use std::sync::atomic::Ordering;
 use std::future::poll_fn;
+use futures::Future;
 use parking_lot::Mutex;
-
-use crate::{AsObject, Object};
-
-use crate::signals::TypedSignal;
 
 /// The data component of a signal.
 #[derive(Debug, Default)]
@@ -75,33 +72,17 @@ impl<T: Send + Sync + 'static> Deref for Signal<T> {
     }
 }
 
-impl<T: AsObject> From<Arc<SignalData<T>>> for Signal<T>{
+impl<T> From<Arc<SignalData<T>>> for Signal<T>{
     fn from(value: Arc<SignalData<T>>) -> Self {
         Self {inner: Arc::new(SignalInner::from(value))}
     }
 }
 
-impl<T: AsObject> From<Arc<SignalData<T>>> for SignalInner<T>{
+impl<T> From<Arc<SignalData<T>>> for SignalInner<T>{
     fn from(value:Arc<SignalData<T>>) -> Self {
         Self {
             tick: AtomicU32::new(value.tick.load(Ordering::Relaxed)),
             inner: value,
-        }
-    }
-}
-
-
-impl<T: AsObject> From<TypedSignal<T>> for Signal<Object>{
-    fn from(value: TypedSignal<T>) -> Self {
-        Self {inner: Arc::new(SignalInner::from(value))}
-    }
-}
-
-impl<T: AsObject> From<TypedSignal<T>> for SignalInner<Object>{
-    fn from(value: TypedSignal<T>) -> Self {
-        Self {
-            tick: AtomicU32::new(value.inner.tick.load(Ordering::Relaxed)),
-            inner: value.into_inner(),
         }
     }
 }
@@ -168,39 +149,28 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     }
 
     /// Reads the underlying value asynchronously when changed.
-    pub async fn async_read(&self) -> T where T: Clone {
-        let mut first = true;
-        loop {
-            let version = self.inner.tick.load(Ordering::Relaxed);
-            if self.tick.swap(version, Ordering::Relaxed) != version {
-                return self.inner.data.lock().clone();
-            } else if first {
-                first = false;
-                let waker = poll_fn(|ctx| Poll::Ready(ctx.waker().clone())).await;
-                let mut lock = self.inner.wakers.lock();
-                lock.push(waker);
+    pub fn async_read(self: &Arc<Self>) -> impl Future<Output = T> where T: Clone {
+        let this = self.clone();
+        async move {
+            let mut first = true;
+            loop {
+                let tick = this.inner.tick.load(Ordering::Relaxed);
+                if this.tick.swap(tick, Ordering::Relaxed) != tick {
+                    return this.inner.data.lock().clone();
+                } else if first {
+                    first = false;
+                    let waker = poll_fn(|ctx| Poll::Ready(ctx.waker().clone())).await;
+                    let mut lock = this.inner.wakers.lock();
+                    lock.push(waker);
+                }
+                let mut yielded = false;
+                poll_fn(|_| if yielded {
+                    Poll::Ready(())
+                } else {
+                    yielded = true;
+                    Poll::Pending
+                }).await
             }
-            let mut yielded = false;
-            poll_fn(|_| if yielded {
-                Poll::Ready(())
-            } else {
-                yielded = true;
-                Poll::Pending
-            }).await
-        }
-    }
-}
-
-
-impl SignalInner<Object> {
-    /// Reads the underlying value by downcasting the [`Object`].
-    pub fn try_read_as<T: AsObject>(&self) -> Option<T> where T: Clone {
-        let version = self.inner.tick.load(Ordering::Relaxed);
-        if self.tick.swap(version, Ordering::Relaxed) != version {
-            Some(self.inner.data.lock().clone())
-                .and_then(|x| x.get())
-        } else {
-            None
         }
     }
 }

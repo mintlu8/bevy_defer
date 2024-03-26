@@ -2,17 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::{mem, ops::Deref};
 use bevy_asset::AssetServer;
-use bevy_ecs::system::{Local, NonSend, NonSendMut, Res, StaticSystemParam};
-use bevy_ecs::{entity::Entity, system::Query, world::World};
+use bevy_ecs::system::{NonSend, NonSendMut, Res, StaticSystemParam};
+use bevy_ecs::world::World;
 use bevy_log::debug;
 use futures::executor::LocalPool;
-use futures::task::LocalSpawnExt;
-use futures::FutureExt;
-use ref_cast::RefCast;
-use crate::async_world::AsyncWorldMut;
 use crate::channels::Sender;
-use crate::{world_scope, async_systems::AsyncSystems, LocalResourceScope};
-use crate::signals::Signals;
+use crate::{world_scope, LocalResourceScope};
 
 /// Standard errors for the async runtime.
 /// 
@@ -26,6 +21,8 @@ pub enum AsyncFailure {
     EntityNotFound,
     #[error("entity not found in query")]
     EntityQueryNotFound,
+    #[error("child index missing")]
+    ChildNotFound,
     #[error("component not found")]
     ComponentNotFound,
     #[error("resource not found")]
@@ -150,30 +147,4 @@ pub fn run_async_executor<R: LocalResourceScope>(
         }))
     })
     
-}
-
-/// System that pushes inactive [`AsyncSystems`] to the executor.
-pub fn push_async_systems(
-    dummy: Local<Signals>,
-    executor: NonSend<QueryQueue>,
-    exec: NonSend<AsyncExecutor>,
-    mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems)>
-) {
-    let spawner = exec.0.spawner();
-    for (entity, signals, mut systems) in query.iter_mut() {
-        let signals = signals.unwrap_or(&dummy);
-        for system in systems.systems.iter_mut(){
-            if !system.marker.other_alive() {
-                let alive = system.marker.clone_child();
-
-                let Some(fut) = (system.function)(entity, AsyncWorldMut::ref_cast(&executor.0), signals) else {continue};
-                let _ = spawner.spawn_local(async move {
-                    futures::select_biased! {
-                        _ = alive.fuse() => (),
-                        _ = fut.fuse() => (),
-                    };
-                });
-            }
-        }
-    }
 }

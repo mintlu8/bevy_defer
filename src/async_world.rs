@@ -1,3 +1,4 @@
+use std::usize;
 use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 use bevy_log::error;
 use crate::channels::channel;
@@ -249,10 +250,11 @@ impl AsyncEntityParam for AsyncWorldMut {
         _: Entity,
         executor: &AsyncWorldMut,
         _: Self::Signal,
-    ) -> Self {
-        AsyncWorldMut{
+        _: &[Entity]
+    ) -> Option<Self> {
+        Some(AsyncWorldMut{
             queue: executor.queue.clone()
-        }
+        })
     }
 }
 
@@ -267,10 +269,46 @@ impl AsyncEntityParam for AsyncEntityMut {
         entity: Entity,
         executor: &AsyncWorldMut,
         _: Self::Signal,
-    ) -> Self {
-        AsyncEntityMut{
+        _: &[Entity],
+    ) -> Option<Self> {
+        Some(AsyncEntityMut{
             entity,
             executor: executor.queue.clone()
-        }
+        })
+    }
+}
+
+
+
+/// [`AsyncEntityParam`] on an indexed child.
+#[derive(Debug, Clone, RefCast)]
+#[repr(transparent)]
+pub struct AsyncChild<const N: usize=0>(AsyncEntityMut);
+
+impl Deref for AsyncChild {
+    type Target = AsyncEntityMut;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const N: usize> AsyncEntityParam for AsyncChild<N> {
+    type Signal = ();
+
+    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
+    fn from_async_context(
+        _: Entity,
+        executor: &AsyncWorldMut,
+        _: Self::Signal,
+        children: &[Entity],
+    ) -> Option<Self> {
+        Some(AsyncChild(AsyncEntityMut{
+            entity: children.get(N).copied()?,
+            executor: executor.queue.clone()
+        }))
     }
 }

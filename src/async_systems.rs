@@ -1,12 +1,15 @@
 //! Per-entity repeatable async functions.
 
 use std::{future::Future, ops::{Deref, DerefMut}, sync::Arc, task::{Poll, Waker}};
+use bevy_hierarchy::Children;
 use bevy_reflect::Reflect;
+use futures::{task::LocalSpawnExt, FutureExt};
 use parking_lot::Mutex;
+use ref_cast::RefCast;
 use std::fmt::Debug;
 use std::pin::Pin;
-use bevy_ecs::{component::Component, entity::Entity};
-use crate::{async_world::AsyncWorldMut, signals::Signals, AsyncResult};
+use bevy_ecs::{component::Component, entity::Entity, system::{Local, NonSend, Query}};
+use crate::{async_world::AsyncWorldMut, signals::Signals, AsyncExecutor, AsyncResult, QueryQueue};
 use super::AsyncFailure;
 #[allow(unused)]
 use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
@@ -36,10 +39,10 @@ macro_rules! async_system {
             use $crate::access::{AsyncWorldMut, AsyncEntityMut, AsyncComponent, AsyncResource};
             use $crate::access::{AsyncSystemParam, AsyncQuery, AsyncEntityQuery};
             use $crate::signals::{Sender, Receiver};
-            $crate::async_systems::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::access::AsyncWorldMut, signals: &$crate::signals::Signals| {
+            $crate::async_systems::AsyncSystem::new(move |entity: $crate::Entity, executor: $crate::access::AsyncWorldMut, signals: &$crate::signals::Signals, children: &[$crate::Entity]| {
                 $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::fetch_signal(signals)?;)*
+                $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::from_async_context(entity, &executor, $field, children)?;)*
                 Some(async move {
-                    $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::from_async_context(entity, &executor, $field);)*
                     let _ = $body;
                     Ok(())
                 })
@@ -115,15 +118,16 @@ pub struct AsyncSystem {
         Entity,
         &AsyncWorldMut,
         &Signals,
+        &[Entity],
     ) -> Option<PinnedFut> + Send + Sync> ,
     pub(crate) marker: ParentAlive,
 }
 
 impl AsyncSystem {
-    pub fn new<F>(mut f: impl FnMut(Entity, AsyncWorldMut, &Signals) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + 'static {
+    pub fn new<F>(mut f: impl FnMut(Entity, AsyncWorldMut, &Signals, &[Entity]) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + 'static {
         AsyncSystem {
-            function: Box::new(move |entity, executor, signals| {
-                f(entity, executor.clone(), signals).map(|x| Box::pin(x) as PinnedFut)
+            function: Box::new(move |entity, executor, signals, children| {
+                f(entity, executor.clone(), signals, children).map(|x| Box::pin(x) as PinnedFut)
             }),
             marker: ParentAlive::new()
         }
@@ -200,5 +204,33 @@ pub trait AsyncEntityParam: Sized {
         entity: Entity,
         executor: &AsyncWorldMut,
         signal: Self::Signal,
-    ) -> Self;
+        children: &[Entity],
+    ) -> Option<Self>;
+}
+
+
+/// System that pushes inactive [`AsyncSystems`] to the executor.
+pub fn push_async_systems(
+    dummy: Local<Signals>,
+    executor: NonSend<QueryQueue>,
+    exec: NonSend<AsyncExecutor>,
+    mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems, Option<&Children>)>
+) {
+    let spawner = exec.0.spawner();
+    for (entity, signals, mut systems, children) in query.iter_mut() {
+        let signals = signals.unwrap_or(&dummy);
+        for system in systems.systems.iter_mut(){
+            if !system.marker.other_alive() {
+                let alive = system.marker.clone_child();
+                let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
+                let Some(fut) = (system.function)(entity, AsyncWorldMut::ref_cast(&executor.0), signals, children) else {continue};
+                let _ = spawner.spawn_local(async move {
+                    futures::select_biased! {
+                        _ = alive.fuse() => (),
+                        _ = fut.fuse() => (),
+                    };
+                });
+            }
+        }
+    }
 }

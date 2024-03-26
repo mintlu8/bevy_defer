@@ -1,15 +1,14 @@
-use std::{any::{Any, TypeId}, fmt::Debug, marker::PhantomData, pin::pin, sync::atomic::Ordering, task::Poll};
+use std::{any::Any, marker::PhantomData, pin::pin};
 use std::future::Future;
 use std::sync::Arc;
 use bevy_ecs::entity::Entity;
-use crate::{async_world::AsyncWorldMut, object::{AsObject, Object}};
+use crate::async_world::AsyncWorldMut;
 use crate::async_systems::AsyncEntityParam;
 use super::{signal_component::Signals, signal_inner::SignalInner};
-pub use super::signal_inner::{Signal, SignalData};
 
 /// A marker type that indicates the type and purpose of a signal.
 pub trait SignalId: Any + Send + Sync + 'static{
-    type Data: AsObject + Default;
+    type Data: Send + Sync + Default + Clone + 'static;
 }
 
 /// Quickly construct multiple marker [`SignalId`]s at once.
@@ -38,131 +37,18 @@ macro_rules! signal_ids {
     };
 }
 
-
-/// A type erased signal with a nominal type.
-#[derive(Debug, Clone)]
-pub struct TypedSignal<T: AsObject> {
-    pub(crate) inner: Arc<SignalData<Object>>,
-    p: PhantomData<T>,
-}
-
-impl<T: AsObject> Default for TypedSignal<T> {
-    fn default() -> Self {
-        Self { inner: Default::default(), p: PhantomData }
-    }
-}
-
-impl<T: AsObject> TypedSignal<T> {
-
-    pub fn new() -> Self {
-        Self { inner: Default::default(), p: PhantomData }
-    }
-
-    pub fn from_inner(inner: Arc<SignalData<Object>>) -> Self {
-        Self {
-            inner,
-            p: PhantomData
-        }
-    }
-
-    pub fn from_signal(signal: &Signal<Object>) -> Self {
-        Self {
-            inner: signal.inner.inner.clone(),
-            p: PhantomData
-        }
-    }
-    
-    pub fn into_inner(self) -> Arc<SignalData<Object>> {
-        self.inner
-    }
-
-    pub fn type_erase(self) -> TypedSignal<Object> {
-        TypedSignal { 
-            inner: self.inner, 
-            p: PhantomData 
-        }
-    }
-
-    pub fn send(&self, item: T) {
-        let mut lock = self.inner.data.lock();
-        lock.set(item);
-        self.inner.tick.fetch_add(1, Ordering::Relaxed);
-        let mut wakers = self.inner.wakers.lock();
-        wakers.drain(..).for_each(|x| x.wake());
-    }
-
-    pub fn peek(&self) -> Option<T>{
-        let lock = self.inner.data.lock();
-        lock.get()
-    }
-}
-
-impl TypedSignal<Object> {
-    pub fn of_type<T: AsObject>(self) -> TypedSignal<T> {
-        TypedSignal { 
-            inner: self.inner, 
-            p: PhantomData 
-        }
-    }
-}
-
-pub(crate) trait SignalMapperTrait: Send + Sync + 'static {
-    fn map(&self, obj: &mut Object);
-    fn dyn_clone(&self) -> Box<dyn SignalMapperTrait>;
-}
-
-impl<T> SignalMapperTrait for T where T: Fn(&mut Object) + Clone + Send + Sync + 'static {
-    fn map(&self, obj: &mut Object) {
-        self(obj)
-    }
-    fn dyn_clone(&self) -> Box<dyn SignalMapperTrait> {
-        Box::new(self.clone())
-    }
-}
-
-/// A function that maps a signal's value.
-pub struct SignalMapper(Box<dyn SignalMapperTrait>);
-
-impl Debug for SignalMapper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SignalMapper").finish()
-    }
-}
-
-impl Clone for SignalMapper {
-    fn clone(&self) -> Self {
-        Self(self.0.dyn_clone())
-    }
-}
-
-impl SignalMapper {
-    pub fn new<A: SignalId, B: SignalId>(f: impl Fn(A::Data) -> B::Data + Clone + Send + Sync + 'static) -> Self {
-        Self(Box::new(move |obj: &mut Object| {
-            let Some(item) = obj.clone().get::<A::Data>() else {return};
-            *obj = Object::new(f(item));
-        }))
-    }
-
-    pub fn map<T: AsObject>(&self, mut obj: Object) -> Option<T> {
-        self.0.map(&mut obj);
-        obj.get()
-    }
-}
-
 /// `AsyncSystemParam` for sending a signal.
-pub struct Sender<T: SignalId>(Arc<SignalInner<Object>>, PhantomData<T>);
+pub struct Sender<T: SignalId>(Arc<SignalInner<T::Data>>, PhantomData<T>);
 
 impl<T: SignalId> Sender<T> {
     /// Send a value with a signal, can be polled by the same sender.
-    pub fn send(self, item: T::Data) -> impl Fn() + Send + Sync + 'static  {
-        let obj = Object::new(item);
-        move ||self.0.write(obj.clone())
+    pub fn send(self, item: T::Data) -> impl FnOnce() + Send + Sync + 'static  {
+        move ||self.0.write(item)
     }
 
     /// Send a value with a signal, cannot be polled by the same sender.
-    pub fn broadcast(self, item: T::Data) -> impl Fn() + Send + Sync + 'static  {
-        let obj = Object::new(item);
-        move ||self.0.broadcast(obj.clone())
+    pub fn broadcast(self, item: T::Data) -> impl FnOnce() + Send + Sync + 'static  {
+        move ||self.0.broadcast(item)
     }
 
     /// Receives a value from the sender.
@@ -172,7 +58,7 @@ impl<T: SignalId> Sender<T> {
 }
 
 impl<T: SignalId> AsyncEntityParam for Sender<T>  {
-    type Signal = Arc<SignalInner<Object>>;
+    type Signal = Arc<SignalInner<T::Data>>;
     
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
         signals.borrow_sender::<T>()
@@ -182,31 +68,24 @@ impl<T: SignalId> AsyncEntityParam for Sender<T>  {
             _: Entity,
             _: &AsyncWorldMut,
             signal: Self::Signal,
-        ) -> Self {
-        Sender(
+            _: &[Entity],
+        ) -> Option<Self> {
+        Some(Sender(
             signal,
             PhantomData
-        )
+        ))
     }
 }
 
 /// `AsyncSystemParam` for receiving a signal.
-pub struct Receiver<T: SignalId>(Arc<SignalInner<Object>>, PhantomData<T>);
+pub struct Receiver<T: SignalId>(Arc<SignalInner<T::Data>>, PhantomData<T>);
 
 impl<T: SignalId> Future for &Receiver<T> {
     type Output = T::Data;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        let pinned = pin!(signal.async_read());
-        match pinned.poll(cx) {
-            Poll::Ready(data) => if let Some(data) = data.get() {
-                Poll::Ready(data)
-            } else {
-                Poll::Pending
-            }
-            Poll::Pending => Poll::Pending
-        }
+        pin!(signal.async_read()).poll(cx)
     }
 }
 
@@ -215,15 +94,7 @@ impl<T: SignalId> Future for &Sender<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        let pinned = pin!(signal.async_read());
-        match pinned.poll(cx) {
-            Poll::Ready(data) => if let Some(data) = data.get() {
-                Poll::Ready(data)
-            } else {
-                Poll::Pending
-            }
-            Poll::Pending => Poll::Pending
-        }
+        pin!(signal.async_read()).poll(cx)
     }
 }
 
@@ -232,15 +103,7 @@ impl<T: SignalId> Future for Receiver<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        let pinned = pin!(signal.async_read());
-        match pinned.poll(cx) {
-            Poll::Ready(data) => if let Some(data) = data.get() {
-                Poll::Ready(data)
-            } else {
-                Poll::Pending
-            }
-            Poll::Pending => Poll::Pending
-        }
+        pin!(signal.async_read()).poll(cx)
     }
 }
 
@@ -249,15 +112,7 @@ impl<T: SignalId> Future for Sender<T> {
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let signal = self.0.clone();
-        let pinned = pin!(signal.async_read());
-        match pinned.poll(cx) {
-            Poll::Ready(data) => if let Some(data) = data.get() {
-                Poll::Ready(data)
-            } else {
-                Poll::Pending
-            }
-            Poll::Pending => Poll::Pending
-        }
+        pin!(signal.async_read()).poll(cx)
     }
 }
 
@@ -268,22 +123,8 @@ impl<T: SignalId> Receiver<T> {
     }
 }
 
-impl<T: SignalId<Data = Object>> Receiver<T> {
-    /// Receives and downcasts a signal, discard all invalid typed values.
-    pub async fn recv_as<A: AsObject>(&self) -> A {
-        loop {
-            let signal = self.0.clone();
-            let obj = signal.async_read().await;
-            if let Some(data) = obj.get() {
-                return data;
-            }
-        }
-    }
-}
-
-
 impl<T: SignalId> AsyncEntityParam for Receiver<T>  {
-    type Signal = Arc<SignalInner<Object>>;
+    type Signal = Arc<SignalInner<T::Data>>;
     
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
         signals.borrow_receiver::<T>()
@@ -293,11 +134,12 @@ impl<T: SignalId> AsyncEntityParam for Receiver<T>  {
             _: Entity,
             _: &AsyncWorldMut,
             signal: Self::Signal,
-        ) -> Self {
-        Receiver(
+            _: &[Entity],
+    ) -> Option<Self> {
+        Some(Receiver(
             signal,
             PhantomData
-        )
+        ))
     }
 }
 
@@ -372,54 +214,11 @@ mod sealed {
 
 pub use sealed::{SignalSender, SignalReceiver};
 
-/// A signal with a role, that can be composed with [`Signals`].
-pub enum RoleSignal<T: SignalId>{
-    Sender(TypedSignal<T::Data>),
-    Receiver(TypedSignal<T::Data>),
-    Adaptor(TypeId, SignalMapper),
-}
-
-impl<T: SignalId> RoleSignal<T> {
-    pub fn and<A: SignalId>(self, other: RoleSignal<A>) -> Signals {
-        let base = match self {
-            RoleSignal::Sender(s) => Signals::from_sender::<T>(s),
-            RoleSignal::Receiver(r) => Signals::from_receiver::<T>(r),
-            RoleSignal::Adaptor(t, a) => {
-                let mut s = Signals::new();
-                s.add_adaptor::<T>(t, a);
-                s
-            },
-        };
-        base.and(other)
-    }
-
-    pub fn into_signals(self) -> Signals {
-        match self {
-            RoleSignal::Sender(s) => Signals::from_sender::<T>(s),
-            RoleSignal::Receiver(r) => Signals::from_receiver::<T>(r),
-            RoleSignal::Adaptor(t, a) => {
-                let mut s = Signals::new();
-                s.add_adaptor::<T>(t, a);
-                s
-            },
-        }
-    }
-}
-
 impl Signals {
     pub fn extend(mut self, other: Signals) -> Signals {
         self.senders.extend(other.senders);
         self.receivers.extend(other.receivers);
-        self.adaptors.extend(other.adaptors);
         self
-    }
-
-    pub fn and<A: SignalId>(self, other: RoleSignal<A>) -> Signals {
-        match other {
-            RoleSignal::Sender(s) => self.with_sender::<A>(s),
-            RoleSignal::Receiver(r) => self.with_receiver::<A>(r),
-            RoleSignal::Adaptor(t, a) => self.with_adaptor::<A>(t, a),
-        }
     }
 
     pub fn into_signals(self) -> Signals {

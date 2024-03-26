@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy_defer::{async_system, signals::{Signals, TypedSignal}, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
+use bevy_defer::signals::Signal;
+use bevy_defer::{async_system, signals::Signals, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
 use bevy_defer::picking::{ui_reactor, AsyncUIButton, ClickCancelled, Click, UIInteractionChange, LoseFocus, ObtainFocus, Pressed};
 use bevy_ui::RelativeCursorPosition;
 use futures::FutureExt;
@@ -50,12 +51,12 @@ fn button_system(
 fn setup(mut commands: Commands) {
     // ui camera
     commands.spawn(Camera2dBundle::default());
-    let click = TypedSignal::new();
-    let press = TypedSignal::new();
-    let focus = TypedSignal::new();
-    let lose = TypedSignal::new();
-    let cancel = TypedSignal::new();
-    let state = TypedSignal::new();
+    let click = Signal::default();
+    let press = Signal::default();
+    let focus = Signal::default();
+    let lose = Signal::default();
+    let cancel = Signal::default();
+    let state = Signal::default();
     let mut btn_entity = Entity::PLACEHOLDER;
     commands
         .spawn(NodeBundle {

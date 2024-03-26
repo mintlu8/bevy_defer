@@ -11,7 +11,7 @@ pub mod async_systems;
 mod async_query;
 mod event;
 pub mod signals;
-mod object;
+//mod object;
 mod executor;
 mod commands;
 mod extension;
@@ -45,12 +45,13 @@ pub mod extensions {
 
 pub mod systems {
     //! Systems in `bevy_defer`.
-    pub use crate::executor::{run_async_executor, run_async_queries, push_async_systems};
+    pub use crate::executor::{run_async_executor, run_async_queries};
+    pub use crate::async_systems::push_async_systems;
     pub use crate::tween::run_fixed_queue;
 }
 
 use futures::{task::LocalSpawnExt, Future};
-pub use object::{Object, AsObject};
+//pub use object::{Object, AsObject};
 pub use crate::channels::channel;
 pub use crate::locals::LocalResourceScope;
 
@@ -155,11 +156,11 @@ impl<S: LocalResourceScope> Plugin for AsyncPlugin<S> {
         app.add_plugins(CoreAsyncPlugin);
         for (schedule, set) in &self.schedules {
             if let Some(set) = set {
-                app.add_systems(schedule.clone(), 
-                    (run_async_queries.before(run_async_executor::<S>), run_async_executor::<S>).in_set(set.clone())
+                app.add_systems(*schedule, 
+                    (run_async_queries.before(run_async_executor::<S>), run_async_executor::<S>).in_set(*set)
                 );
             } else {
-                app.add_systems(schedule.clone(), 
+                app.add_systems(*schedule, 
                     (run_async_queries.before(run_async_executor::<S>), run_async_executor::<S>)
                 );
             }
