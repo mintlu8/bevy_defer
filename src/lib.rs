@@ -12,7 +12,6 @@ pub mod async_systems;
 mod async_query;
 mod async_event;
 pub mod signals;
-//mod object;
 mod executor;
 mod commands;
 mod extension;

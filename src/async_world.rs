@@ -83,7 +83,7 @@ pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl 
 /// 
 /// # Panics
 ///
-/// If used onside a `bevy_defer` future.
+/// If used outside a `bevy_defer` future.
 pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn_and_forget can only be used in a bevy_defer future.")
@@ -95,7 +95,7 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
 ///
 /// # Panics
 ///
-/// If used onside a `bevy_defer` future.
+/// If used outside a `bevy_defer` future.
 pub fn world() -> AsyncWorldMut {
     if !ASYNC_WORLD.is_set() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")

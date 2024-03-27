@@ -1,4 +1,4 @@
-//! Non-Send version of `futures_channels::oneshot`
+//! `!Send` version of `futures_channels::oneshot`
 use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
 use futures::Future;
 
