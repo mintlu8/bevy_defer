@@ -120,6 +120,18 @@ impl<C: Component> AsyncComponent<C> {
     }
     
     /// Wait until a [`Component`] exists.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>()
+    ///     .exists().await;
+    /// # });
+    /// ```
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -138,6 +150,18 @@ impl<C: Component> AsyncComponent<C> {
     /// Run a function on the [`Component`] and obtain the result.
     /// 
     /// Guaranteed to complete immediately with `World` access.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>()
+    ///     .get(|x| x.0).await?;
+    /// # });
+    /// ```
     pub fn get<Out: 'static>(&self, f: impl FnOnce(&C) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let entity = self.entity;
@@ -158,6 +182,18 @@ impl<C: Component> AsyncComponent<C> {
     }
 
     /// Run a function on the mutable [`Component`] and obtain the result.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>()
+    ///     .set(|x| x.0 = 16).await?;
+    /// # });
+    /// ```
     pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut C) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -179,6 +215,17 @@ impl<C: Component> AsyncComponent<C> {
     }
 
     /// Run a repeatable function on the [`Component`] and obtain the result once [`Some`] is returned.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>()
+    ///     .watch(|x| (x.0 == 4).then_some(())).await?;
+    /// # });
     pub fn watch<Out: 'static>(&self, mut f: impl FnMut(&C) -> Option<Out> + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -242,6 +289,15 @@ impl<R: 'static> AsyncNonSend<R> {
     }
 
     /// Wait until a [`NonSend`] exists.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().non_send_resource::<Int>().exists().await;
+    /// # });
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         self.queue.repeat(
@@ -258,6 +314,15 @@ impl<R: 'static> AsyncNonSend<R> {
     /// Run a function on the [`NonSend`] and obtain the result.
     /// 
     /// Guaranteed to complete immediately with `World` access.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().non_send_resource::<Int>().get(|x| x.0).await?;
+    /// # });
     pub fn get<Out: 'static>(&self, f: impl FnOnce(&R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let f = move |world: &World| {
@@ -275,6 +340,15 @@ impl<R: 'static> AsyncNonSend<R> {
     }
 
     /// Run a function on the mutable [`NonSend`] and obtain the result.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().non_send_resource::<Int>().set(|x| x.0 = 16).await?;
+    /// # });
     pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -290,14 +364,22 @@ impl<R: 'static> AsyncNonSend<R> {
     }
 
     /// Run a repeatable function on the [`NonSend`] and obtain the result once [`Some`] is returned.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().non_send_resource::<Int>()
+    ///     .watch(|x| (x.0 == 4).then_some(())).await;
+    /// # });
     pub fn watch<Out: 'static>(&self, mut f: impl FnMut(&R) -> Option<Out> + 'static)
-            -> impl Future<Output = AsyncResult<Out>> {
+            -> impl Future<Output = Out> {
         let (sender, receiver) = channel();
         self.queue.repeat(
             move |world: &mut World| {
-                let Some(res) = world.get_non_send_resource::<R>() 
-                    else {return Some(Err(AsyncFailure::ResourceNotFound))};
-                Ok(f(res)).transpose()
+                world.get_non_send_resource::<R>().and_then(&mut f)
             },
             sender
         );
@@ -341,6 +423,15 @@ impl<R: Resource> AsyncResource<R> {
     }
 
     /// Wait until a [`Resource`] exists.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().resource::<Int>().exists().await;
+    /// # });
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         self.queue.repeat(
@@ -357,6 +448,15 @@ impl<R: Resource> AsyncResource<R> {
     /// Run a function on the [`Resource`] and obtain the result.
     /// 
     /// Guaranteed to complete immediately with `World` access.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().resource::<Int>().get(|x| x.0).await?;
+    /// # });
     pub fn get<Out: 'static>(&self, f: impl FnOnce(&R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let f = move |world: &World| {
@@ -374,6 +474,15 @@ impl<R: Resource> AsyncResource<R> {
     }
 
     /// Run a function on the mutable [`Resource`] and obtain the result.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().resource::<Int>().set(|x| x.0 = 16).await?;
+    /// # });
     pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
@@ -389,18 +498,21 @@ impl<R: Resource> AsyncResource<R> {
     }
 
     /// Run a repeatable function on the [`Resource`] and obtain the result once [`Some`] is returned.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// world().resource::<Int>().watch(|x| (x.0 == 4).then_some(())).await;
+    /// # });
     pub fn watch<Out: 'static>(&self, mut f: impl FnMut(&R) -> Option<Out> + 'static)
-            -> impl Future<Output = AsyncResult<Out>> {
+            -> impl Future<Output = Out> {
         let (sender, receiver) = channel();
         self.queue.repeat(
             move |world: &mut World| {
-                let Some(res) = world.get_resource_ref::<R>() 
-                    else {return Some(Err(AsyncFailure::ResourceNotFound))};
-                if res.is_changed() {
-                    Ok(f(&res)).transpose()
-                } else {
-                    None
-                }
+                world.get_resource_ref::<R>().and_then(&mut f)
             },
             sender
         );
