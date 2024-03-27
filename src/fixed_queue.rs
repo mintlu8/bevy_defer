@@ -14,7 +14,7 @@ pub(crate) struct FixedTask {
     cancel: TaskCancellation,
 }
 
-/// A non-send thread-local queue running on [`FixedUpdate`].
+/// A `!Send` thread-local queue running on [`FixedUpdate`].
 #[derive(Default)]
 pub struct FixedQueue{
     inner: Vec<FixedTask>

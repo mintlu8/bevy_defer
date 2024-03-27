@@ -15,10 +15,7 @@ struct QueryCallback {
 }
 
 impl QueryCallback {
-    /// Spawn a non-send command that runs once.
-    /// 
-    /// Use `AsyncWorldMut::add_command` if possible since that is more optimized.
-    pub fn fire_and_forget(
+    fn fire_and_forget(
         query: impl (FnOnce(&mut World)) + 'static,
     ) -> Self {
         Self {
@@ -29,8 +26,7 @@ impl QueryCallback {
         }
     }
 
-    /// Spawn a non-send command that runs once and returns a result through a channel.
-    pub fn once<Out: 'static>(
+    fn once<Out: 'static>(
         query: impl (FnOnce(&mut World) -> Out) + 'static,
         channel: Sender<Out>
     ) -> Self {
@@ -44,8 +40,7 @@ impl QueryCallback {
         }
     }
 
-    /// Spawn a non-send command and wait until it returns `Some`.
-    pub fn repeat<Out: 'static>(
+    fn repeat<Out: 'static>(
         mut query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
         channel: Sender<Out>
     ) -> Self {
@@ -65,17 +60,17 @@ impl QueryCallback {
 }
 
 
-/// Queue for deferred non-send queries applied on the [`World`].
+/// Queue for deferred `!Send` queries applied on the [`World`].
 #[derive(Default)]
 pub struct AsyncQueryQueue {
-    pub queries: RefCell<Vec<QueryCallback>>,
+    queries: RefCell<Vec<QueryCallback>>,
 }
 
 impl AsyncQueryQueue {
     
-    /// Spawn a non-send command that runs once.
+    /// Spawn a `!Send` command that runs once.
     /// 
-    /// Use `AsyncWorldMut::add_command` if possible since that is more optimized.
+    /// Use `AsyncWorldMut::add_command` if possible since the bevy `CommandQueue` is more optimized.
     pub fn fire_and_forget(
         &self,
         query: impl (FnOnce(&mut World)) + 'static,
@@ -85,7 +80,10 @@ impl AsyncQueryQueue {
         )
     }
 
-    /// Spawn a non-send command that runs once and returns a result through a channel.
+
+    /// Spawn a `!Send` command that runs once and returns a result through a channel.
+    /// 
+    /// If receiver is dropped, the command will be cancelled.
     pub fn once<Out: 'static>(
         &self,
         query: impl (FnOnce(&mut World) -> Out) + 'static,
@@ -96,10 +94,13 @@ impl AsyncQueryQueue {
         )
     }
 
-    /// Spawn a non-send command and wait until it returns `Some`.
+
+    /// Spawn a `!Send` command and wait until it returns `Some`.
+    /// 
+    /// If receiver is dropped, the command will be cancelled.
     pub fn repeat<Out: 'static> (
         &self,
-        mut query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
+        query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
         channel: Sender<Out>
     ) {
         self.queries.borrow_mut().push(
@@ -122,12 +123,12 @@ impl std::fmt::Debug for AsyncQueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AsyncExecutor")
             .field("queries", &self.queries.borrow().len())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 /// Queue for deferred queries applied on the [`World`].
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct QueryQueue(pub(crate) Rc<AsyncQueryQueue>);
 
 impl Deref for QueryQueue {

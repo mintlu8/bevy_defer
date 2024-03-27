@@ -210,7 +210,7 @@ let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventRead
 
 ## Thread Locals
 
-You can push resources, non-send resources and even `&World` (readonly) onto
+You can push resources, `!Send` resources and even `&World` (readonly) onto
 thread local storage during execution by adding them to the plugin:
 
 ```rust
