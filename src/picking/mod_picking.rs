@@ -35,8 +35,8 @@ pub fn picking_reactor(
         match (previous, interaction) {
             (PickingInteraction::Pressed, PickingInteraction::Hovered) => signals.send::<Click>(position),
             (PickingInteraction::Pressed, PickingInteraction::None) => signals.send::<ClickCancelled>(position),
-            _ => (),
-        }
+            _ => false,
+        };
         if previous == PickingInteraction::None {
             signals.send::<ObtainFocus>(position);
         }

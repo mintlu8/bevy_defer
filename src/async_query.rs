@@ -1,7 +1,7 @@
 use crate::{async_world::AsyncWorldMut, signals::Signals, CHANNEL_CLOSED};
 use bevy_ecs::{
     entity::Entity,
-    query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
+    query::{QueryData, QueryFilter, QueryIter, QuerySingleError, QueryState, WorldQuery},
     system::Resource,
     world::World,
 };
@@ -42,6 +42,36 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
 }
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
+    /// Try run a function on a singleton query.
+    pub fn single<U: 'static> (
+        &self,
+        f: impl FnOnce(T::Item<'_>) -> U + 'static,
+    ) -> impl Future<Output = AsyncResult<U>> + 'static {
+        let (sender, receiver) = channel();
+        self.queue.once(
+            move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
+                Some(mut state) => {
+                    let result = state.0.get_single_mut(world).map(f).map_err(|e| match e {
+                        QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
+                        QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
+                    });
+                    world.insert_resource(state);
+                    result
+                }
+                None => {
+                    let mut state = ResQueryCache(world.query_filtered::<T, F>());
+                    let result = state.0.get_single_mut(world).map(f).map_err(|e| match e {
+                        QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
+                        QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
+                    });
+                    world.insert_resource(state);
+                    result
+                }
+            },
+            sender,
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
     
     /// Run a function on the iterator.
     pub fn for_each (

@@ -26,11 +26,19 @@ impl AsyncWorldMut {
         }
     }
 
-    pub fn event<E: Event>(&self) -> AsyncEventReader<E> {
+    /// Create an [`AsyncEventReader`].
+    pub fn event_reader<E: Event>(&self) -> AsyncEventReader<E> {
         AsyncEventReader { queue: self.queue.clone(), reader: Default::default() }
     }
 }
 
+/// Async version of `EventReader`.
+/// 
+/// # Note
+/// 
+/// Unlike most accessors this struct holds internal state 
+/// as a [`ManualEventReader`],
+/// which keeps track of the current event tick.
 #[derive(Debug, Clone)]
 pub struct AsyncEventReader<E: Event> {
     queue: Rc<AsyncQueryQueue>,
@@ -134,11 +142,11 @@ impl<E: Event> AsyncEntityParam for AsyncEventReader<E> {
         _: Self::Signal,
         _: &[Entity],
     ) -> Option<Self> {
-        Some(executor.event::<E>())
+        Some(executor.event_reader::<E>())
     }
 }
 
-/// Add method to [`AsyncEventReaderDeref`] through deref.
+/// Add method to [`AsyncEventReader`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncEventReaderDeref: Event + Sized {

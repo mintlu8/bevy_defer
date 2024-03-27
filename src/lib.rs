@@ -34,7 +34,7 @@ use crate::async_world::world_scope;
 
 pub mod access {
     //! Asynchronous accessors to the `World`.
-    pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut};
+    pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut, AsyncChild};
     pub use crate::async_query::{AsyncQuery, AsyncEntityQuery};
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
     pub use crate::async_event::AsyncEventReader;
@@ -251,13 +251,14 @@ impl Command for SpawnFn {
 /// This type is designed to be match friendly but not necessarily carry all the debugging information.
 /// It might me more correct to either match or unwrap this error instead of propagating it.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AsyncFailure {
     #[error("async channel closed")]
     ChannelClosed,
     #[error("entity not found")]
     EntityNotFound,
-    #[error("entity not found in query")]
-    EntityQueryNotFound,
+    #[error("too many entities")]
+    TooManyEntities,
     #[error("child index missing")]
     ChildNotFound,
     #[error("component not found")]

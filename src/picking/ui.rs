@@ -31,8 +31,8 @@ pub fn ui_reactor(
         match (previous, interaction) {
             (Interaction::Pressed, Interaction::Hovered) => signals.send::<Click>(position),
             (Interaction::Pressed, Interaction::None) => signals.send::<ClickCancelled>(position),
-            _ => (),
-        }
+            _ => false,
+        };
         if previous == Interaction::None {
             signals.send::<ObtainFocus>(position);
         }

@@ -116,7 +116,7 @@ pub fn events() {
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
-        assert_eq!(world.event::<AliceChat>().poll().await.0, "Hello, Alice.");
+        assert_eq!(world.event_reader::<AliceChat>().poll().await.0, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(BobChat("Hello, Bob.".to_owned())).await?;
         ALICE.store(true, Ordering::Relaxed);
@@ -126,7 +126,7 @@ pub fn events() {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(AliceChat("Hello, Alice.".to_owned())).await?;
-        assert_eq!(world.event::<BobChat>().poll().await.0, "Hello, Bob.");
+        assert_eq!(world.event_reader::<BobChat>().poll().await.0, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });

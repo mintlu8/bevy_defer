@@ -50,16 +50,26 @@ impl Signals {
     }
 
     /// Send a signal, can be polled through the sender.
-    pub fn send<T: SignalId>(&self, item: T::Data) {
+    /// 
+    /// Returns `true` if the signal exists.
+    pub fn send<T: SignalId>(&self, item: T::Data) -> bool{
         if let Some(sig) = self.senders.get(&TypeId::of::<T>()).and_then(|x| x.downcast_ref::<Signal<T::Data>>()) {
-            sig.send(item)
+            sig.send(item);
+            true
+        } else {
+            false
         }
     }
 
     /// Send a signal, cannot be polled through the sender.
-    pub fn broadcast<T: SignalId>(&self, item: T::Data) {
+    /// 
+    /// Returns `true` if the signal exists.
+    pub fn broadcast<T: SignalId>(&self, item: T::Data) -> bool {
         if let Some(sig) = self.senders.get(&TypeId::of::<T>()).and_then(|x| x.downcast_ref::<Signal<T::Data>>()) {
-            sig.broadcast(item)
+            sig.broadcast(item);
+            true
+        } else {
+            false
         }
     }
 
@@ -79,14 +89,14 @@ impl Signals {
             .and_then(|x| x.try_read())
     }
     
-    /// Borrow a sender's inner, this shares version number compared to `clone`.
+    /// Borrow a sender's inner, this shares read tick compared to `clone`.
     pub fn borrow_sender<T: SignalId>(&self) -> Option<Arc<SignalInner<T::Data>>> {
         self.senders.get(&TypeId::of::<T>())
             .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
             .map(|x| x.borrow_inner())
     }
 
-    /// Borrow a receiver's inner, this shares version number compared to `clone`.
+    /// Borrow a receiver's inner, this shares read tick compared to `clone`.
     pub fn borrow_receiver<T: SignalId>(&self) ->  Option<Arc<SignalInner<T::Data>>> {
         self.receivers.get(&TypeId::of::<T>())
             .and_then(|x| x.downcast_ref::<Signal<T::Data>>())

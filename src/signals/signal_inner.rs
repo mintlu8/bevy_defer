@@ -17,6 +17,9 @@ pub struct SignalData<T> {
 }
 
 /// The shared component of a signal.
+/// 
+/// `Arc<SignalInner<T>>` is a clone of a [`Signal`] that shares the read tick, 
+/// compared to calling `clone` on a signal.
 #[derive(Debug, Default)]
 pub struct SignalInner<T> {
     pub(crate) inner: Arc<SignalData<T>>,

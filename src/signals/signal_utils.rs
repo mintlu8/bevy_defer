@@ -179,16 +179,24 @@ mod sealed {
         }
 
         /// Send a item through a signal, can be polled from the same sender.
-        pub fn send(&self, item: T::Data) {
+        /// 
+        /// Returns `true` if the sender exists.
+        pub fn send(&self, item: T::Data) -> bool {
             if let Some(signals) = self.signals {
-                signals.send::<T>(item);
+                signals.send::<T>(item)
+            } else {
+                false
             }
         }
         
         /// Send a item through a signal, cannot be polled from the same sender.
-        pub fn broadcast(&self, item: T::Data) {
+        /// 
+        /// Returns `true` if the sender exists.
+        pub fn broadcast(&self, item: T::Data) -> bool{
             if let Some(signals) = self.signals {
-                signals.broadcast::<T>(item);
+                signals.broadcast::<T>(item)
+            } else {
+                false
             }
         }
 

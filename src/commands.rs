@@ -2,8 +2,7 @@ use std::{cell::OnceCell, future::{ready, Future}};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::{future::Either, FutureExt};
-use crate::{async_asset::AsyncAsset, channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
-use bevy_asset::{Asset, AssetPath, Handle};
+use crate::{channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::{Command, CommandQueue}, world::World};
 use bevy_time::Time;
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
@@ -299,50 +298,6 @@ impl AsyncWorldMut {
             sender
         );
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Obtain an [`AsyncAsset`] from a [`Handle`].
-    /// 
-    /// # Example
-    /// 
-    /// ```
-    /// # bevy_defer::test_spawn!({
-    /// let square = world().load_asset::<Image>("square.png");
-    /// world().asset(square.into_handle());
-    /// # });
-    /// ```
-    pub fn asset<A: Asset>(
-        &self, 
-        handle: Handle<A>, 
-    ) -> AsyncAsset<A> {
-        AsyncAsset {
-            queue: self.queue.clone(),
-            handle,
-        }
-    }
-
-    /// Load an asset from an [`AssetPath`], equivalent to `AssetServer::load`.
-    /// Does not wait for `Asset` to be loaded.
-    /// 
-    /// # Panics
-    /// 
-    /// If `AssetServer` does not exist in the world.
-    /// 
-    /// # Example
-    /// 
-    /// ```
-    /// # bevy_defer::test_spawn!({
-    /// let square = world().load_asset::<Image>("square.png");
-    /// # });
-    /// ```
-    pub fn load_asset<A: Asset>(
-        &self, 
-        path: impl Into<AssetPath<'static>> + Send + 'static, 
-    ) -> AsyncAsset<A> {
-        AsyncAsset {
-            queue: self.queue.clone(),
-            handle: self.with_asset_server(|s| s.load::<A>(path)),
-        }
     }
 
     /// Obtain or init a signal by name and [`SignalId`].

@@ -1,8 +1,8 @@
-use crate::channels::channel;
+use crate::{channels::channel, signals::SignalInner};
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
 use futures::FutureExt;
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 impl AsyncEntityMut {
@@ -206,7 +206,9 @@ impl AsyncEntityMut {
     }
 
     /// Send data through a signal on this entity.
-    pub fn send<S: SignalId>(&self, data: S::Data) -> impl Future<Output = AsyncResult<()>> {
+    /// 
+    /// Returns `true` if the signal exists.
+    pub fn send<S: SignalId>(&self, data: S::Data) -> impl Future<Output = AsyncResult<bool>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -217,8 +219,7 @@ impl AsyncEntityMut {
                 let Some(signals) = entity.get_mut::<Signals>() else {
                     return Err(AsyncFailure::ComponentNotFound)
                 };
-                signals.send::<S>(data);
-                Ok(())
+                Ok(signals.send::<S>(data))
             },
             sender
         );
@@ -250,5 +251,43 @@ impl AsyncEntityMut {
                 Err(e) => Err(e),
             }
         }
+    }
+    
+    /// Borrow a sender from an entity with shared read tick.
+    pub fn sender<S: SignalId>(&self) -> impl Future<Output = AsyncResult<Arc<SignalInner<S::Data>>>> {
+        let (sender, receiver) = channel();
+        let entity = self.entity;
+        self.queue.once(
+            move |world: &mut World| {
+                let Some(mut entity) = world.get_entity_mut(entity) else {
+                    return Err(AsyncFailure::EntityNotFound)
+                };
+                let Some(signals) = entity.get_mut::<Signals>() else {
+                    return Err(AsyncFailure::ComponentNotFound)
+                };
+                signals.borrow_sender::<S>().ok_or(AsyncFailure::SignalNotFound)
+            },
+            sender
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+    
+    /// Borrow a receiver from an entity with shared read tick.
+    pub fn receiver<S: SignalId>(&self) -> impl Future<Output = AsyncResult<Arc<SignalInner<S::Data>>>> {
+        let (sender, receiver) = channel();
+        let entity = self.entity;
+        self.queue.once(
+            move |world: &mut World| {
+                let Some(mut entity) = world.get_entity_mut(entity) else {
+                    return Err(AsyncFailure::EntityNotFound)
+                };
+                let Some(signals) = entity.get_mut::<Signals>() else {
+                    return Err(AsyncFailure::ComponentNotFound)
+                };
+                signals.borrow_receiver::<S>().ok_or(AsyncFailure::SignalNotFound)
+            },
+            sender
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
