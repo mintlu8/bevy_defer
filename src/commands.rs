@@ -302,6 +302,15 @@ impl AsyncWorldMut {
     }
 
     /// Obtain an [`AsyncAsset`] from a [`Handle`].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// let square = world().load_asset::<Image>("square.png");
+    /// world().asset(square.into_handle());
+    /// # });
+    /// ```
     pub fn asset<A: Asset>(
         &self, 
         handle: Handle<A>, 
@@ -318,6 +327,14 @@ impl AsyncWorldMut {
     /// # Panics
     /// 
     /// If `AssetServer` does not exist in the world.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// let square = world().load_asset::<Image>("square.png");
+    /// # });
+    /// ```
     pub fn load_asset<A: Asset>(
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
@@ -333,6 +350,18 @@ impl AsyncWorldMut {
     /// # Panics
     ///
     /// If used outside a `bevy_defer` future.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// let signal = world().signal::<MySignal>("signal 1");
+    /// signal.send(3.14);
+    /// signal.poll().await;
+    /// # });
+    /// ```
     pub fn signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
         if !NAMED_SIGNALS.is_set() {
             panic!("Can only obtain named signal in async context.")

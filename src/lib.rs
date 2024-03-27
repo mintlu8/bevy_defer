@@ -295,6 +295,9 @@ macro_rules! test_spawn {
             };
     
             let mut app = ::bevy::app::App::new();
+            app.add_plugins(MinimalPlugins);
+            app.add_plugins(AssetPlugin::default());
+            app.init_asset::<Image>();
             app.add_plugins(bevy_defer::AsyncPlugin::default_settings());
             app.world.spawn(Int(4));
             app.world.spawn(Str("Ferris"));
@@ -302,10 +305,13 @@ macro_rules! test_spawn {
             app.insert_resource(Str("Ferris"));
             app.insert_non_send_resource(Int(4));
             app.insert_non_send_resource(Str("Ferris"));
+            app.insert_state(MyState::A);
             app.spawn_task(async move {
                 $expr;
+                world().quit().await;
                 Ok(())
             });
+            app.run();
         }
     };
 }

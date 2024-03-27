@@ -30,6 +30,7 @@ impl Cancellation {
         self.0.set(true)
     }
 
+    /// Cancel a running task when the handle is dropped.
     pub fn cancel_on_drop(self) -> CancelOnDrop {
         CancelOnDrop(self)
     }
@@ -55,6 +56,7 @@ impl SyncCancellation {
         self.0.store(true, Ordering::Relaxed)
     }
 
+    /// Cancel a running task when the handle is dropped.
     pub fn cancel_on_drop(self) -> CancelOnDropSync {
         CancelOnDropSync(self)
     }

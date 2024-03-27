@@ -19,6 +19,11 @@ impl<A: Asset> AsyncAsset<A> {
         &self.handle
     }
 
+    /// Obtain the underlying [`Handle`].
+    pub fn into_handle(self) -> Handle<A> {
+        self.handle
+    }
+
     /// Run a function on an `Asset` and obtain the result,
     /// repeat until the asset is loaded.
     pub fn get<T: 'static> (

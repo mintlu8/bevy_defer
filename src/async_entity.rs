@@ -8,6 +8,15 @@ use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFail
 impl AsyncEntityMut {
 
     /// Adds a [`Bundle`] of components to the entity.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// entity.insert(Str("bevy")).await;
+    /// # });
+    /// ```
     pub fn insert(&self, bundle: impl Bundle) -> impl Future<Output = Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -23,6 +32,15 @@ impl AsyncEntityMut {
     }
 
     /// Removes any components in the [`Bundle`] from the entity.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// entity.remove::<Int>().await;
+    /// # });
+    /// ```
     pub fn remove<T: Bundle>(&self) -> impl Future<Output = Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -38,6 +56,15 @@ impl AsyncEntityMut {
     }
 
     /// Removes any components except those in the [`Bundle`] from the entity.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// entity.retain::<Int>().await;
+    /// # });
+    /// ```
     pub fn retain<T: Bundle>(&self) -> impl Future<Output = Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -55,6 +82,15 @@ impl AsyncEntityMut {
     /// Removes all components in the [`Bundle`] from the entity and returns their previous values.
     /// 
     /// Note: If the entity does not have every component in the bundle, this method will not remove any of them.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// entity.take::<Int>().await;
+    /// # });
+    /// ```
     pub fn take<T: Bundle>(&self) -> impl Future<Output = Result<Option<T>, AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -70,6 +106,15 @@ impl AsyncEntityMut {
     }
 
     /// Spawns an entity with the given bundle and inserts it into the parent entity's Children.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// let child = entity.spawn_child(Str("bevy")).await;
+    /// # });
+    /// ```
     pub fn spawn_child(&self, bundle: impl Bundle) -> impl Future<Output = AsyncResult<Entity>> {
         let (sender, receiver) = channel::<Option<Entity>>();
         let entity = self.entity;
@@ -88,6 +133,16 @@ impl AsyncEntityMut {
     }
 
     /// Adds a single child.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// # let child = world().spawn_bundle(Int(1)).await.id();
+    /// entity.add_child(child).await;
+    /// # });
+    /// ```
     pub fn add_child(&self, child: Entity) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
@@ -103,6 +158,15 @@ impl AsyncEntityMut {
     }
 
     /// Despawns the given entity and all its children recursively.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// entity.despawn().await;
+    /// # });
+    /// ```
     pub fn despawn(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let entity = self.entity;
@@ -118,6 +182,15 @@ impl AsyncEntityMut {
     }
 
     /// Despawns the given entity's children recursively.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(1)).await;
+    /// entity.despawn_descendants().await;
+    /// # });
+    /// ```
     pub fn despawn_descendants(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         let entity = self.entity;
