@@ -1,6 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
-use std::{borrow::Borrow, marker::PhantomData, pin::Pin, sync::Arc};
+use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
 
 use bevy_utils::intern::Interned;
 use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
@@ -72,7 +72,7 @@ pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
 pub use scoped_tls::scoped_thread_local;
 
-use signals::{NamedSignals, SignalData, SignalId, Signals};
+use signals::{NamedSignals, Signal, SignalId, Signals};
 use fixed_queue::run_fixed_queue;
 
 /// Result type of `AsyncSystemFunction`.
@@ -183,7 +183,7 @@ pub trait AsyncExtension {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self;
 
     /// Obtain a named signal.
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>;
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -197,8 +197,8 @@ impl AsyncExtension for World {
         self
     }
 
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
-        self.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
+        self.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name).into()
     }
 }
 
@@ -213,8 +213,8 @@ impl AsyncExtension for App {
         self
     }
 
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>> {
-        self.world.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
+    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
+        self.world.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name).into()
     }
 }
 

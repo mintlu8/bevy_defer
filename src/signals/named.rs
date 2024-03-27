@@ -8,7 +8,7 @@ use bevy_ecs::system::Resource;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use super::{SignalData, SignalId};
+use super::{signal_inner::SignalData, SignalId};
 
 /// A resource containing named signals.
 #[derive(Resource, Default)]
