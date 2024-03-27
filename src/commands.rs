@@ -1,8 +1,8 @@
-use std::{cell::OnceCell, future::Future};
+use std::{cell::OnceCell, future::{ready, Future}};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
-use futures::FutureExt;
-use crate::{async_asset::AsyncAsset, channels::channel, executor::COMMAND_QUEUE, locals::ASSET_SERVER, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
+use futures::{future::Either, FutureExt};
+use crate::{async_asset::AsyncAsset, channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
 use bevy_asset::{Asset, AssetPath, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::{Command, CommandQueue}, world::World};
 use bevy_time::Time;
@@ -11,7 +11,11 @@ use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, 
 impl AsyncWorldMut {
     /// Apply a command, does not wait for it to complete.
     /// 
-    /// Use [`AsyncWorldMut::run`] to wait for and obtain a result.
+    /// Use [`AsyncWorldMut::run`] to wait and obtain a result.
+    /// 
+    /// # Panics
+    ///
+    /// If used outside a `bevy_defer` future.
     pub fn apply_command(&self, command: impl Command) {
         if !COMMAND_QUEUE.is_set() {
             panic!("Cannot use `apply_command` in non_async context, use `run` instead.")
@@ -20,6 +24,10 @@ impl AsyncWorldMut {
     }
 
     /// Apply a [`CommandQueue`], does not wait for it to complete.
+    /// 
+    /// # Panics
+    ///
+    /// If used outside a `bevy_defer` future.
     pub fn apply_command_queue(&self, mut commands: CommandQueue) {
         if !COMMAND_QUEUE.is_set() {
             panic!("Cannot use `apply_command_queue` in non_async context, use `run` instead.")
@@ -49,7 +57,7 @@ impl AsyncWorldMut {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Runs the schedule a single time.
+    /// Runs a schedule a single time.
     pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
@@ -62,7 +70,7 @@ impl AsyncWorldMut {
     }
 
     /// Spawns a new [`Entity`] with no components.
-    pub fn spawn_empty(&self) -> impl Future<Output = Entity> {
+    pub fn spawn_empty(&self) -> impl Future<Output = AsyncEntityMut> {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
             move |world: &mut World| {
@@ -70,10 +78,14 @@ impl AsyncWorldMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        let queue = self.queue.clone();
+        receiver.map(|entity| AsyncEntityMut {
+            entity: entity.expect(CHANNEL_CLOSED),
+            queue
+        })
     }
 
-    /// Spawn a new Entity with a given Bundle of components.
+    /// Spawn a new [`Entity`] with a given Bundle of components.
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
@@ -83,12 +95,10 @@ impl AsyncWorldMut {
             sender
         );
         let queue = self.queue.clone();
-        async {
-            AsyncEntityMut {
-                entity: receiver.await.expect(CHANNEL_CLOSED),
-                queue
-            }   
-        }
+        receiver.map(|entity| AsyncEntityMut {
+            entity: entity.expect(CHANNEL_CLOSED),
+            queue
+        })
     }
 
     /// Transition to a new [`States`].
@@ -106,15 +116,18 @@ impl AsyncWorldMut {
     }
 
     /// Obtain a [`States`].
-    pub fn get_state<S: States>(&self) -> impl Future<Output = Option<S>> {
+    pub fn get_state<S: States>(&self) -> impl Future<Output = AsyncResult<S>> {
+        let f = move |world: &World| {
+            world.get_resource::<State<S>>().map(|s| s.get().clone())
+                    .ok_or(AsyncFailure::ResourceNotFound)
+        };
+        let f = match self.with_world_ref(f) {
+            Ok(result) => return Either::Right(ready(result)),
+            Err(f) => f,
+        };
         let (sender, receiver) = channel();
-        self.queue.once(
-            move |world: &mut World| {
-                world.get_resource::<State<S>>().map(|s| s.get().clone())
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        self.queue.once(move |w|f(w), sender);
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
     /// Wait until a [`States`] is entered.
@@ -205,11 +218,15 @@ impl AsyncWorldMut {
     ) -> AsyncAsset<A> {
         AsyncAsset {
             queue: self.queue.clone(),
-            handle: ASSET_SERVER.with(|s| s.load::<A>(path)),
+            handle: self.with_asset_server(|s| s.load::<A>(path)),
         }
     }
 
     /// Obtain or init a signal by name and [`SignalId`].
+    /// 
+    /// # Panics
+    ///
+    /// If used outside a `bevy_defer` future.
     pub fn signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
         if !NAMED_SIGNALS.is_set() {
             panic!("Can only obtain named signal in async context.")
