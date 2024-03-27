@@ -1,5 +1,5 @@
 use bevy_asset::AssetServer;
-use bevy_ecs::{system::{Res, SystemParam}, world::World};
+use bevy_ecs::{system::SystemParam, world::World};
 use scoped_tls::scoped_thread_local;
 
 /// Convert a resource into thread local storage accessible within the async runtime.
@@ -23,7 +23,6 @@ impl LocalResourceScope for () {
 }
 
 scoped_thread_local!(pub(crate) static SYNC_WORLD: World);
-scoped_thread_local!(pub(crate) static ASSET_SERVER: AssetServer);
 
 /// Run a function on a readonly [`World`] in the async context.
 /// 
@@ -50,6 +49,7 @@ pub fn with_asset_server<T: 'static, F: FnOnce(&AssetServer) -> T>(f: F) -> T {
     }
 }
 
+// RefCell<&mut World> is possible but that would probably be deadlock city.
 impl LocalResourceScope for World {
     type Resource = &'static World;
 
@@ -58,13 +58,7 @@ impl LocalResourceScope for World {
     }
 }
 
-impl LocalResourceScope for AssetServer {
-    type Resource = Res<'static, AssetServer>;
-
-    fn scoped<T>(this: &<Self::Resource as SystemParam>::Item::<'_, '_>, f: impl FnOnce() -> T) -> T {
-        ASSET_SERVER.set(this, f)
-    }
-}
+crate::tls_resource!(pub ASSET_SERVER: AssetServer);
 
 impl<A, B> LocalResourceScope for (A, B) where A: LocalResourceScope, B: LocalResourceScope {
     type Resource = (A::Resource, B::Resource);
