@@ -115,9 +115,10 @@ impl<T: Component> AsyncComponent<T> {
     /// if not [`Playback::Once`].
     /// 
     /// ```
-    /// let fut = spawn(interpolate(.., Playback::Loop, &cancel));
+    /// # /*
+    /// spawn(interpolate(.., Playback::Loop, &cancel));
     /// cancel.cancel();
-    /// fut.await
+    /// # */
     /// ```
     pub fn interpolate<V>(
         &self, 

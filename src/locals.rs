@@ -78,7 +78,9 @@ impl<A, B> LocalResourceScope for (A, B) where A: LocalResourceScope, B: LocalRe
 /// # Example
 /// 
 /// ```
+/// # /*
 /// tls_resource_local!(pub MY_LOCAL_RESOURCE: MyLocalResource);
+/// # */
 /// ```
 #[macro_export]
 macro_rules! tls_resource_local {
@@ -100,7 +102,9 @@ macro_rules! tls_resource_local {
 /// # Example
 /// 
 /// ```
+/// # /*
 /// tls_resource!(pub MY_RESOURCE: MyResource);
+/// # */
 /// ```
 #[macro_export]
 macro_rules! tls_resource {

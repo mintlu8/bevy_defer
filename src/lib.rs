@@ -273,3 +273,39 @@ pub enum AsyncFailure {
     #[error("system param error")]
     SystemParamError,
 }
+
+#[doc(hidden)]
+#[allow(unused)]
+#[macro_export]
+macro_rules! test_spawn {
+    ($expr: expr) => {
+        {
+            use ::bevy::prelude::*;
+            use ::bevy_defer::*;
+            use ::bevy_defer::access::*;
+            #[derive(Debug, Component, Resource, Event, Asset, TypePath)]
+            pub struct Int(i32);
+    
+            #[derive(Debug, Component, Resource, Event, Asset, TypePath)]
+            pub struct Str(&'static str);
+
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
+            pub enum MyState{
+                A, B, C
+            };
+    
+            let mut app = ::bevy::app::App::new();
+            app.add_plugins(bevy_defer::AsyncPlugin::default_settings());
+            app.world.spawn(Int(4));
+            app.world.spawn(Str("Ferris"));
+            app.insert_resource(Int(4));
+            app.insert_resource(Str("Ferris"));
+            app.insert_non_send_resource(Int(4));
+            app.insert_non_send_resource(Str("Ferris"));
+            app.spawn_task(async move {
+                $expr;
+                Ok(())
+            });
+        }
+    };
+}

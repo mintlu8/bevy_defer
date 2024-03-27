@@ -15,7 +15,9 @@ pub trait SignalId: Any + Send + Sync + 'static{
 /// 
 /// # Example
 /// ```
-/// signal_ids!{
+/// # use bevy_defer::signal_ids;
+/// # pub type Vec2 = ();
+/// signal_ids! {
 ///     /// Shared factor as a f32
 ///     SharedFactor: f32,
 ///     /// Shared position as a Vec2

@@ -13,7 +13,7 @@ Not utilizing async in game development is a huge waste of potential.
 
 Imagine we want to model a rapid sword attack animation, in async rust this is straightforward:
 
-```rust
+```rust, ignore
 swing_animation().await;
 show_damage_number().await;
 damage_vfx().await;
@@ -31,7 +31,7 @@ spin looping a thread or defining a complex state machine in a system.
 What if we want damage number and damage vfx to run concurrently and wait for both
 before out next attack? It's simple with `async` semantics!
 
-```rust
+```rust, ignore
 futures::join! {
     show_damage_number(),
     damage_vfx()
@@ -66,7 +66,7 @@ You can spawn a coroutine to schedule some tasks.
 The main benefit is this function can take as long as it needs
 to complete, instead of a single frame like a normal system.
 
-```rust
+```rust, ignore
 commands.spawn_task(|| async move {
     // This is an `AsyncWorldMut`.
     // like tokio::spawn() this only works in the async context.
@@ -124,7 +124,7 @@ We provide types mimicking bevy's types:
 `world` can be accessed by the `world()` method and
 for example a `Component` can be accessed by
 
-```rust
+```rust, ignore
 world().entity(entity).component::<Transform>()
 ```
 
@@ -161,7 +161,7 @@ The component `AsyncSystems` is a collection of `AsyncSystem`s that runs indepen
 
 To create an `AsyncSystem`, use a macro:
 
-```rust
+```rust, ignore
 // Scale up for a second when clicked. 
 let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<Transform>|{
     let pos: Vec3 = recv.recv().await;
@@ -183,7 +183,7 @@ Think of an `AsyncSystem` like a loop:
 
 So this is similar to
 
-```rust
+```rust, ignore
 spawn(async {
     loop {
         futures::select! {
@@ -197,7 +197,7 @@ spawn(async {
 If you want some state to persist, for example keeping a handle alive or using a
 `AsyncEventReader`, you might want to implement the async system as a loop:
 
-```rust
+```rust, ignore
 let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventReader<Input<MouseWheel>>|{
     loop {
         futures::select! {
@@ -213,7 +213,7 @@ let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventRead
 You can push resources, `!Send` resources and even `&World` (readonly) onto
 thread local storage during execution by adding them to the plugin:
 
-```rust
+```rust, ignore
 AsyncPlugin::empty().with(MyResource).with(World);
 ```
 
@@ -231,7 +231,7 @@ At each execution point, we will poll our futures until no progress can be made.
 
 Imagine `AsyncPlugin::default_settings()` is used, which means we have 3 execution points per frame, this code:
 
-```rust
+```rust, ignore
 let a = query1().await;
 let b = query2().await;
 let c = query3().await;
@@ -245,7 +245,7 @@ takes at least 2 frames to complete, since queries are deferred and cannot resol
 To complete the task faster, try use `futures::join!` or `futures_lite::future::zip` to
 run these queries concurrently.
 
-```rust
+```rust, ignore
 let (a, b, c, d, e, f) = futures::join! {
     query1, 
     query2,

@@ -18,9 +18,6 @@ A simple asynchronous runtime for executing async coroutines.
 """
 keywords = ["bevy", "async", "defer"]
 
-[lib]
-doctest = false
-
 [features]
 default = ["bevy_ui", "bevy_mod_picking"]
 bevy_mod_picking = ["dep:bevy_mod_picking"]

@@ -16,6 +16,14 @@ impl AsyncWorldMut {
     /// # Panics
     ///
     /// If used outside a `bevy_defer` future.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().apply_command(|w: &mut World| println!("{:?}", w))
+    /// # );
+    /// ```
     pub fn apply_command(&self, command: impl Command) {
         if !COMMAND_QUEUE.is_set() {
             panic!("Cannot use `apply_command` in non_async context, use `run` instead.")
@@ -28,6 +36,16 @@ impl AsyncWorldMut {
     /// # Panics
     ///
     /// If used outside a `bevy_defer` future.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy::ecs::system::CommandQueue;
+    /// # bevy_defer::test_spawn!({
+    /// let queue = CommandQueue::default();
+    /// world().apply_command_queue(queue);
+    /// # });
+    /// ```
     pub fn apply_command_queue(&self, mut commands: CommandQueue) {
         if !COMMAND_QUEUE.is_set() {
             panic!("Cannot use `apply_command_queue` in non_async context, use `run` instead.")
@@ -40,6 +58,14 @@ impl AsyncWorldMut {
     /// ## Note
     /// 
     /// Dropping the future will stop the task.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().run(|w: &mut World| w.resource::<Int>().0).await
+    /// # );
+    /// ```
     pub fn run<T: Send + 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         self.queue.once(f, sender);
@@ -51,6 +77,14 @@ impl AsyncWorldMut {
     /// ## Note
     /// 
     /// Dropping the future will stop the task.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
+    /// # );
+    /// ```
     pub fn watch<T: Send + 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         self.queue.repeat(f, sender);
@@ -58,6 +92,14 @@ impl AsyncWorldMut {
     }
 
     /// Runs a schedule a single time.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().run_schedule(Update).await
+    /// # );
+    /// ```
     pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
@@ -70,6 +112,14 @@ impl AsyncWorldMut {
     }
 
     /// Spawns a new [`Entity`] with no components.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().spawn_empty().await
+    /// # );
+    /// ```
     pub fn spawn_empty(&self) -> impl Future<Output = AsyncEntityMut> {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
@@ -86,6 +136,14 @@ impl AsyncWorldMut {
     }
 
     /// Spawn a new [`Entity`] with a given Bundle of components.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().spawn_bundle(SpriteBundle::default()).await
+    /// # );
+    /// ```
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
@@ -102,6 +160,14 @@ impl AsyncWorldMut {
     }
 
     /// Transition to a new [`States`].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().set_state(MyState::A).await
+    /// # });
+    /// ```
     pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
         self.queue.once(
@@ -116,6 +182,14 @@ impl AsyncWorldMut {
     }
 
     /// Obtain a [`States`].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().get_state::<MyState>().await
+    /// # });
+    /// ```
     pub fn get_state<S: States>(&self) -> impl Future<Output = AsyncResult<S>> {
         let f = move |world: &World| {
             world.get_resource::<State<S>>().map(|s| s.get().clone())
@@ -131,6 +205,14 @@ impl AsyncWorldMut {
     }
 
     /// Wait until a [`States`] is entered.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().in_state(MyState::A).await
+    /// # });
+    /// ```
     pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         self.queue.repeat(
@@ -144,6 +226,14 @@ impl AsyncWorldMut {
     }
 
     /// Pause the future for the duration, according to the [`Time`] resource.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().sleep(5.4).await
+    /// # });
+    /// ```
     pub fn sleep(&self, duration: impl AsSeconds) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let time_cell = OnceCell::new();
@@ -161,6 +251,14 @@ impl AsyncWorldMut {
     }
 
     /// Pause the future for some frames, according to the [`FrameCount`] resource.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().sleep_frames(12).await
+    /// # });
+    /// ```
     pub fn sleep_frames(&self, frames: u32) -> impl Future<Output = ()> {
         fn diff(a: u32, b: u32) -> u32{
             if a >= b {
@@ -184,6 +282,14 @@ impl AsyncWorldMut {
     }
 
     /// Shutdown the bevy app.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().quit().await
+    /// # });
+    /// ```
     pub fn quit(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         self.queue.once(

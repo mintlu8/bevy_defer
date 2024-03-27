@@ -26,11 +26,13 @@ use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 /// # Example
 /// 
 /// ```
+/// # /*
 /// // Set scale based on received position
 /// let system = async_system!(|recv: Receiver<PositionChanged>, transform: AsyncComponent<Transform>|{
 ///     let pos: Vec3 = recv.recv().await;
 ///     transform.set(|transform| transform.scale = pos).await?;
 /// })
+/// # */
 /// ```
 #[macro_export]
 macro_rules! async_system {
