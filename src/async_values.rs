@@ -512,7 +512,7 @@ impl<R: Resource> AsyncResource<R> {
         let (sender, receiver) = channel();
         self.queue.repeat(
             move |world: &mut World| {
-                world.get_resource_ref::<R>().and_then(&mut f)
+                world.get_resource::<R>().and_then(&mut f)
             },
             sender
         );
