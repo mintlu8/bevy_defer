@@ -26,7 +26,7 @@ pub mod picking;
 use bevy_ecs::{schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet}, system::{Command, Commands}, world::World};
 use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
-pub use executor::{AsyncExecutor, QueryQueue, QueryCallback};
+pub use executor::{AsyncExecutor, QueryQueue};
 use executor::AsyncQueryQueue;
 
 pub use crate::async_world::{world, in_async_context, spawn, spawn_scoped};

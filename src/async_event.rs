@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
 use bevy_ecs::world::World;
-use futures::Future;
+use futures::{Future, FutureExt};
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -9,22 +9,18 @@ use crate::async_systems::AsyncEntityParam;
 use crate::channels::channel;
 use crate::executor::AsyncQueryQueue;
 use crate::{AsyncFailure, AsyncResult};
-use crate::{access::AsyncWorldMut, QueryCallback, CHANNEL_CLOSED};
+use crate::{access::AsyncWorldMut, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
     /// Send an [`Event`].
     pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = AsyncResult<EventId<E>>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.send_event(event).ok_or(AsyncFailure::EventNotRegistered)
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         async {
             receiver.await.expect(CHANNEL_CLOSED)
         }
@@ -50,7 +46,7 @@ impl<E: Event> AsyncEventReader<E> {
     pub fn poll(&self) -> impl Future<Output = E> where E: Clone {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let events = world.get_resource::<Events<E>>()?;
                 let result = reader.borrow_mut().read(events).next().cloned();
@@ -58,13 +54,7 @@ impl<E: Event> AsyncEventReader<E> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Poll an [`Event`].
@@ -75,7 +65,7 @@ impl<E: Event> AsyncEventReader<E> {
     pub fn poll_mapped<T: Clone + 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let events = world.get_resource::<Events<E>>()?;
                 let result = reader.borrow_mut().read(events).next().map(&mut f);
@@ -83,13 +73,7 @@ impl<E: Event> AsyncEventReader<E> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Poll [`Event`]s until done, result must have at least one value.
@@ -100,7 +84,7 @@ impl<E: Event> AsyncEventReader<E> {
     pub fn poll_all(&self) -> impl Future<Output = Vec<E>> where E: Clone {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let events = world.get_resource::<Events<E>>()?;
                 let result: Vec<_> = reader.borrow_mut().read(events).cloned().collect();
@@ -111,13 +95,7 @@ impl<E: Event> AsyncEventReader<E> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Poll [`Event`]s until done, result must have at least one value.
@@ -128,7 +106,7 @@ impl<E: Event> AsyncEventReader<E> {
     pub fn poll_all_mapped<T: Clone + 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = Vec<T>> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let events = world.get_resource::<Events<E>>()?;
                 let result: Vec<_> = reader.borrow_mut().read(events).map(&mut f).collect();
@@ -139,13 +117,7 @@ impl<E: Event> AsyncEventReader<E> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
 

@@ -1,19 +1,25 @@
-use std::{ops::Deref, pin::pin};
+use std::ops::Deref;
 
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, query::QueryState, world::World};
 use bevy_hierarchy::Children;
-use futures::Future;
+use futures::{Future, FutureExt};
 use ref_cast::RefCast;
 use crate::channels::channel;
-use crate::{access::{AsyncEntityMut, AsyncWorldMut}, QueryCallback, async_query::ResQueryCache, CHANNEL_CLOSED};
+use crate::{access::{AsyncEntityMut, AsyncWorldMut}, async_query::ResQueryCache, CHANNEL_CLOSED};
 
 #[derive(RefCast)]
 #[repr(transparent)]
 pub struct AsyncScene(AsyncEntityMut);
 
+impl From<AsyncEntityMut> for AsyncScene {
+    fn from(value: AsyncEntityMut) -> Self {
+        Self(value)
+    }
+}
+
 impl AsyncWorldMut {
-    /// Spawn a bundle but returns an `AsyncScene` with scene specific utilities.
+    /// Spawn a bundle but returns a specialize version of `AsyncEntityMut`, [`AsyncScene`], with additional methods.
     pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncScene{
         let entity = self.spawn_bundle(bun).await.id();
         AsyncScene(self.entity(entity))
@@ -48,12 +54,12 @@ impl AsyncScene {
     /// Obtain a spawned entity by [`Name`].
     /// 
     /// Due to having to wait and not being able to prove a negative,
-    /// this method cannot fail. `try_get_spawned` can be used to pass in a future for cancellation.
+    /// this method cannot fail. The user is responsible for cancelling this future.
     pub fn spawned(&self, name: impl Into<String>) -> impl Future<Output = AsyncEntityMut>{
         let (sender, receiver) = channel();
         let name = name.into();
         let entity = self.entity;
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 match world.remove_resource::<ResQueryCache<Q, ()>>() {
                     Some(mut state) => {
@@ -71,29 +77,11 @@ impl AsyncScene {
             },
             sender,
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
-        let executor = self.executor.clone();
-        async {
-            AsyncEntityMut{
-                entity: receiver.await.expect(CHANNEL_CLOSED),
-                executor,
-            }
-        }
-    }
-
-    /// Obtain a spawned entity by [`Name`].
-    /// 
-    /// Use something like [`AsyncWorldMut::sleep`] for cancellation.
-    pub fn try_get_spawned(&self, name: impl Into<String>, cancel_when: impl Future) -> impl Future<Output = Option<AsyncEntityMut>>{
-        use futures::FutureExt;
-        let f1 = self.spawned(name).fuse();
-        async move {futures::select_biased! {
-            e = pin!(f1) => Some(e),
-            _ = cancel_when.fuse() => None
-        }}
+        let queue = self.queue.clone();
+        receiver.map(|entity| AsyncEntityMut{
+            entity: entity.expect(CHANNEL_CLOSED),
+            queue,
+        })
     }
 }
 

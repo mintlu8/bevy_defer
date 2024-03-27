@@ -14,12 +14,12 @@ use crate::locals::with_sync_world;
 use crate::signals::Signals;
 use crate::{async_systems::AsyncEntityParam, CHANNEL_CLOSED};
 
-use super::{AsyncQueryQueue, AsyncFailure, QueryCallback, AsyncResult};
+use super::{AsyncQueryQueue, AsyncFailure, AsyncResult};
 
 /// Async version of [`SystemParam`].
 #[derive(Debug, Clone)]
 pub struct AsyncSystemParam<P: SystemParam>{
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<P>
 }
 
@@ -37,7 +37,7 @@ impl<P: SystemParam> AsyncEntityParam for AsyncSystemParam<P> {
         _: &[Entity]
     ) -> Option<Self> {
         Some(AsyncSystemParam {
-            executor: executor.queue.clone(),
+            queue: executor.queue.clone(),
             p: PhantomData
         })
     }
@@ -55,7 +55,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
     ) -> impl Future<Output = AsyncResult<T>> + 'static{
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 let id = match world.get_resource::<ResSysParamId<Q, T>>(){
                     Some(res) => res.0,
@@ -74,10 +74,6 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
             },
             sender,
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
@@ -86,7 +82,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
 #[derive(Debug, Clone)]
 pub struct AsyncComponent<C: Component>{
     pub(crate) entity: Entity,
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<C>
 }
 
@@ -105,7 +101,7 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
     ) -> Option<Self> {
         Some(Self {
             entity,
-            executor: executor.queue.clone(),
+            queue: executor.queue.clone(),
             p: PhantomData
         })
     }
@@ -117,7 +113,7 @@ impl<C: Component> AsyncComponent<C> {
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 world
                     .get_entity(entity)?
@@ -126,10 +122,6 @@ impl<C: Component> AsyncComponent<C> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -151,11 +143,7 @@ impl<C: Component> AsyncComponent<C> {
             Err(f) => f,
         };
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(|w|f(w), sender);
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
+        self.queue.once(|w|f(w), sender);
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
@@ -164,7 +152,7 @@ impl<C: Component> AsyncComponent<C> {
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 Ok(f(world
                     .get_entity_mut(entity)
@@ -175,10 +163,6 @@ impl<C: Component> AsyncComponent<C> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         async {
             receiver.await.expect(CHANNEL_CLOSED)
         }
@@ -189,7 +173,7 @@ impl<C: Component> AsyncComponent<C> {
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 (||{
                     let component = world
@@ -206,10 +190,6 @@ impl<C: Component> AsyncComponent<C> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
@@ -220,7 +200,7 @@ pub use bevy_ecs::system::NonSend;
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug, Clone)]
 pub struct AsyncNonSend<R: 'static>{
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<R>
 }
 
@@ -238,7 +218,7 @@ impl<R: 'static> AsyncEntityParam for AsyncNonSend<R> {
         _: &[Entity]
     ) -> Option<Self> {
         Some(Self {
-            executor: executor.queue.clone(),
+            queue: executor.queue.clone(),
             p: PhantomData
         })
     }
@@ -249,7 +229,7 @@ impl<R: 'static> AsyncNonSend<R> {
     /// Wait until a [`NonSend`] exists.
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 world
                     .get_non_send_resource::<R>()
@@ -257,10 +237,6 @@ impl<R: 'static> AsyncNonSend<R> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -279,11 +255,7 @@ impl<R: 'static> AsyncNonSend<R> {
             Err(f) => f,
         };
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(|w|f(w), sender);
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
+        self.queue.once(|w|f(w), sender);
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
@@ -291,7 +263,7 @@ impl<R: 'static> AsyncNonSend<R> {
     pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.get_non_send_resource_mut::<R>()
                     .map(|mut x| f(x.as_mut()))
@@ -299,10 +271,6 @@ impl<R: 'static> AsyncNonSend<R> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -310,7 +278,7 @@ impl<R: 'static> AsyncNonSend<R> {
     pub fn watch<Out: 'static>(&self, mut f: impl FnMut(&R) -> Option<Out> + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let Some(res) = world.get_non_send_resource::<R>() 
                     else {return Some(Err(AsyncFailure::ResourceNotFound))};
@@ -318,10 +286,6 @@ impl<R: 'static> AsyncNonSend<R> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
@@ -330,7 +294,7 @@ impl<R: 'static> AsyncNonSend<R> {
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug, Clone)]
 pub struct AsyncResource<R: Resource>{
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<R>
 }
 
@@ -348,7 +312,7 @@ impl<R: Resource> AsyncEntityParam for AsyncResource<R> {
         _: &[Entity]
     ) -> Option<Self> {
         Some(Self {
-            executor: executor.queue.clone(),
+            queue: executor.queue.clone(),
             p: PhantomData
         })
     }
@@ -359,7 +323,7 @@ impl<R: Resource> AsyncResource<R> {
     /// Wait until a [`Resource`] exists.
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 world
                     .get_resource::<R>()
@@ -367,10 +331,6 @@ impl<R: Resource> AsyncResource<R> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -389,11 +349,7 @@ impl<R: Resource> AsyncResource<R> {
             Err(f) => f,
         };
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(|w|f(w), sender);
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
+        self.queue.once(|w|f(w), sender);
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
@@ -401,7 +357,7 @@ impl<R: Resource> AsyncResource<R> {
     pub fn set<Out: 'static>(&self, f: impl FnOnce(&mut R) -> Out + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.get_resource_mut::<R>()
                     .map(|mut x| f(x.as_mut()))
@@ -409,10 +365,6 @@ impl<R: Resource> AsyncResource<R> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -420,7 +372,7 @@ impl<R: Resource> AsyncResource<R> {
     pub fn watch<Out: 'static>(&self, mut f: impl FnMut(&R) -> Option<Out> + 'static)
             -> impl Future<Output = AsyncResult<Out>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let Some(res) = world.get_resource_ref::<R>() 
                     else {return Some(Err(AsyncFailure::ResourceNotFound))};
@@ -432,10 +384,6 @@ impl<R: Resource> AsyncResource<R> {
             },
             sender
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }

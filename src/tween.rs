@@ -81,7 +81,7 @@ impl<T: Component> AsyncComponent<T> {
         duration: impl AsSeconds,
         cancel: impl Into<TaskCancellation>,
     ) -> impl Future<Output = AsyncResult<()>> + 'static {
-        let world = AsyncWorldMut::ref_cast(&self.executor).clone();
+        let world = AsyncWorldMut::ref_cast(&self.queue).clone();
         let entity = self.entity;
         let mut t = 0.0;
         let duration = duration.as_secs();
@@ -128,7 +128,7 @@ impl<T: Component> AsyncComponent<T> {
         playback: Playback,
         cancel: impl Into<TaskCancellation>,
     ) -> impl Future<Output = AsyncResult<()>> + 'static {
-        let world = AsyncWorldMut::ref_cast(&self.executor).clone();
+        let world = AsyncWorldMut::ref_cast(&self.queue).clone();
         let entity = self.entity;
         let duration = duration.as_secs();
         let mut t = 0.0;

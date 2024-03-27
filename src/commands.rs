@@ -6,7 +6,7 @@ use crate::{async_asset::AsyncAsset, channels::channel, executor::COMMAND_QUEUE,
 use bevy_asset::{Asset, AssetPath, Handle};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::{Command, CommandQueue}, world::World};
 use bevy_time::Time;
-use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
+use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
     /// Apply a command, does not wait for it to complete.
@@ -34,11 +34,7 @@ impl AsyncWorldMut {
     /// Dropping the future will stop the task.
     pub fn run<T: Send + 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(f, sender);
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
+        self.queue.once(f, sender);
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -49,65 +45,48 @@ impl AsyncWorldMut {
     /// Dropping the future will stop the task.
     pub fn watch<T: Send + 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::repeat(f, sender);
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
+        self.queue.repeat(f, sender);
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Runs the schedule a single time.
     pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once( 
-            move |world: &mut World| {
+        self.queue.once(move |world: &mut World| {
                 world.try_run_schedule(schedule)
                     .map_err(|_| AsyncFailure::ScheduleNotFound)
             }, 
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Spawns a new [`Entity`] with no components.
     pub fn spawn_empty(&self) -> impl Future<Output = Entity> {
         let (sender, receiver) = channel::<Entity>();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.spawn_empty().id()
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Spawn a new Entity with a given Bundle of components.
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> {
         let (sender, receiver) = channel::<Entity>();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.spawn(bundle).id()
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         let queue = self.queue.clone();
         async {
             AsyncEntityMut {
                 entity: receiver.await.expect(CHANNEL_CLOSED),
-                executor: queue
+                queue
             }   
         }
     }
@@ -115,7 +94,7 @@ impl AsyncWorldMut {
     /// Transition to a new [`States`].
     pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.get_resource_mut::<NextState<S>>()
                     .map(|mut s| s.set(state))
@@ -123,43 +102,31 @@ impl AsyncWorldMut {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Obtain a [`States`].
     pub fn get_state<S: States>(&self) -> impl Future<Output = Option<S>> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.get_resource::<State<S>>().map(|s| s.get().clone())
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Wait until a [`States`] is entered.
     pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 world.get_resource::<State<S>>()
                     .and_then(|s| (s.get() == &state).then_some(()))
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -168,7 +135,7 @@ impl AsyncWorldMut {
         let (sender, receiver) = channel();
         let time_cell = OnceCell::new();
         let duration = duration.as_duration();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let time = world.get_resource::<Time>()?;
                 let prev = time_cell.get_or_init(||time.elapsed());
@@ -177,10 +144,6 @@ impl AsyncWorldMut {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -195,7 +158,7 @@ impl AsyncWorldMut {
         }
         let (sender, receiver) = channel();
         let time_cell = OnceCell::new();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let frame = world.get_resource::<FrameCount>()?;
                 let prev = time_cell.get_or_init(||frame.0);
@@ -204,26 +167,18 @@ impl AsyncWorldMut {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Shutdown the bevy app.
     pub fn quit(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| {
                 world.send_event(AppExit);
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 

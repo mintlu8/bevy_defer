@@ -1,4 +1,4 @@
-use crate::{async_world::AsyncWorldMut, signals::Signals, QueryCallback, CHANNEL_CLOSED};
+use crate::{async_world::AsyncWorldMut, signals::Signals, CHANNEL_CLOSED};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
@@ -19,7 +19,7 @@ pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, 
 /// Async version of [`Query`]
 #[derive(Debug, Clone)]
 pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> {
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
@@ -27,7 +27,7 @@ pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> {
 #[derive(Debug, Clone)]
 pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
@@ -35,7 +35,7 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     pub fn entity(&self, entity: impl Borrow<Entity>) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
             entity: *entity.borrow(),
-            executor: self.executor.clone(),
+            queue: self.queue.clone(),
             p: PhantomData,
         }
     }
@@ -49,7 +49,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
         f: impl FnMut(T::Item<'_>) + 'static,
     ) -> impl Future<Output = ()> + 'static {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
                 Some(mut state) => {
                     state.0.iter_mut(world).for_each(f);
@@ -63,10 +63,6 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
             },
             sender,
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -76,7 +72,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
         f: impl FnOnce(QueryIter<'_, '_, T, F>) -> U + 'static,
     ) -> impl Future<Output = U> + 'static {
         let (sender, receiver) = channel();
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
                 Some(mut state) => {
                     let value = f(state.0.iter_mut(world));
@@ -92,10 +88,6 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
             },
             sender,
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
@@ -110,7 +102,7 @@ impl<T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
     fn from_async_context(entity: Entity, executor: &AsyncWorldMut, _: (), _: &[Entity]) -> Option<Self> {
         Some(Self {
             entity,
-            executor: executor.queue.clone(),
+            queue: executor.queue.clone(),
             p: PhantomData,
         })
     }
@@ -124,7 +116,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
     ) -> impl Future<Output = AsyncResult<Out>> + 'static {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = QueryCallback::once(
+        self.queue.once(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
                 Some(mut state) => {
                     let result = f(state.0.get_mut(world, entity).ok()?);
@@ -140,10 +132,6 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
             },
             sender,
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|r| {
             match r {
                 Ok(Some(out)) => Ok(out),
@@ -160,7 +148,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
     ) -> impl Future<Output = U> + 'static {
         let (sender, receiver) = channel();
         let entity = self.entity;
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
                 Some(mut state) => {
                     let result = f(state.0.get_mut(world, entity).ok()?);
@@ -176,10 +164,6 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
             },
             sender,
         );
-        {
-            let mut lock = self.executor.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }

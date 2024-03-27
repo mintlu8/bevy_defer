@@ -119,7 +119,7 @@ impl AsyncWorldMut {
     pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
         AsyncEntityMut { 
             entity, 
-            executor: self.queue.clone()
+            queue: self.queue.clone()
         }
     }
 
@@ -130,7 +130,7 @@ impl AsyncWorldMut {
     /// This does not mean the resource exists in the world.
     pub fn resource<R: Resource>(&self) -> AsyncResource<R> {
         AsyncResource { 
-            executor: self.queue.clone(),
+            queue: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -143,7 +143,7 @@ impl AsyncWorldMut {
     /// This does not mean the resource exists in the world.
     pub fn non_send_resource<R: 'static>(&self) -> AsyncNonSend<R> {
         AsyncNonSend { 
-            executor: self.queue.clone(),
+            queue: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -151,7 +151,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncQuery`].
     pub fn query<Q: QueryData>(&self) -> AsyncQuery<Q> {
         AsyncQuery { 
-            executor: self.queue.clone(),
+            queue: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -159,7 +159,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
         AsyncQuery { 
-            executor: self.queue.clone(),
+            queue: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -167,7 +167,7 @@ impl AsyncWorldMut {
     /// Obtain an [`AsyncSystemParam`].
     pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
         AsyncSystemParam { 
-            executor: self.queue.clone(),
+            queue: self.queue.clone(),
             p: PhantomData
         }
     }
@@ -177,14 +177,14 @@ impl AsyncWorldMut {
 /// Async version of `EntityMut` or `EntityCommands`.
 pub struct AsyncEntityMut {
     pub(crate) entity: Entity,
-    pub(crate) executor: Rc<AsyncQueryQueue>,
+    pub(crate) queue: Rc<AsyncQueryQueue>,
 }
 
 impl Deref for AsyncEntityMut {
     type Target = AsyncWorldMut;
 
     fn deref(&self) -> &Self::Target {
-        AsyncWorldMut::ref_cast(&self.executor)
+        AsyncWorldMut::ref_cast(&self.queue)
     }
 }
 
@@ -196,7 +196,7 @@ impl AsyncEntityMut {
 
     /// Obtain the underlying [`AsyncWorldMut`]
     pub fn world(&self) -> AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.executor).clone()
+        AsyncWorldMut::ref_cast(&self.queue).clone()
     }
 
     /// Get an [`AsyncComponent`] on this entity.
@@ -207,7 +207,7 @@ impl AsyncEntityMut {
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
             entity: self.entity,
-            executor: self.executor.clone(),
+            queue: self.queue.clone(),
             p: PhantomData,
         }
     }
@@ -220,7 +220,7 @@ impl AsyncEntityMut {
     pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<T, ()> {
         AsyncEntityQuery {
             entity: self.entity,
-            executor: self.executor.clone(),
+            queue: self.queue.clone(),
             p: PhantomData,
         }
     }
@@ -233,7 +233,7 @@ impl AsyncEntityMut {
     pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
             entity: self.entity,
-            executor: self.executor.clone(),
+            queue: self.queue.clone(),
             p: PhantomData,
         }
     }
@@ -273,7 +273,7 @@ impl AsyncEntityParam for AsyncEntityMut {
     ) -> Option<Self> {
         Some(AsyncEntityMut{
             entity,
-            executor: executor.queue.clone()
+            queue: executor.queue.clone()
         })
     }
 }
@@ -308,7 +308,7 @@ impl<const N: usize> AsyncEntityParam for AsyncChild<N> {
     ) -> Option<Self> {
         Some(AsyncChild(AsyncEntityMut{
             entity: children.get(N).copied()?,
-            executor: executor.queue.clone()
+            queue: executor.queue.clone()
         }))
     }
 }

@@ -10,7 +10,7 @@ use crate::signals::NamedSignals;
 use crate::{world_scope, LocalResourceScope};
 
 /// A deferred query on a `World`.
-pub struct QueryCallback {
+struct QueryCallback {
     command: Box<dyn FnOnce(&mut World) -> Option<QueryCallback> + 'static>
 }
 
@@ -69,6 +69,43 @@ impl QueryCallback {
 #[derive(Default)]
 pub struct AsyncQueryQueue {
     pub queries: RefCell<Vec<QueryCallback>>,
+}
+
+impl AsyncQueryQueue {
+    
+    /// Spawn a non-send command that runs once.
+    /// 
+    /// Use `AsyncWorldMut::add_command` if possible since that is more optimized.
+    pub fn fire_and_forget(
+        &self,
+        query: impl (FnOnce(&mut World)) + 'static,
+    ) {
+        self.queries.borrow_mut().push(
+            QueryCallback::fire_and_forget(query)
+        )
+    }
+
+    /// Spawn a non-send command that runs once and returns a result through a channel.
+    pub fn once<Out: 'static>(
+        &self,
+        query: impl (FnOnce(&mut World) -> Out) + 'static,
+        channel: Sender<Out>
+    ) {
+        self.queries.borrow_mut().push(
+            QueryCallback::once(query, channel)
+        )
+    }
+
+    /// Spawn a non-send command and wait until it returns `Some`.
+    pub fn repeat<Out: 'static> (
+        &self,
+        mut query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
+        channel: Sender<Out>
+    ) {
+        self.queries.borrow_mut().push(
+            QueryCallback::repeat(query, channel)
+        )
+    }
 }
 
 /// Resource containing a reference to an async executor.

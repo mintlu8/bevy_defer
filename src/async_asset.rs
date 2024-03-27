@@ -3,7 +3,7 @@ use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::world::World;
 use futures::{Future, FutureExt};
 
-use crate::{channel, executor::AsyncQueryQueue, AsyncFailure, AsyncResult, QueryCallback, CHANNEL_CLOSED};
+use crate::{channel, executor::AsyncQueryQueue, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 
 /// Async version of [`Handle`].
@@ -27,7 +27,7 @@ impl<A: Asset> AsyncAsset<A> {
     ) -> impl Future<Output = AsyncResult<T>> {
         let (sender, receiver) = channel();
         let handle = self.handle.id();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let Some(assets) = world.get_resource::<Assets<A>>()
                     else { return Some(Err(AsyncFailure::ResourceNotFound)) };
@@ -35,10 +35,6 @@ impl<A: Asset> AsyncAsset<A> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -48,7 +44,7 @@ impl<A: Asset> AsyncAsset<A> {
     ) -> impl Future<Output = AsyncResult<A>> where A: Clone {
         let (sender, receiver) = channel();
         let id = self.handle.id();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let Some(assets) = world.get_resource_mut::<Assets<A>>()
                     else { return Some(Err(AsyncFailure::ResourceNotFound)) };
@@ -56,10 +52,6 @@ impl<A: Asset> AsyncAsset<A> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
@@ -69,7 +61,7 @@ impl<A: Asset> AsyncAsset<A> {
     ) -> impl Future<Output = AsyncResult<A>> {
         let (sender, receiver) = channel();
         let id = self.handle.id();
-        let query = QueryCallback::repeat(
+        self.queue.repeat(
             move |world: &mut World| {
                 let Some(mut assets) = world.get_resource_mut::<Assets<A>>()
                     else { return Some(Err(AsyncFailure::ResourceNotFound)) };
@@ -77,10 +69,6 @@ impl<A: Asset> AsyncAsset<A> {
             },
             sender
         );
-        {
-            let mut lock = self.queue.queries.borrow_mut();
-            lock.push(query);
-        }
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
