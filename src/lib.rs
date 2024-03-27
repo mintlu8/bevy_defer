@@ -198,7 +198,7 @@ impl AsyncExtension for World {
     }
 
     fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        self.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name).into()
+        self.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
     }
 }
 
@@ -214,7 +214,7 @@ impl AsyncExtension for App {
     }
 
     fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        self.world.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name).into()
+        self.world.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
     }
 }
 

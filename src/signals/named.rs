@@ -8,6 +8,7 @@ use bevy_ecs::system::Resource;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
+use super::Signal;
 use super::{signal_inner::SignalData, SignalId};
 
 /// A resource containing named signals.
@@ -26,25 +27,25 @@ impl NamedSignals {
     /// Obtain a named signal.
     /// 
     /// If you only have a non-mutable reference, see [`NamedSignals::get_from_ref`].
-    pub fn get<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>{
+    pub fn get<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
         if let Some(data) = self.map.get_mut().get(&(name.borrow(), TypeId::of::<T>()) as &dyn KeyPair){
-            data.downcast_ref::<Arc<SignalData<T::Data>>>().expect("Signal Type Error").clone()
+            data.downcast_ref::<Arc<SignalData<T::Data>>>().expect("Signal Type Error").clone().into()
         } else {
             let data = Arc::new(SignalData::<T::Data>::default());
             self.map.get_mut().insert((name.into(), TypeId::of::<T>()), Box::new(data.clone()));
-            data
+            data.into()
         }
     }
 
     /// Obtain a named signal through locking.
-    pub fn get_from_ref<T: SignalId>(&self, name: impl Borrow<str> + Into<String>) -> Arc<SignalData<T::Data>>{
+    pub fn get_from_ref<T: SignalId>(&self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
         let mut map = self.map.lock();
         if let Some(data) = map.get(&(name.borrow(), TypeId::of::<T>()) as &dyn KeyPair){
-            data.downcast_ref::<Arc<SignalData<T::Data>>>().expect("Signal Type Error").clone()
+            data.downcast_ref::<Arc<SignalData<T::Data>>>().expect("Signal Type Error").clone().into()
         } else {
             let data = Arc::new(SignalData::<T::Data>::default());
             map.insert((name.into(), TypeId::of::<T>()), Box::new(data.clone()));
-            data
+            data.into()
         }
     }
 }
