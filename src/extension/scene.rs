@@ -8,6 +8,8 @@ use ref_cast::RefCast;
 use crate::channels::channel;
 use crate::{access::{AsyncEntityMut, AsyncWorldMut}, async_query::ResQueryCache, CHANNEL_CLOSED};
 
+
+/// [`AsyncEntityMut`] with extra scene related methods.
 #[derive(RefCast)]
 #[repr(transparent)]
 pub struct AsyncScene(AsyncEntityMut);

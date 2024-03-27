@@ -2,6 +2,8 @@ use bevy_asset::AssetServer;
 use bevy_ecs::{system::SystemParam, world::World};
 use scoped_tls::scoped_thread_local;
 
+use crate::async_world::AsyncWorldMut;
+
 /// Convert a resource into thread local storage accessible within the async runtime.
 pub trait LocalResourceScope: 'static {
     type Resource: SystemParam + 'static;
@@ -22,30 +24,33 @@ impl LocalResourceScope for () {
     }
 }
 
-scoped_thread_local!(pub(crate) static SYNC_WORLD: World);
+scoped_thread_local!(pub(crate) static WORLD_REF: World);
 
-/// Run a function on a readonly [`World`] in the async context.
-/// 
-/// Returns [`Err`] if world access is not enabled, 
-/// add `with_world_access` on the plugin to enable this access.
-pub fn with_sync_world<T: 'static, F: FnOnce(&World) -> T>(f: F) -> Result<T, F> {
-    if SYNC_WORLD.is_set() {
-        Ok(SYNC_WORLD.with(f))
-    } else {
-        Err(f)
+
+impl AsyncWorldMut {
+    /// Run a function on a readonly [`World`] in the async context.
+    /// 
+    /// Returns [`Err`] if world access is not enabled, 
+    /// add `with_world_access` on the plugin to enable this access.
+    pub fn with_world_ref<T: 'static, F: FnOnce(&World) -> T>(&self, f: F) -> Result<T, F> {
+        if WORLD_REF.is_set() {
+            Ok(WORLD_REF.with(f))
+        } else {
+            Err(f)
+        }
     }
-}
 
-/// Run a function on [`AssetServer`] in the async context.
-/// 
-/// # Panics
-/// 
-/// If [`AssetServer`] does not exist.
-pub fn with_asset_server<T: 'static, F: FnOnce(&AssetServer) -> T>(f: F) -> T {
-    if ASSET_SERVER.is_set() {
-        ASSET_SERVER.with(f)
-    } else {
-        panic!("Asset server does not exist.")
+    /// Run a function on [`AssetServer`] in the async context.
+    /// 
+    /// # Panics
+    ///
+    /// If used outside a `bevy_defer` future or if [`AssetServer`] does not exist in the [`World`].
+    pub fn with_asset_server<T: 'static, F: FnOnce(&AssetServer) -> T>(&self, f: F) -> T {
+        if ASSET_SERVER.is_set() {
+            ASSET_SERVER.with(f)
+        } else {
+            panic!("Asset server does not exist.")
+        }
     }
 }
 
@@ -54,7 +59,7 @@ impl LocalResourceScope for World {
     type Resource = &'static World;
 
     fn scoped<T>(this: &<Self::Resource as SystemParam>::Item::<'_, '_>, f: impl FnOnce() -> T) -> T {
-        SYNC_WORLD.set(this, f)
+        WORLD_REF.set(this, f)
     }
 }
 

@@ -49,14 +49,16 @@ pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: LocalSpawner,
     })
 }
 
-/// Spawn a `bevy_defer` compatible future.
+/// Spawn a `bevy_defer` compatible future with a handle.
 /// 
 /// # Handle
 /// 
 /// The handle can be used to obtain the result,
 /// if dropped, the associated future will be dropped by the executor.
+/// 
+/// # Panics
 ///
-/// Can only be used inside a `bevy_defer` future.
+/// If used outside a `bevy_defer` future.
 pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
@@ -78,6 +80,10 @@ pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl 
 /// Spawn a `bevy_defer` compatible future.
 /// 
 /// The spawned future will not be dropped until finished.
+/// 
+/// # Panics
+///
+/// If used onside a `bevy_defer` future.
 pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn_and_forget can only be used in a bevy_defer future.")
@@ -87,7 +93,9 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
 
 /// Obtain the [`AsyncWorldMut`] of the currently running `bevy_defer` executor.
 ///
-/// Can only be used inside a `bevy_defer` future.
+/// # Panics
+///
+/// If used onside a `bevy_defer` future.
 pub fn world() -> AsyncWorldMut {
     if !ASYNC_WORLD.is_set() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")

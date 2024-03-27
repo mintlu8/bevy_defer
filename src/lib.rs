@@ -32,8 +32,6 @@ use executor::AsyncQueryQueue;
 pub use crate::async_world::{world, in_async_context, spawn, spawn_scoped};
 use crate::async_world::world_scope;
 
-pub use locals::{with_sync_world, with_asset_server};
-
 pub mod access {
     //! Asynchronous accessors to the `World`.
     pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut};
@@ -41,6 +39,7 @@ pub mod access {
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
     pub use crate::async_event::AsyncEventReader;
     pub use crate::async_asset::AsyncAsset;
+    pub use crate::extension::AsyncScene;
 }
 
 pub mod extensions {

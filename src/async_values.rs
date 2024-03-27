@@ -7,10 +7,10 @@ use bevy_ecs::{entity::Entity, world::World};
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use futures::future::{ready, Either};
 use futures::FutureExt;
+use ref_cast::RefCast;
 use std::future::Future;
 use crate::async_world::AsyncWorldMut;
 use crate::channels::channel;
-use crate::locals::with_sync_world;
 use crate::signals::Signals;
 use crate::{async_systems::AsyncEntityParam, CHANNEL_CLOSED};
 
@@ -50,6 +50,11 @@ type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'stati
 struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
 
 impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
+    /// Obtain the underlying [`AsyncWorldMut`]
+    pub fn world(&self) -> AsyncWorldMut {
+        AsyncWorldMut::ref_cast(&self.queue).clone()
+    }
+
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
@@ -109,6 +114,11 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
 
 impl<C: Component> AsyncComponent<C> {
 
+    /// Obtain the underlying [`AsyncWorldMut`]
+    pub fn world(&self) -> AsyncWorldMut {
+        AsyncWorldMut::ref_cast(&self.queue).clone()
+    }
+    
     /// Wait until a [`Component`] exists.
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
@@ -138,7 +148,7 @@ impl<C: Component> AsyncComponent<C> {
                 .get::<C>()
                 .ok_or(AsyncFailure::ComponentNotFound)?))
         }; 
-        let f = match with_sync_world(f) {
+        let f = match self.world().with_world_ref(f) {
             Ok(result) => return Either::Right(ready(result)),
             Err(f) => f,
         };
@@ -226,6 +236,11 @@ impl<R: 'static> AsyncEntityParam for AsyncNonSend<R> {
 
 impl<R: 'static> AsyncNonSend<R> {
 
+    /// Obtain the underlying [`AsyncWorldMut`]
+    pub fn world(&self) -> AsyncWorldMut {
+        AsyncWorldMut::ref_cast(&self.queue).clone()
+    }
+
     /// Wait until a [`NonSend`] exists.
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
@@ -250,7 +265,7 @@ impl<R: 'static> AsyncNonSend<R> {
                 .map(f)
                 .ok_or(AsyncFailure::ResourceNotFound)
         }; 
-        let f = match with_sync_world(f) {
+        let f = match self.world().with_world_ref(f) {
             Ok(result) => return Either::Right(ready(result)),
             Err(f) => f,
         };
@@ -320,6 +335,11 @@ impl<R: Resource> AsyncEntityParam for AsyncResource<R> {
 
 impl<R: Resource> AsyncResource<R> {
 
+    /// Obtain the underlying [`AsyncWorldMut`]
+    pub fn world(&self) -> AsyncWorldMut {
+        AsyncWorldMut::ref_cast(&self.queue).clone()
+    }
+
     /// Wait until a [`Resource`] exists.
     pub fn exists(&self) -> impl Future<Output = ()> {
         let (sender, receiver) = channel();
@@ -344,7 +364,7 @@ impl<R: Resource> AsyncResource<R> {
                 .map(f)
                 .ok_or(AsyncFailure::ResourceNotFound)
         };
-        let f = match with_sync_world(f) {
+        let f = match self.world().with_world_ref(f) {
             Ok(result) => return Either::Right(ready(result)),
             Err(f) => f,
         };
