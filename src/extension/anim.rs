@@ -1,10 +1,8 @@
-use std::time::Duration;
-
 use bevy_animation::{AnimationClip, AnimationPlayer, RepeatAnimation};
 use bevy_asset::Handle;
 use ref_cast::RefCast;
 
-use crate::{access::AsyncComponent, extensions::AsyncComponentDeref, AsyncResult};
+use crate::{access::AsyncComponent, extensions::AsyncComponentDeref, tween::AsSeconds, AsyncResult};
 
 #[derive(RefCast)]
 #[repr(transparent)]
@@ -23,6 +21,13 @@ impl AsyncAnimationPlayer {
         self.0.set(move |player| {player.play(clip);}).await
     }
 
+    pub async fn play_once(&self, clip: Handle<AnimationClip>) -> AsyncResult {
+        self.0.set(move |player| {
+            player.play(clip);
+            player.set_repeat(RepeatAnimation::Never);
+        }).await
+    }
+
     pub async fn play_repeat(&self, clip: Handle<AnimationClip>) -> AsyncResult {
         self.0.set(move |player| {
             player.play(clip);
@@ -30,12 +35,21 @@ impl AsyncAnimationPlayer {
         }).await
     }
 
-    pub async fn play_with_transition(&self, clip: Handle<AnimationClip>, duration: Duration) -> AsyncResult {
+    pub async fn play_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
+        let duration = duration.as_duration();
         self.0.set(move |player| {player.play_with_transition(clip, duration);}).await
     }
 
+    pub async fn play_once_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
+        let duration = duration.as_duration();
+        self.0.set(move |player| {
+            player.play_with_transition(clip, duration);
+            player.set_repeat(RepeatAnimation::Never);
+        }).await
+    }
 
-    pub async fn play_repeat_with_transition(&self, clip: Handle<AnimationClip>, duration: Duration) -> AsyncResult {
+    pub async fn play_repeat_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
+        let duration = duration.as_duration();
         self.0.set(move |player| {
             player.play_with_transition(clip, duration);
             player.repeat();
@@ -44,15 +58,14 @@ impl AsyncAnimationPlayer {
 
     pub async fn animate(&self, clip: Handle<AnimationClip>) -> AsyncResult {
         futures::try_join!(
-            self.play(clip.clone()),
+            self.play_once(clip.clone()),
             self.when_exit(clip)
         ).map(|_|())
     }
 
-
-    pub async fn animate_with_transition(&self, clip: Handle<AnimationClip>, duration: Duration) -> AsyncResult {
+    pub async fn animate_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
         futures::try_join!(
-            self.play_with_transition(clip.clone(), duration),
+            self.play_once_with_transition(clip.clone(), duration),
             self.when_exit(clip)
         ).map(|_|())
     }
