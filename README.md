@@ -210,7 +210,7 @@ let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventRead
 
 ## Thread Locals
 
-You can push resources, `!Send` resources and even `&World` (readonly) onto
+We can push resources, `!Send` resources and even `&World` (readonly) onto
 thread local storage during execution by adding them to the plugin:
 
 ```rust, ignore
@@ -225,11 +225,8 @@ This would block parallelization, however.
 
 `bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
 this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
-The `AsyncComputeTaskPool` in `bevy_tasks` in ideal for this use case, use `AsyncWorldMut::spawn_compute`
-(or just use the task pool directly) to spawn a future on task pool and call `await`.
-
-Compared to `bevy_tasks`. running in the same thread allows us to push references to resources into
-thread local storage, accessible inside the futures. This provides a huge ergonomic boost.
+The `AsyncComputeTaskPool` in `bevy_tasks` in ideal for this use case.
+We can use `AsyncComputeTaskPool::get().spawn()` to spawn a future on task pool and call `await`.
 
 At each execution point, we will poll our futures until no progress can be made.
 Imagine `AsyncPlugin::default_settings()` is used, which means we have 3 execution points per frame, this code:
