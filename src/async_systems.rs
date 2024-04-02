@@ -241,7 +241,22 @@ pub trait AsyncEntityParam: Sized {
     ) -> Option<Self>;
 }
 
+impl<T> AsyncEntityParam for T where T: AsyncWorldParam {
+    type Signal = ();
 
+    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
+        Some(())
+    }
+
+    fn from_async_context(
+        _: Entity,
+        executor: &AsyncWorldMut,
+        _: Self::Signal,
+        _: &[Entity],
+    ) -> Option<Self> {
+        T::from_async_context(executor)
+    }
+}
 /// System that pushes inactive [`AsyncSystems`] to the executor.
 pub fn push_async_systems(
     dummy: Local<Signals>,
