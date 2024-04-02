@@ -252,18 +252,9 @@ pub struct AsyncNonSend<R: 'static>{
     pub(crate) p: PhantomData<R>
 }
 
-impl<R: 'static> AsyncEntityParam for AsyncNonSend<R> {
-    type Signal = ();
-    
-    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
+impl<R: 'static> AsyncWorldParam for AsyncNonSend<R> {
     fn from_async_context(
-        _: Entity,
         executor: &AsyncWorldMut,
-        _: (),
-        _: &[Entity]
     ) -> Option<Self> {
         Some(Self {
             queue: executor.queue.clone(),
@@ -386,18 +377,9 @@ pub struct AsyncResource<R: Resource>{
     pub(crate) p: PhantomData<R>
 }
 
-impl<R: Resource> AsyncEntityParam for AsyncResource<R> {
-    type Signal = ();
-    
-    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
+impl<R: Resource> AsyncWorldParam for AsyncResource<R> {
     fn from_async_context(
-        _: Entity,
         executor: &AsyncWorldMut,
-        _: (),
-        _: &[Entity]
     ) -> Option<Self> {
         Some(Self {
             queue: executor.queue.clone(),
