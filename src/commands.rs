@@ -321,6 +321,6 @@ impl AsyncWorldMut {
         if !NAMED_SIGNALS.is_set() {
             panic!("Can only obtain named signal in async context.")
         }
-        NAMED_SIGNALS.with(|signals| signals.get_from_ref::<T>(name)).into()
+        NAMED_SIGNALS.with(|signals| signals.get_from_ref::<T>(name))
     }
 }
