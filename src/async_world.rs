@@ -1,6 +1,7 @@
 use std::usize;
 use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 use bevy_log::error;
+use crate::async_systems::AsyncWorldParam;
 use crate::channels::channel;
 use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam};
 use futures::executor::LocalSpawner;
@@ -247,18 +248,9 @@ impl AsyncEntityMut {
     }
 }
 
-impl AsyncEntityParam for AsyncWorldMut {
-    type Signal = ();
-
-    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
+impl AsyncWorldParam for AsyncWorldMut {
     fn from_async_context(
-        _: Entity,
         executor: &AsyncWorldMut,
-        _: Self::Signal,
-        _: &[Entity]
     ) -> Option<Self> {
         Some(AsyncWorldMut{
             queue: executor.queue.clone()

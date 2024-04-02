@@ -1,6 +1,7 @@
 use std::{cell::OnceCell, future::{ready, Future}};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
+use bevy_tasks::{AsyncComputeTaskPool, Task};
 use futures::{future::Either, FutureExt};
 use crate::{channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::{Command, CommandQueue}, world::World};
@@ -322,5 +323,17 @@ impl AsyncWorldMut {
             panic!("Can only obtain named signal in async context.")
         }
         NAMED_SIGNALS.with(|signals| signals.get_from_ref::<T>(name)).into()
+    }
+
+    /// Spawn a future on the [`AsyncComputeTaskPool`].
+    /// 
+    /// Unlike `bevy_defer`, the `AsyncComputeTaskPool` can be multithreaded and does not block the main thread,
+    /// this is ideal for CPU heavy tasks.
+    /// 
+    /// # Panics
+    /// 
+    /// If `AsyncComputeTaskPool` is not set.
+    pub fn spawn_compute<T: Send + Sync + 'static>(fut: impl Future<Output = T> + Send + Sync + 'static) -> Task<T>{
+        AsyncComputeTaskPool::get().spawn(fut)
     }
 }

@@ -1,7 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{atomic::{AtomicBool, AtomicI64, Ordering}, Arc};
+use bevy::{sprite::{Sprite, SpriteBundle}, transform::components::{GlobalTransform, Transform}, MinimalPlugins};
 use bevy_app::App;
-use bevy_ecs::component::Component;
-use bevy_defer::{world, AsyncExtension, AsyncPlugin};
+use bevy_ecs::{component::Component, query::With};
+use bevy_defer::{system_future, world, AsyncExtension, AsyncFailure, AsyncPlugin};
 
 #[derive(Component)]
 pub struct Int(i32);
@@ -83,4 +84,30 @@ pub fn control_group() {
     assert!(!LOCK.load(Ordering::SeqCst));
     app.update();
     assert!(!LOCK.load(Ordering::SeqCst));
+}
+
+
+#[test]
+pub fn system_future() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins(AsyncPlugin::default_settings());
+    let lock = Arc::new(AtomicI64::new(0));
+    let lock2 = lock.clone();
+    app.spawn_task(system_future!(
+        |w: AsyncWorldMut, q: AsyncQuery<(&mut Transform, &Sprite), With<GlobalTransform>>| {
+            w.spawn_bundle(SpriteBundle::default()).await;
+            let cloned = lock.clone();
+            q.for_each(move |_| {
+                cloned.fetch_add(1, Ordering::Relaxed);
+            }).await;
+            if lock.load(Ordering::Relaxed) > 10 {
+                w.quit().await;
+            }
+            // Uses AsyncSystem semantics so failure does not cancel the system.
+            Err(AsyncFailure::ComponentNotFound)?;
+        }
+    ));
+    app.run();
+    assert!(lock2.load(Ordering::Relaxed) > 10);
 }

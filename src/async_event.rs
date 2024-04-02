@@ -1,11 +1,10 @@
-use bevy_ecs::entity::Entity;
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
 use bevy_ecs::world::World;
 use futures::{Future, FutureExt};
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
-use crate::async_systems::AsyncEntityParam;
+use crate::async_systems::AsyncWorldParam;
 use crate::channels::channel;
 use crate::executor::AsyncQueryQueue;
 use crate::{AsyncFailure, AsyncResult};
@@ -129,19 +128,8 @@ impl<E: Event> AsyncEventReader<E> {
     }
 }
 
-impl<E: Event> AsyncEntityParam for AsyncEventReader<E> {
-    type Signal = ();
-
-    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(
-        _: Entity,
-        executor: &AsyncWorldMut,
-        _: Self::Signal,
-        _: &[Entity],
-    ) -> Option<Self> {
+impl<E: Event> AsyncWorldParam for AsyncEventReader<E> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
         Some(executor.event_reader::<E>())
     }
 }

@@ -9,6 +9,7 @@ use futures::future::{ready, Either};
 use futures::FutureExt;
 use ref_cast::RefCast;
 use std::future::Future;
+use crate::async_systems::AsyncWorldParam;
 use crate::async_world::AsyncWorldMut;
 use crate::channels::channel;
 use crate::signals::Signals;
@@ -23,25 +24,15 @@ pub struct AsyncSystemParam<P: SystemParam>{
     pub(crate) p: PhantomData<P>
 }
 
-impl<P: SystemParam> AsyncEntityParam for AsyncSystemParam<P> {
-    type Signal = ();
-    
-    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
+impl<P: SystemParam> AsyncWorldParam for AsyncSystemParam<P> {
     fn from_async_context(
-        _: Entity,
-        executor: &AsyncWorldMut,
-        _: (),
-        _: &[Entity]
+        executor: &AsyncWorldMut
     ) -> Option<Self> {
         Some(AsyncSystemParam {
             queue: executor.queue.clone(),
             p: PhantomData
         })
     }
-    
 }
 
 type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'static;

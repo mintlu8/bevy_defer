@@ -272,6 +272,8 @@ pub enum AsyncFailure {
     ScheduleNotFound,
     #[error("system param error")]
     SystemParamError,
+    #[error("AsyncWorldParam not found")]
+    WorldParamNotFound,
 }
 
 #[doc(hidden)]

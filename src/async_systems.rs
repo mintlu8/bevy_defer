@@ -14,7 +14,31 @@ use super::AsyncFailure;
 #[allow(unused)]
 use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 
-/// Macro for constructing an async system via the [`AsyncEntityParam`] abstraction.
+
+/// Construct a [`Future`] via [`AsyncSystem`] semantics. 
+/// This uses the [`AsyncWorldParam`] abstraction instead.
+/// 
+/// See [`async_system!`] for syntax.
+#[macro_export]
+macro_rules! system_future {
+    (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
+        {
+            async move {
+                use $crate::access::*;
+                let __world = $crate::world();
+                loop {
+                    $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::from_async_context(&__world).ok_or($crate::AsyncFailure::WorldParamNotFound)?;)*
+                    let _ = async {
+                        let _ = $body;
+                        Result::<(), $crate::AsyncFailure>::Ok(())
+                    }.await;
+                }
+            }
+        }
+    };
+}
+
+/// Construct an async system via the [`AsyncEntityParam`] abstraction.
 /// 
 /// # Syntax
 /// 
@@ -191,6 +215,14 @@ impl AsyncSystems {
         self.systems.extend(systems.systems);
         self
     }
+}
+
+/// A parameter of an [`AsyncSystem`].
+pub trait AsyncWorldParam: Sized {
+    /// Obtain `Self` from the async context.
+    fn from_async_context(
+        executor: &AsyncWorldMut,
+    ) -> Option<Self>;
 }
 
 /// A parameter of an [`AsyncSystem`].

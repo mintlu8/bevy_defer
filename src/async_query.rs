@@ -1,4 +1,4 @@
-use crate::{async_world::AsyncWorldMut, signals::Signals, CHANNEL_CLOSED};
+use crate::{async_systems::AsyncWorldParam, async_world::AsyncWorldMut, signals::Signals, CHANNEL_CLOSED};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QuerySingleError, QueryState, WorldQuery},
@@ -119,6 +119,15 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
             sender,
         );
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+}
+
+impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuery<T, F> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
+        Some(Self {
+            queue: executor.queue.clone(),
+            p: PhantomData,
+        })
     }
 }
 
