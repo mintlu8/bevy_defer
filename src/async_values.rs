@@ -281,6 +281,9 @@ impl<R: 'static> AsyncNonSend<R> {
     /// world().non_send_resource::<Int>().exists().await;
     /// # });
     pub fn exists(&self) -> impl Future<Output = ()> {
+        if matches!(self.world().with_world_ref(|x| x.contains_non_send::<R>()), Ok(true)) {
+            return Either::Right(ready(()));
+        }
         let (sender, receiver) = channel();
         self.queue.repeat(
             move |world: &mut World| {
@@ -290,7 +293,7 @@ impl<R: 'static> AsyncNonSend<R> {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
     /// Run a function on the [`NonSend`] and obtain the result.
@@ -406,6 +409,9 @@ impl<R: Resource> AsyncResource<R> {
     /// world().resource::<Int>().exists().await;
     /// # });
     pub fn exists(&self) -> impl Future<Output = ()> {
+        if matches!(self.world().with_world_ref(|x| x.contains_resource::<R>()), Ok(true)) {
+            return Either::Right(ready(()));
+        }
         let (sender, receiver) = channel();
         self.queue.repeat(
             move |world: &mut World| {
@@ -415,7 +421,7 @@ impl<R: Resource> AsyncResource<R> {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
     /// Run a function on the [`Resource`] and obtain the result.
