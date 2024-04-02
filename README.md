@@ -225,7 +225,7 @@ This would block parallelization, however.
 
 `bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
 this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
-The `AsyncComputeTaskPool` in `bevy_tasks` in ideal for this use case.
+The `AsyncComputeTaskPool` in `bevy_tasks` is ideal for this use case.
 We can use `AsyncComputeTaskPool::get().spawn()` to spawn a future on task pool and call `await`.
 
 At each execution point, we will poll our futures until no progress can be made.
