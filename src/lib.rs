@@ -274,6 +274,8 @@ pub enum AsyncFailure {
     SystemParamError,
     #[error("AsyncWorldParam not found")]
     WorldParamNotFound,
+    #[error("SystemId not found")]
+    SystemIdNotFound,
 }
 
 #[doc(hidden)]

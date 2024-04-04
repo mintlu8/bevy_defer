@@ -1,9 +1,11 @@
-use std::{cell::OnceCell, future::{ready, Future}};
+use std::{any::{Any, TypeId}, cell::OnceCell, future::{ready, Future}};
 use bevy_core::FrameCount;
 use bevy_app::AppExit;
 use futures::{future::Either, FutureExt};
+use rustc_hash::FxHashMap;
 use crate::{channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
-use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::{Command, CommandQueue}, world::World};
+use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
+use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use bevy_time::Time;
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
@@ -105,6 +107,113 @@ impl AsyncWorldMut {
                 world.try_run_schedule(schedule)
                     .map_err(|_| AsyncFailure::ScheduleNotFound)
             }, 
+            sender
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+
+    /// Register a system and return a [`SystemId`] so it can later be called by `run_system`.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await
+    /// # );
+    /// ```
+    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> impl Future<Output = SystemId<I, O>> {
+        let (sender, receiver) = channel();
+        self.queue.once(move |world: &mut World| {
+                world.register_system(system)
+            }, 
+            sender
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+
+    /// Run a stored system by their [`SystemId`].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// let id = world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await;
+    /// world().run_system(id).await.unwrap();
+    /// # });
+    /// ```
+    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> impl Future<Output = AsyncResult<O>> {
+        self.run_system_with_input(system, ())
+    }
+
+    /// Run a stored system by their [`SystemId`] with input.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// let id = world().register_system(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input).await;
+    /// world().run_system_with_input(id, 4.0).await.unwrap();
+    /// # });
+    /// ```
+    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> impl Future<Output = AsyncResult<O>> {
+        let (sender, receiver) = channel();
+        self.queue.once(move |world: &mut World| {
+                world.run_system_with_input(system, input)
+                    .map_err(|_| AsyncFailure::SystemIdNotFound)
+            }, 
+            sender
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+
+    /// Run a system that will be stored and reused upon repeated usage.
+    /// 
+    /// # Note
+    /// 
+    /// The system is disambiguated by [`IntoSystem::system_type_id`].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await.unwrap();
+    /// # });
+    /// ```
+    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> impl Future<Output = AsyncResult<O>> {
+        self.run_cached_system_with_input(system, ())
+    }
+
+    /// Run a system with input that will be stored and reused upon repeated usage.
+    /// 
+    /// # Note
+    /// 
+    /// The system is disambiguated by [`IntoSystem::system_type_id`].
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// world().run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).await.unwrap();
+    /// # });
+    /// ```
+    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> impl Future<Output = AsyncResult<O>> {
+        #[derive(Debug, Resource, Default)]
+        struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
+
+        let (sender, receiver) = channel();
+        self.queue.once(move |world: &mut World| {
+                let res = world.get_resource_or_insert_with::<SystemCache>(Default::default);
+                let type_id = IntoSystem::system_type_id(&system);
+                if let Some(id) = res.0.get(&type_id).and_then(|x| x.downcast_ref::<SystemId<I, O>>()).copied() {
+                    world.run_system_with_input(id, input)
+                        .map_err(|_| AsyncFailure::SystemIdNotFound)
+                } else {
+                    let id = world.register_system(system);
+                    world.resource_mut::<SystemCache>().0.insert(type_id, Box::new(id));
+                    world.run_system_with_input(id, input)
+                        .map_err(|_| AsyncFailure::SystemIdNotFound)
+                }
+            },
             sender
         );
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
