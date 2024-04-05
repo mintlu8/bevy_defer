@@ -36,7 +36,7 @@ pub mod access {
     pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut, AsyncChild};
     pub use crate::async_query::{AsyncQuery, AsyncEntityQuery};
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
-    pub use crate::async_event::AsyncEventReader;
+    pub use crate::async_event::{AsyncEventReader, EventStream};
     pub use crate::async_asset::AsyncAsset;
     pub use crate::extension::AsyncScene;
 }

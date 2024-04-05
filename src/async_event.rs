@@ -1,9 +1,13 @@
 use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
 use bevy_ecs::world::World;
-use futures::{Future, FutureExt};
+use futures::{Future, FutureExt, Stream};
 use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::mem;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 use crate::async_systems::AsyncWorldParam;
 use crate::channels::channel;
 use crate::executor::AsyncQueryQueue;
@@ -46,10 +50,6 @@ pub struct AsyncEventReader<E: Event> {
 
 impl<E: Event> AsyncEventReader<E> {
     /// Poll an [`Event`].
-    /// 
-    /// # Note
-    /// 
-    /// Only receives events sent after this call.
     pub fn poll(&self) -> impl Future<Output = E> where E: Clone {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -65,10 +65,6 @@ impl<E: Event> AsyncEventReader<E> {
     }
 
     /// Poll an [`Event`].
-    /// 
-    /// # Note
-    /// 
-    /// Only receives events sent after this call.
     pub fn poll_mapped<T: Clone + 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -84,10 +80,6 @@ impl<E: Event> AsyncEventReader<E> {
     }
 
     /// Poll [`Event`]s until done, result must have at least one value.
-    /// 
-    /// # Note
-    /// 
-    /// Only receives events sent after this call.
     pub fn poll_all(&self) -> impl Future<Output = Vec<E>> where E: Clone {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -106,11 +98,7 @@ impl<E: Event> AsyncEventReader<E> {
     }
 
     /// Poll [`Event`]s until done, result must have at least one value.
-    /// 
-    /// # Note
-    /// 
-    /// Only receives events sent after this call.
-    pub fn poll_all_mapped<T: Clone + 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = Vec<T>> {
+    pub fn poll_all_mapped<T: 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = Vec<T>> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
         self.queue.repeat(
@@ -125,6 +113,45 @@ impl<E: Event> AsyncEventReader<E> {
             sender
         );
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+
+    /// Poll [`Event`]s until done, optimized for stream.
+    fn poll_all_stream<T: 'static>(&self, mut f: impl FnMut(&E) -> T + 'static, mut queue: VecDeque<T>) -> impl Future<Output = VecDeque<T>> {
+        let (sender, receiver) = channel();
+        let reader = self.reader.clone();
+        self.queue.repeat(
+            move |world: &mut World| {
+                let events = world.get_resource::<Events<E>>()?;
+                let len = queue.len();
+                queue.extend(reader.borrow_mut().read(events).map(&mut f));
+                if queue.len() == len {
+                    return None;
+                }
+                Some(mem::take(&mut queue))
+            },
+            sender
+        );
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+
+    /// Convert the [`AsyncEventReader`] into a [`Stream`] through cloning.
+    pub fn into_stream(self) -> EventStream<E, E, impl FnMut(&E) -> E + Clone> where E: Clone{
+        EventStream {
+            reader: self,
+            mapper: E::clone,
+            cached: VecDeque::new(),
+            future: None,
+        }
+    }
+
+    /// Convert the [`AsyncEventReader`] into a mapped [`Stream`].
+    pub fn into_mapped_stream<F: FnMut(&E) -> O + Clone + 'static, O: 'static>(self, f: F) -> EventStream<E, O, F> {
+        EventStream {
+            reader: self,
+            mapper: f,
+            cached: VecDeque::new(),
+            future: None,
+        }
     }
 }
 
@@ -147,5 +174,39 @@ impl<C> Deref for AsyncEventReader<C> where C: AsyncEventReaderDeref{
 
     fn deref(&self) -> &Self::Target {
         AsyncEventReaderDeref::async_deref(self)
+    }
+}
+
+pub struct EventStream<E: Event, Out, F: FnMut(&E) -> Out + Clone> {
+    reader: AsyncEventReader<E>,
+    mapper: F,
+    cached: VecDeque<Out>,
+    future: Option<Pin<Box<dyn Future<Output = VecDeque<Out>>>>>
+}
+
+impl<E: Event, O, F: FnMut(&E) -> O + Clone> Unpin for EventStream<E, O, F> {}
+
+impl<E: Event, O: 'static, F: FnMut(&E) -> O + Clone + 'static> Stream for EventStream<E, O, F> {
+    type Item = O;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(cached) = self.cached.pop_front() {
+            return Poll::Ready(Some(cached))
+        }
+        if let Some(fut) = &mut self.future {
+            match fut.poll_unpin(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(v) => {
+                    self.future = None;
+                    self.cached = v;
+                    if let Some(first) = self.cached.pop_front() {
+                        return Poll::Ready(Some(first))
+                    }
+                },
+            }
+        }
+        let queue = mem::take(&mut self.cached);
+        self.future = Some(Box::pin(self.reader.poll_all_stream(self.mapper.clone(), queue)));
+        self.poll_next(cx)
     }
 }

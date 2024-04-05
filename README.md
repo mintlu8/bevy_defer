@@ -29,7 +29,7 @@ At each `await` point we wait for something to complete, without wasting resourc
 spin looping a thread or defining a complex state machine in a system.
 
 What if we want damage number and damage vfx to run concurrently and wait for both
-before out next attack? It's simple with `async` semantics!
+before our next attack? It's simple with `async` semantics!
 
 ```rust, ignore
 futures::join! {

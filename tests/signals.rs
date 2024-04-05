@@ -2,9 +2,10 @@ use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
 
 use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
-use bevy_ecs::{component::Component, event::Event, query::With, system::{Commands, Local, Query}};
+use bevy_ecs::{component::Component, event::{Event, EventWriter}, query::With, system::{Commands, Local, Query}};
 use bevy_defer::{async_system, async_systems::AsyncSystems, signal_ids, signals::{Signal, SignalSender}, world, AsyncExtension, AsyncPlugin};
 use bevy_defer::signals::Signals;
+use bevy_tasks::futures_lite::StreamExt;
 signal_ids! {
     SigText: &'static str,
 }
@@ -139,4 +140,65 @@ pub fn events() {
     app.run();
     assert!(ALICE.load(Ordering::SeqCst));
     assert!(BOB.load(Ordering::SeqCst));
+}
+
+#[derive(Debug, Clone, Event, PartialEq)]
+pub struct Chat(char);
+
+#[test]
+pub fn stream() {
+    static DONE: AtomicBool = AtomicBool::new(false);
+    let mut app = App::new();
+    app.add_plugins(AsyncPlugin::default_settings());
+    app.add_event::<Chat>();
+    app.add_plugins(MinimalPlugins);
+    app.spawn_task(async {
+        let world = world();
+        let mut stream = world.event_reader::<Chat>().into_stream();
+        assert_eq!(stream.next().await, Some(Chat('r')));
+        assert_eq!(stream.next().await, Some(Chat('u')));
+        assert_eq!(stream.next().await, Some(Chat('s')));
+        assert_eq!(stream.next().await, Some(Chat('t')));
+        assert_eq!(stream.next().await, Some(Chat(' ')));
+        assert_eq!(stream.next().await, Some(Chat('n')));
+        assert_eq!(stream.next().await, Some(Chat(' ')));
+        assert_eq!(stream.next().await, Some(Chat('b')));
+        assert_eq!(stream.next().await, Some(Chat('e')));
+        assert_eq!(stream.next().await, Some(Chat('v')));
+        assert_eq!(stream.next().await, Some(Chat('y')));
+        if DONE.swap(true, Ordering::Relaxed){
+            world.quit().await;
+        }
+        Ok(())
+    });
+    app.spawn_task(async {
+        let world = world();
+        let mut stream = world.event_reader::<Chat>().into_mapped_stream(|c| c.0.to_ascii_uppercase());
+        assert_eq!(stream.next().await, Some('R'));
+        assert_eq!(stream.next().await, Some('U'));
+        assert_eq!(stream.next().await, Some('S'));
+        assert_eq!(stream.next().await, Some('T'));
+        assert_eq!(stream.next().await, Some(' '));
+        assert_eq!(stream.next().await, Some('N'));
+        assert_eq!(stream.next().await, Some(' '));
+        assert_eq!(stream.next().await, Some('B'));
+        assert_eq!(stream.next().await, Some('E'));
+        assert_eq!(stream.next().await, Some('V'));
+        assert_eq!(stream.next().await, Some('Y'));
+        if DONE.swap(true, Ordering::Relaxed){
+            world.quit().await;
+        }
+        Ok(())
+    });
+
+    let mut msgs = vec!["bevy", "n ", "rust "];
+    
+    app.add_systems(Update, move |mut w: EventWriter<Chat>| {
+        if let Some(s) = msgs.pop() {
+            w.send_batch(s.chars().map(Chat));
+        };
+    });
+
+    app.run();
+    assert!(DONE.load(Ordering::SeqCst));
 }
