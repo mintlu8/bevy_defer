@@ -25,7 +25,25 @@ impl LocalResourceScope for () {
 }
 
 scoped_thread_local!(pub(crate) static WORLD_REF: World);
+crate::tls_resource!(pub ASSET_SERVER: AssetServer);
 
+// The public api is in [`AsyncWorldMut`];
+pub(crate) fn with_world_ref<T: 'static, F: FnOnce(&World) -> T>(f: F) -> Result<T, F> {
+    if WORLD_REF.is_set() {
+        Ok(WORLD_REF.with(f))
+    } else {
+        Err(f)
+    }
+}
+
+// The public api is in [`AsyncWorldMut`];
+pub(crate) fn with_asset_server<T: 'static, F: FnOnce(&AssetServer) -> T>(f: F) -> T {
+    if ASSET_SERVER.is_set() {
+        ASSET_SERVER.with(f)
+    } else {
+        panic!("Asset server does not exist.")
+    }
+}
 
 impl AsyncWorldMut {
     /// Run a function on a readonly [`World`] in the async context.
@@ -33,11 +51,7 @@ impl AsyncWorldMut {
     /// Returns [`Err`] if world access is not enabled, 
     /// add `with_world_access` on the plugin to enable this access.
     pub fn with_world_ref<T: 'static, F: FnOnce(&World) -> T>(&self, f: F) -> Result<T, F> {
-        if WORLD_REF.is_set() {
-            Ok(WORLD_REF.with(f))
-        } else {
-            Err(f)
-        }
+        with_world_ref(f)
     }
 
     /// Run a function on [`AssetServer`] in the async context.
@@ -46,11 +60,7 @@ impl AsyncWorldMut {
     ///
     /// If used outside a `bevy_defer` future or if [`AssetServer`] does not exist in the [`World`].
     pub fn with_asset_server<T: 'static, F: FnOnce(&AssetServer) -> T>(&self, f: F) -> T {
-        if ASSET_SERVER.is_set() {
-            ASSET_SERVER.with(f)
-        } else {
-            panic!("Asset server does not exist.")
-        }
+        with_asset_server(f)
     }
 }
 
@@ -62,8 +72,6 @@ impl LocalResourceScope for World {
         WORLD_REF.set(this, f)
     }
 }
-
-crate::tls_resource!(pub ASSET_SERVER: AssetServer);
 
 impl<A, B> LocalResourceScope for (A, B) where A: LocalResourceScope, B: LocalResourceScope {
     type Resource = (A::Resource, B::Resource);

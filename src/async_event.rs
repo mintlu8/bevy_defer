@@ -49,7 +49,7 @@ pub struct AsyncEventReader<E: Event> {
 }
 
 impl<E: Event> AsyncEventReader<E> {
-    /// Poll an [`Event`].
+    /// Poll an [`Event`] through cloning.
     pub fn poll(&self) -> impl Future<Output = E> where E: Clone {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -64,7 +64,7 @@ impl<E: Event> AsyncEventReader<E> {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Poll an [`Event`].
+    /// Poll an [`Event`] through mapping.
     pub fn poll_mapped<T: Clone + 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -79,7 +79,7 @@ impl<E: Event> AsyncEventReader<E> {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Poll [`Event`]s until done, result must have at least one value.
+    /// Poll [`Event`]s through cloning until done, result must have at least one value.
     pub fn poll_all(&self) -> impl Future<Output = Vec<E>> where E: Clone {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -97,7 +97,7 @@ impl<E: Event> AsyncEventReader<E> {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Poll [`Event`]s until done, result must have at least one value.
+    /// Poll [`Event`]s through mapping until done, result must have at least one value.
     pub fn poll_all_mapped<T: 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = Vec<T>> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();
@@ -115,7 +115,7 @@ impl<E: Event> AsyncEventReader<E> {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Poll [`Event`]s until done, optimized for stream.
+    /// Poll [`Event`]s until done, optimized for the stream use case.
     fn poll_all_stream<T: 'static>(&self, mut f: impl FnMut(&E) -> T + 'static, mut queue: VecDeque<T>) -> impl Future<Output = VecDeque<T>> {
         let (sender, receiver) = channel();
         let reader = self.reader.clone();

@@ -1,9 +1,9 @@
 use std::{ops::Deref, rc::Rc};
-use bevy_asset::{Asset, AssetPath, Assets, Handle};
+use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
-use futures::{Future, FutureExt};
-
-use crate::{async_world::AsyncWorldMut, channel, executor::AsyncQueryQueue, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use futures::{future::Either, Future, FutureExt};
+use std::future::ready;
+use crate::{async_world::AsyncWorldMut, channel, executor::AsyncQueryQueue, locals::{with_asset_server, with_world_ref}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 
 /// Async version of [`Handle`].
@@ -72,12 +72,53 @@ impl<A: Asset> AsyncAsset<A> {
         self.handle
     }
 
+    /// Clone an `Asset`, repeat until the asset is loaded.
+    pub fn cloned(
+        &self, 
+    ) -> impl Future<Output = AsyncResult<A>> where A: Clone {
+        self.get(Clone::clone)
+    }
+
+    /// Repeat until the asset is loaded, returns false if loading failed.
+    pub fn loaded<T: 'static> (
+        &self, 
+    ) -> impl Future<Output = bool> {
+        match with_asset_server(|server| {
+            server.load_state(&self.handle)
+        }) {
+            LoadState::Loaded => return Either::Right(ready(true)),
+            LoadState::Failed => return Either::Right(ready(false)),
+            _ => (),
+        };
+        let (sender, receiver) = channel();
+        let handle = self.handle.id();
+        self.queue.repeat(
+            move |world: &mut World| {
+                match world.resource::<AssetServer>().load_state(handle){
+                    LoadState::Loaded => Some(true),
+                    LoadState::Failed => Some(false),
+                    _ => None,
+                }
+            },
+            sender
+        );
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+    }
+
     /// Run a function on an `Asset` and obtain the result,
     /// repeat until the asset is loaded.
     pub fn get<T: 'static> (
         &self, 
         mut f: impl FnMut(&A) -> T + Send + 'static
     ) -> impl Future<Output = AsyncResult<T>> {
+        match with_world_ref(|world| {
+            world.get_resource::<Assets<A>>()
+                .and_then(|x| x.get(&self.handle))
+                .map(&mut f)
+        }) {
+            Ok(Some(result)) => return Either::Right(ready(Ok(result))),
+            _ => (),
+        };
         let (sender, receiver) = channel();
         let handle = self.handle.id();
         self.queue.repeat(
@@ -88,24 +129,7 @@ impl<A: Asset> AsyncAsset<A> {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Clone an `Asset`, repeat until the asset is loaded.
-    pub fn cloned(
-        &self, 
-    ) -> impl Future<Output = AsyncResult<A>> where A: Clone {
-        let (sender, receiver) = channel();
-        let id = self.handle.id();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let Some(assets) = world.get_resource_mut::<Assets<A>>()
-                    else { return Some(Err(AsyncFailure::ResourceNotFound)) };
-                assets.get(id).cloned().map(Ok)
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
     /// Remove an `Asset` and obtain it, repeat until the asset is loaded.

@@ -12,6 +12,7 @@ use std::future::Future;
 use crate::async_systems::AsyncWorldParam;
 use crate::async_world::AsyncWorldMut;
 use crate::channels::channel;
+use crate::locals::with_world_ref;
 use crate::signals::Signals;
 use crate::{async_systems::AsyncEntityParam, CHANNEL_CLOSED};
 
@@ -138,6 +139,24 @@ impl<C: Component> AsyncComponent<C> {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
+    /// Clone the [`Component`] and obtain the result.
+    /// 
+    /// Guaranteed to complete immediately with `World` access.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>().cloned().await?;
+    /// # });
+    /// ```
+    pub fn cloned(&self) -> impl Future<Output = AsyncResult<C>> where C: Clone {
+        self.get(Clone::clone)
+    }
+
     /// Run a function on the [`Component`] and obtain the result.
     /// 
     /// Guaranteed to complete immediately with `World` access.
@@ -163,7 +182,7 @@ impl<C: Component> AsyncComponent<C> {
                 .get::<C>()
                 .ok_or(AsyncFailure::ComponentNotFound)?))
         }; 
-        let f = match self.world().with_world_ref(f) {
+        let f = match with_world_ref(f) {
             Ok(result) => return Either::Right(ready(result)),
             Err(f) => f,
         };
@@ -281,7 +300,7 @@ impl<R: 'static> AsyncNonSend<R> {
     /// world().non_send_resource::<Int>().exists().await;
     /// # });
     pub fn exists(&self) -> impl Future<Output = ()> {
-        if matches!(self.world().with_world_ref(|x| x.contains_non_send::<R>()), Ok(true)) {
+        if matches!(with_world_ref(|x| x.contains_non_send::<R>()), Ok(true)) {
             return Either::Right(ready(()));
         }
         let (sender, receiver) = channel();
@@ -294,6 +313,24 @@ impl<R: 'static> AsyncNonSend<R> {
             sender
         );
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+    }
+
+    /// Clone the [`NonSend`] and obtain the result.
+    /// 
+    /// Guaranteed to complete immediately with `World` access.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>().cloned().await?;
+    /// # });
+    /// ```
+    pub fn cloned(&self) -> impl Future<Output = AsyncResult<R>> where R: Clone {
+        self.get(Clone::clone)
     }
 
     /// Run a function on the [`NonSend`] and obtain the result.
@@ -315,7 +352,7 @@ impl<R: 'static> AsyncNonSend<R> {
                 .map(f)
                 .ok_or(AsyncFailure::ResourceNotFound)
         }; 
-        let f = match self.world().with_world_ref(f) {
+        let f = match with_world_ref(f) {
             Ok(result) => return Either::Right(ready(result)),
             Err(f) => f,
         };
@@ -409,7 +446,7 @@ impl<R: Resource> AsyncResource<R> {
     /// world().resource::<Int>().exists().await;
     /// # });
     pub fn exists(&self) -> impl Future<Output = ()> {
-        if matches!(self.world().with_world_ref(|x| x.contains_resource::<R>()), Ok(true)) {
+        if matches!(with_world_ref(|x| x.contains_resource::<R>()), Ok(true)) {
             return Either::Right(ready(()));
         }
         let (sender, receiver) = channel();
@@ -422,6 +459,24 @@ impl<R: Resource> AsyncResource<R> {
             sender
         );
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+    }
+
+    /// Clone the [`Resource`] and obtain the result.
+    /// 
+    /// Guaranteed to complete immediately with `World` access.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = world().spawn_bundle(Int(4)).await.id();
+    /// world().entity(entity).component::<Int>().cloned().await?;
+    /// # });
+    /// ```
+    pub fn cloned(&self) -> impl Future<Output = AsyncResult<R>> where R: Clone {
+        self.get(Clone::clone)
     }
 
     /// Run a function on the [`Resource`] and obtain the result.
@@ -443,7 +498,7 @@ impl<R: Resource> AsyncResource<R> {
                 .map(f)
                 .ok_or(AsyncFailure::ResourceNotFound)
         };
-        let f = match self.world().with_world_ref(f) {
+        let f = match with_world_ref(f) {
             Ok(result) => return Either::Right(ready(result)),
             Err(f) => f,
         };

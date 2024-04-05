@@ -287,10 +287,10 @@ macro_rules! test_spawn {
             use ::bevy::prelude::*;
             use ::bevy_defer::*;
             use ::bevy_defer::access::*;
-            #[derive(Debug, Component, Resource, Event, Asset, TypePath)]
+            #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
             pub struct Int(i32);
     
-            #[derive(Debug, Component, Resource, Event, Asset, TypePath)]
+            #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
             pub struct Str(&'static str);
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
