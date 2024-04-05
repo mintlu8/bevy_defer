@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::atomic::AtomicBool, time::Duration};
+use std::{collections::HashMap, ops::{Deref, DerefMut}, time::Duration};
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
@@ -21,8 +21,6 @@ impl HP {
 
 #[derive(Component)]
 pub struct Animator(String);
-
-static LOCK: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, States, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy, Default)]
 pub enum GameState {
