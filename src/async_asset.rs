@@ -111,13 +111,12 @@ impl<A: Asset> AsyncAsset<A> {
         &self, 
         mut f: impl FnMut(&A) -> T + Send + 'static
     ) -> impl Future<Output = AsyncResult<T>> {
-        match with_world_ref(|world| {
+        if let Ok(Some(result)) = with_world_ref(|world| {
             world.get_resource::<Assets<A>>()
                 .and_then(|x| x.get(&self.handle))
                 .map(&mut f)
         }) {
-            Ok(Some(result)) => return Either::Right(ready(Ok(result))),
-            _ => (),
+            return Either::Right(ready(Ok(result)))
         };
         let (sender, receiver) = channel();
         let handle = self.handle.id();
