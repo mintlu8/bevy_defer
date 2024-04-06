@@ -72,7 +72,7 @@ commands.spawn_task(|| async move {
     // like tokio::spawn() this only works in the async context.
     let world = world();
     // Wait for state to be `GameState::Animating`.
-    world.in_state(GameState::Animating).await;
+    world.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await;
     // This function is async because we don't own the world,
     // we send a query request and wait for the response.
     let richard_entity = world.resource::<NamedEntities>()

@@ -1,8 +1,9 @@
 use std::{collections::HashMap, ops::{Deref, DerefMut}, pin::pin, time::Duration};
 use bevy::MinimalPlugins;
-use bevy_app::App;
+use bevy_app::{App, First};
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
-use bevy_defer::{signal_ids, spawn_scoped, world, access::AsyncComponent, extensions::AsyncComponentDeref, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_defer::{access::AsyncComponent, extensions::AsyncComponentDeref, signal_ids, spawn_scoped, reactors::react_to_state, world, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_tasks::futures_lite::StreamExt;
 use futures::FutureExt;
 use ref_cast::RefCast;
 signal_ids! {
@@ -88,6 +89,7 @@ pub fn main() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AsyncPlugin::default_settings());
+    app.add_systems(First, react_to_state::<GameState>);
     
     let e1 = app.world.spawn((
         HP(0),
@@ -118,7 +120,7 @@ pub fn main() {
         }
         
         // Wait for state to be `MyState::Combat`.
-        world.in_state(GameState::Animating).await;
+        world.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await.unwrap();
         // This function is async because we don't own the world,
         // we send a query request and wait for the response.
         let richard_entity = world.resource::<NamedEntities>()

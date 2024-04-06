@@ -119,7 +119,7 @@ impl QueryCallback {
                 if channel.is_closed() { return false } 
                 match query(w) {
                     Some(result) => {
-                        let _ = channel.send(result);
+                        channel.send(result);
                         false
                     },
                     None => true
@@ -240,7 +240,7 @@ impl AsyncWorldMut {
             FixedTask {
                 task: Box::new(move |world, dt| {
                     if let Some(item) = f(world, dt) {
-                        let _ = sender.send(item);
+                        sender.send(item);
                         true
                     } else {
                         false

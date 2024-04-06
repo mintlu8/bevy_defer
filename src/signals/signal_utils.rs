@@ -40,9 +40,7 @@ macro_rules! signal_ids {
 }
 
 /// Standard [`SignalId`] for every type.
-pub enum Fac<T:  Clone + Default + Send + Sync + 'static> {
-    __Phantom(PhantomData<T>, std::convert::Infallible)
-}
+pub struct Fac<T:  Clone + Default + Send + Sync + 'static>(PhantomData<T>, std::convert::Infallible);
 
 impl<T: Clone + Default + Send + Sync + 'static> SignalId for Fac<T> {
     type Data = T;

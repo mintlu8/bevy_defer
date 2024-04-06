@@ -16,6 +16,7 @@ mod commands;
 mod ext;
 mod locals;
 mod queue;
+pub mod reactors;
 pub mod cancellation;
 pub mod tween;
 pub mod channels;
@@ -25,6 +26,7 @@ use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
+use reactors::Reactors;
 
 pub use crate::async_world::{world, in_async_context, spawn, spawn_scoped};
 use crate::async_world::world_scope;
@@ -68,7 +70,7 @@ pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
 pub use scoped_tls::scoped_thread_local;
 
-use signals::{NamedSignals, Signal, SignalId, Signals};
+use signals::{Signal, SignalId, Signals};
 use queue::run_fixed_queue;
 
 /// Result type of `AsyncSystemFunction`.
@@ -85,7 +87,7 @@ impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
-            .init_resource::<NamedSignals>()
+            .init_resource::<Reactors>()
             .register_type::<async_systems::AsyncSystems>()
             .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
@@ -188,7 +190,10 @@ pub trait AsyncExtension {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self;
 
     /// Obtain a named signal.
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data>;
+    fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data>;
+
+    /// Obtain a named signal.
+    fn named_signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -202,8 +207,12 @@ impl AsyncExtension for World {
         self
     }
 
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        self.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
+    fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
+        self.get_resource_or_insert_with::<Reactors>(Default::default).get_typed::<T>()
+    }
+    
+    fn named_signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
+        self.get_resource_or_insert_with::<Reactors>(Default::default).get_named::<T>(name)
     }
 }
 
@@ -218,8 +227,12 @@ impl AsyncExtension for App {
         self
     }
 
-    fn signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        self.world.get_resource_or_insert_with::<NamedSignals>(Default::default).get::<T>(name)
+    fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
+        self.world.get_resource_or_insert_with::<Reactors>(Default::default).get_typed::<T>()
+    }
+
+    fn named_signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
+        self.world.get_resource_or_insert_with::<Reactors>(Default::default).get_named::<T>(name)
     }
 }
 

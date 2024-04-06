@@ -67,6 +67,12 @@ impl<T: Send + Sync + 'static> Signal<T> {
     pub fn inner(&self) -> &Arc<SignalInner<T>> {
         &self.inner
     }
+
+    /// Rewind the read tick and allow the current value to be read.
+    pub fn rewind(&self) {
+        let tick = self.inner.tick.load(Ordering::Relaxed);
+        self.inner.tick.store(tick.wrapping_sub(1), Ordering::Relaxed);
+    }
 }
 
 impl<T: Send + Sync + 'static> Deref for Signal<T> {
@@ -202,7 +208,8 @@ impl<T: Clone + Send + Sync + 'static> Sink<T> for Signal<T> {
     }
 
     fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
-        Ok(self.send(item))
+        self.send(item);
+        Ok(())
     }
 
     fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {

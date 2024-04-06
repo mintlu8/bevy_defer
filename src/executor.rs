@@ -5,7 +5,7 @@ use bevy_asset::AssetServer;
 use bevy_ecs::system::{CommandQueue, Commands, NonSend, Res, StaticSystemParam};
 use futures::executor::{LocalPool, LocalSpawner};
 use crate::queue::AsyncQueryQueue;
-use crate::signals::NamedSignals;
+use crate::reactors::Reactors;
 use crate::{world_scope, LocalResourceScope};
 
 /// Resource containing a reference to an async executor.
@@ -39,13 +39,13 @@ pub fn run_async_executor<R: LocalResourceScope>(
     scoped: StaticSystemParam<R::Resource>,
     // Since nobody needs mutable access to `AssetServer` this is enabled by default.
     asset_server: Option<Res<AssetServer>>,
-    named_signal: Res<NamedSignals>,
+    state_reactors: Res<Reactors>,
     executor: NonSend<AsyncExecutor>
 ) {
     let mut cmd_queue = RefCell::new(CommandQueue::default());
     COMMAND_QUEUE.set(&cmd_queue, || {
         AssetServer::maybe_scoped(asset_server.as_ref(), ||{
-            NamedSignals::scoped(&named_signal, || {
+            Reactors::scoped(&state_reactors, || {
                 R::scoped(&*scoped, ||world_scope(&queue.0, executor.spawner(), || {
                     executor.0.borrow_mut().run_until_stalled();
                 }))

@@ -1,9 +1,9 @@
 use std::{any::{Any, TypeId}, future::{poll_fn, ready, Future}, task::Poll};
 use bevy_app::AppExit;
 use bevy_utils::Duration;
-use futures::{future::Either, FutureExt};
+use futures::{future::Either, FutureExt, Stream};
 use rustc_hash::FxHashMap;
-use crate::{channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
+use crate::{channels::channel, executor::COMMAND_QUEUE, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
@@ -320,6 +320,7 @@ impl AsyncWorldMut {
     /// world().in_state(MyState::A).await
     /// # });
     /// ```
+    #[deprecated = "Use `state_stream` instead."]
     pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> {
         let (sender, receiver) = channel::<()>();
         self.queue.repeat(
@@ -330,6 +331,15 @@ impl AsyncWorldMut {
             sender
         );
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    }
+
+    /// Obtain a [`Stream`] that reacts to changes of a [`States`].
+    /// 
+    /// Requires system [`react_to_state`].
+    pub fn state_stream<S: States + Clone + Default>(&self) -> impl Stream<Item = S> {
+        let signal = self.typed_signal::<StateSignal<S>>();
+        signal.rewind();
+        signal
     }
 
     /// Pause the future for the duration, according to the `Time` resource.
@@ -401,6 +411,30 @@ impl AsyncWorldMut {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
+    /// Obtain or init a signal by [`SignalId`].
+    /// 
+    /// # Panics
+    ///
+    /// If used outside a `bevy_defer` future.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use bevy_defer::signal_ids;
+    /// # signal_ids!(MySignal: f32);
+    /// # bevy_defer::test_spawn!({
+    /// let signal = world().typed_signal::<MySignal>();
+    /// signal.send(3.14);
+    /// signal.poll().await;
+    /// # });
+    /// ```
+    pub fn typed_signal<T: SignalId>(&self) -> Signal<T::Data> {
+        if !REACTORS.is_set() {
+            panic!("Can only obtain typed signal in async context.")
+        }
+        REACTORS.with(|signals| signals.get_typed::<T>())
+    }
+
     /// Obtain or init a signal by name and [`SignalId`].
     /// 
     /// # Panics
@@ -413,15 +447,15 @@ impl AsyncWorldMut {
     /// # use bevy_defer::signal_ids;
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
-    /// let signal = world().signal::<MySignal>("signal 1");
+    /// let signal = world().named_signal::<MySignal>("signal 1");
     /// signal.send(3.14);
     /// signal.poll().await;
     /// # });
     /// ```
-    pub fn signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
-        if !NAMED_SIGNALS.is_set() {
+    pub fn named_signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
+        if !REACTORS.is_set() {
             panic!("Can only obtain named signal in async context.")
         }
-        NAMED_SIGNALS.with(|signals| signals.get_from_ref::<T>(name))
+        REACTORS.with(|signals| signals.get_named::<T>(name))
     }
 }
