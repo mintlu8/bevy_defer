@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, time::Duration};
+use std::{collections::HashMap, ops::{Deref, DerefMut}, pin::pin, time::Duration};
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
@@ -106,6 +106,17 @@ pub fn main() {
         // This is an `AsyncWorldMut`.
         // like tokio::spawn() this only works in the async context.
         let world = world();
+        let mut three = pin!(&mut world.sleep(3.0).fuse());
+        let mut two = pin!(&mut world.sleep(2.0).fuse());
+        let mut one = pin!(&mut world.sleep(1.0).fuse());
+        loop {
+            futures::select!(
+                _ = three => { println!("1"); break; },
+                _ = two => println!("2"),
+                _ = one => println!("3"),
+            )
+        }
+        
         // Wait for state to be `MyState::Combat`.
         world.in_state(GameState::Animating).await;
         // This function is async because we don't own the world,

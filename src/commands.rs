@@ -1,4 +1,4 @@
-use std::{any::{Any, TypeId}, future::{ready, Future}};
+use std::{any::{Any, TypeId}, future::{poll_fn, ready, Future}, task::Poll};
 use bevy_app::AppExit;
 use bevy_utils::Duration;
 use futures::{future::Either, FutureExt};
@@ -367,6 +367,18 @@ impl AsyncWorldMut {
         }
         self.queue.timed_frames(frames, sender);
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+    }
+
+    /// Yield control back to the `bevy_defer` executor.
+    pub fn yield_now(&self) -> impl Future<Output = ()> {
+        let mut yielded = false;
+        let queue = self.queue.clone();
+        poll_fn(move |cx| {
+            if yielded { return Poll::Ready(()); }
+            yielded = true;
+            queue.yielded.borrow_mut().push(cx.waker().clone());
+            Poll::Pending
+        })
     }
 
     /// Shutdown the bevy app.

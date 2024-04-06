@@ -97,6 +97,9 @@ impl Plugin for CoreAsyncPlugin {
 }
 
 /// An `bevy_defer` plugin that can run the executor through user configuration.
+/// 
+/// This plugin is not unique, if you need different locals in different schedules,
+/// add multiple of this components.
 #[derive(Debug)]
 pub struct AsyncPlugin<S: LocalResourceScope=()> {
     schedules: Vec<(Interned<dyn ScheduleLabel>, Option<Interned<dyn SystemSet>>)>,
@@ -172,7 +175,11 @@ impl<S: LocalResourceScope> Plugin for AsyncPlugin<S> {
                 );
             }
         }
-    }   
+    }
+
+    fn is_unique(&self) -> bool {
+        false
+    }
 }
 
 /// Extension for [`World`] and [`App`].

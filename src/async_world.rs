@@ -1,6 +1,7 @@
 use std::usize;
 use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 use bevy_log::error;
+use bevy_utils::Duration;
 use crate::async_systems::AsyncWorldParam;
 use crate::channels::channel;
 use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam};
@@ -144,7 +145,6 @@ impl AsyncWorldMut {
         }
     }
 
-
     /// Obtain an [`AsyncNonSend`] of the entity.
     /// 
     /// # Note
@@ -179,6 +179,16 @@ impl AsyncWorldMut {
             queue: self.queue.clone(),
             p: PhantomData
         }
+    }
+
+    /// Obtain duration from `init`, according to the executor.
+    pub fn now(&self) -> Duration {
+        self.queue.now.get()
+    }
+
+    /// Obtain frame count since `init`, according to the executor.
+    pub fn frame_count(&self) -> u32 {
+        self.queue.frame.get()
     }
 }
 
