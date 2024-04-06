@@ -1,12 +1,11 @@
-use std::{any::{Any, TypeId}, cell::OnceCell, future::{ready, Future}};
-use bevy_core::FrameCount;
+use std::{any::{Any, TypeId}, future::{ready, Future}};
 use bevy_app::AppExit;
+use bevy_utils::Duration;
 use futures::{future::Either, FutureExt};
 use rustc_hash::FxHashMap;
 use crate::{channels::channel, executor::COMMAND_QUEUE, signals::{Signal, SignalId, NAMED_SIGNALS}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
-use bevy_time::Time;
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 impl AsyncWorldMut {
@@ -343,19 +342,13 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     pub fn sleep(&self, duration: impl AsSeconds) -> impl Future<Output = ()> {
-        let (sender, receiver) = channel();
-        let time_cell = OnceCell::new();
         let duration = duration.as_duration();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let time = world.get_resource::<Time>()?;
-                let prev = time_cell.get_or_init(||time.elapsed());
-                let now = time.elapsed();
-                (now - *prev > duration).then_some(())
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        if duration <= Duration::ZERO {
+            return Either::Right(ready(()));
+        }
+        let (sender, receiver) = channel();
+        self.queue.timed(duration.as_duration(), sender);
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
     /// Pause the future for some frames, according to the [`FrameCount`] resource.
@@ -368,25 +361,12 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     pub fn sleep_frames(&self, frames: u32) -> impl Future<Output = ()> {
-        fn diff(a: u32, b: u32) -> u32{
-            if a >= b {
-                a - b
-            } else {
-                u32::MAX - b + a
-            }
-        }
         let (sender, receiver) = channel();
-        let time_cell = OnceCell::new();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let frame = world.get_resource::<FrameCount>()?;
-                let prev = time_cell.get_or_init(||frame.0);
-                let now = frame.0;
-                (diff(now, *prev) >= frames).then_some(())
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        if frames == 0{
+            return Either::Right(ready(()));
+        }
+        self.queue.timed_frames(frames, sender);
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
     /// Shutdown the bevy app.

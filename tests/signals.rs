@@ -2,10 +2,12 @@ use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
 
 use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
+use bevy_core::FrameCountPlugin;
 use bevy_ecs::{component::Component, event::{Event, EventWriter}, query::With, system::{Commands, Local, Query}};
 use bevy_defer::{async_system, async_systems::AsyncSystems, signal_ids, signals::{Signal, SignalSender}, world, AsyncExtension, AsyncPlugin};
 use bevy_defer::signals::Signals;
 use bevy_tasks::futures_lite::StreamExt;
+use bevy_time::TimePlugin;
 signal_ids! {
     SigText: &'static str,
 }
@@ -21,6 +23,8 @@ static LOCK: AtomicBool = AtomicBool::new(false);
 #[test]
 pub fn main() {
     let mut app = App::new();
+    app.add_plugins(TimePlugin);
+    app.add_plugins(FrameCountPlugin);
     app.add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, init)
         .add_systems(Update, update);

@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use crate::async_systems::AsyncWorldParam;
 use crate::channels::channel;
-use crate::executor::AsyncQueryQueue;
+use crate::queue::AsyncQueryQueue;
 use crate::{AsyncFailure, AsyncResult};
 use crate::{access::AsyncWorldMut, CHANNEL_CLOSED};
 
@@ -24,9 +24,7 @@ impl AsyncWorldMut {
             },
             sender
         );
-        async {
-            receiver.await.expect(CHANNEL_CLOSED)
-        }
+        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
     /// Create an [`AsyncEventReader`].

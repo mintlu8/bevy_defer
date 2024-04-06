@@ -119,6 +119,25 @@ impl<T> Sender<T> {
     pub fn cancellation(&mut self) -> ChannelCancel<T> {
         ChannelCancel(self)
     }
+
+    pub fn by_ref(self) -> RefSender<T>{
+        RefSender(Some(self))
+    }
+}
+
+/// Sender for a `!Send` oneshot channel.
+#[derive(Debug)]
+pub struct RefSender<T>(Option<Sender<T>>);
+
+
+impl<T> RefSender<T> {
+    pub fn send(&mut self, t: T) {
+        self.0.take().map(|x| x.send(t));
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.0.as_ref().map(|x| x.is_closed()).unwrap_or(true)
+    }
 }
 
 impl<T> Receiver<T> {

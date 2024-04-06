@@ -1,8 +1,10 @@
 use std::sync::{atomic::{AtomicBool, AtomicI64, Ordering}, Arc};
 use bevy::{sprite::{Sprite, SpriteBundle}, transform::components::{GlobalTransform, Transform}, MinimalPlugins};
 use bevy_app::App;
+use bevy_core::FrameCountPlugin;
 use bevy_ecs::{component::Component, query::With};
 use bevy_defer::{system_future, world, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_time::TimePlugin;
 
 #[derive(Component)]
 pub struct Int(i32);
@@ -14,6 +16,8 @@ pub struct String(&'static str);
 #[test]
 pub fn main() {
     let mut app = App::new();
+    app.add_plugins(TimePlugin);
+    app.add_plugins(FrameCountPlugin);
     app.add_plugins(AsyncPlugin::default_settings().with_world_access());
     let a = app.world.spawn(Int(69)).id();
     let b = app.world.spawn(String("ferris")).id();
@@ -50,6 +54,8 @@ pub fn main() {
 #[test]
 pub fn control_group() {
     let mut app = App::new();
+    app.add_plugins(TimePlugin);
+    app.add_plugins(FrameCountPlugin);
     // Without world access cannot resolve in one frame.
     app.add_plugins(AsyncPlugin::default_settings());//.with_world_access());
     let a = app.world.spawn(Int(69)).id();

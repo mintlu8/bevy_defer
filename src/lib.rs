@@ -1,7 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
-
 use bevy_utils::intern::Interned;
 use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 mod async_world;
@@ -16,8 +15,7 @@ mod executor;
 mod commands;
 mod extension;
 mod locals;
-mod fixed_queue;
-pub use fixed_queue::FixedQueue;
+mod queue;
 pub mod cancellation;
 pub mod tween;
 pub mod channels;
@@ -26,7 +24,7 @@ use bevy_ecs::{schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet}, system::
 use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
-use executor::AsyncQueryQueue;
+use queue::AsyncQueryQueue;
 
 pub use crate::async_world::{world, in_async_context, spawn, spawn_scoped};
 use crate::async_world::world_scope;
@@ -51,9 +49,9 @@ pub mod extensions {
 
 pub mod systems {
     //! Systems in `bevy_defer`.
-    pub use crate::executor::{run_async_executor, run_async_queries};
+    pub use crate::executor::run_async_executor;
     pub use crate::async_systems::push_async_systems;
-    pub use crate::fixed_queue::run_fixed_queue;
+    pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
 }
 
 use futures::{task::LocalSpawnExt, Future};
@@ -71,7 +69,7 @@ pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 pub use scoped_tls::scoped_thread_local;
 
 use signals::{NamedSignals, Signal, SignalId, Signals};
-use fixed_queue::run_fixed_queue;
+use queue::run_fixed_queue;
 
 /// Result type of `AsyncSystemFunction`.
 pub type AsyncResult<T = ()> = Result<T, AsyncFailure>;
@@ -87,12 +85,12 @@ impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
-            .init_non_send_resource::<FixedQueue>()
             .init_resource::<NamedSignals>()
             .register_type::<async_systems::AsyncSystems>()
             .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
+            .add_systems(First, systems::run_time_series)
             .add_systems(First, systems::push_async_systems)
             .add_systems(FixedUpdate, run_fixed_queue);
     }
@@ -160,7 +158,9 @@ unsafe impl<S: LocalResourceScope> Sync for AsyncPlugin<S> {}
 impl<S: LocalResourceScope> Plugin for AsyncPlugin<S> {
     fn build(&self, app: &mut App) {
         use crate::systems::*;
-        app.add_plugins(CoreAsyncPlugin);
+        if !app.is_plugin_added::<CoreAsyncPlugin>() {
+            app.add_plugins(CoreAsyncPlugin);
+        }
         for (schedule, set) in &self.schedules {
             if let Some(set) = set {
                 app.add_systems(*schedule, 

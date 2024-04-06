@@ -3,7 +3,7 @@ use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::{future::Either, Future, FutureExt};
 use std::future::ready;
-use crate::{async_world::AsyncWorldMut, channel, executor::AsyncQueryQueue, locals::{with_asset_server, with_world_ref}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::{async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, locals::{with_asset_server, with_world_ref}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 
 /// Async version of [`Handle`].
