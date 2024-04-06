@@ -18,7 +18,7 @@ impl AsyncExecutor {
     }
 }
 
-/// Queue for deferred queries applied on the [`World`].
+/// Queue for deferred queries applied on the `World`.
 #[derive(Debug, Default)]
 pub struct QueryQueue(pub(crate) Rc<AsyncQueryQueue>);
 

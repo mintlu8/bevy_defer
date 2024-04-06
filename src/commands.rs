@@ -332,7 +332,7 @@ impl AsyncWorldMut {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Pause the future for the duration, according to the [`Time`] resource.
+    /// Pause the future for the duration, according to the `Time` resource.
     /// 
     /// # Example
     /// 
@@ -351,7 +351,7 @@ impl AsyncWorldMut {
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
-    /// Pause the future for some frames, according to the [`FrameCount`] resource.
+    /// Pause the future for some frames, according to the `FrameCount` resource.
     /// 
     /// # Example
     /// 

@@ -16,9 +16,9 @@ use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 
 
 /// Construct a [`Future`] via [`AsyncSystem`] semantics. 
-/// This uses the [`AsyncWorldParam`] abstraction instead.
+/// This uses the [`AsyncWorldParam`] abstraction, as there is no active entity.
 /// 
-/// See [`async_system!`] for syntax.
+/// See [`async_system!`](crate::async_system) for syntax.
 #[macro_export]
 macro_rules! system_future {
     (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {

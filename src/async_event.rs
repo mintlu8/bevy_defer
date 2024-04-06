@@ -175,6 +175,7 @@ impl<C> Deref for AsyncEventReader<C> where C: AsyncEventReaderDeref{
     }
 }
 
+/// A [`Stream`] implementation of [`Events`].
 pub struct EventStream<E: Event, Out, F: FnMut(&E) -> Out + Clone> {
     reader: AsyncEventReader<E>,
     mapper: F,

@@ -13,7 +13,7 @@ mod async_event;
 pub mod signals;
 mod executor;
 mod commands;
-mod extension;
+mod ext;
 mod locals;
 mod queue;
 pub mod cancellation;
@@ -36,7 +36,7 @@ pub mod access {
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
     pub use crate::async_event::{AsyncEventReader, EventStream};
     pub use crate::async_asset::AsyncAsset;
-    pub use crate::extension::AsyncScene;
+    pub use crate::ext::AsyncScene;
 }
 
 pub mod extensions {
