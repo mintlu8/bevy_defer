@@ -1,11 +1,13 @@
+use std::convert::Infallible;
 use std::fmt::Debug;
-use std::task::Waker;
+use std::pin::Pin;
+use std::task::{Context, Waker};
 use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 use std::sync::Arc;
 
 use std::sync::atomic::Ordering;
 use std::future::poll_fn;
-use futures::Future;
+use futures::{Future, Sink, Stream};
 use parking_lot::Mutex;
 
 /// The data component of a signal.
@@ -155,25 +157,59 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     pub fn poll(self: &Arc<Self>) -> impl Future<Output = T> where T: Clone {
         let this = self.clone();
         async move {
-            let mut first = true;
             loop {
                 let tick = this.inner.tick.load(Ordering::Relaxed);
                 if this.tick.swap(tick, Ordering::Relaxed) != tick {
                     return this.inner.data.lock().clone();
-                } else if first {
-                    first = false;
-                    let waker = poll_fn(|ctx| Poll::Ready(ctx.waker().clone())).await;
-                    let mut lock = this.inner.wakers.lock();
-                    lock.push(waker);
-                }
-                let mut yielded = false;
-                poll_fn(|_| if yielded {
-                    Poll::Ready(())
                 } else {
-                    yielded = true;
-                    Poll::Pending
-                }).await
+                    let mut yielded = false;
+                    poll_fn(|ctx| if yielded {
+                        Poll::Ready(())
+                    } else {
+                        yielded = true;
+                        let mut lock = this.inner.wakers.lock();
+                        lock.push(ctx.waker().clone());
+                        Poll::Pending
+                    }).await
+                }
             }
         }
+    }
+}
+
+impl<T> Unpin for Signal<T> {}
+
+impl<T: Clone + Send + Sync + 'static> Stream for Signal<T> {
+    type Item = T;
+
+    fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.inner.try_read() {
+            Some(result) => Poll::Ready(Some(result)),
+            None => {
+                let mut lock = self.inner.inner.wakers.lock();
+                lock.push(cx.waker().clone());
+                Poll::Pending
+            },
+        }
+    }
+}
+
+impl<T: Clone + Send + Sync + 'static> Sink<T> for Signal<T> {
+    type Error = Infallible;
+
+    fn poll_ready(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
+        Ok(self.send(item))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 }
