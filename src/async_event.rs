@@ -1,16 +1,16 @@
-use bevy_ecs::event::{Event, EventId, Events, ManualEventReader};
+use bevy_core::FrameCount;
+use bevy_ecs::event::{Event, EventId, EventReader};
+use bevy_ecs::system::{Local, Res};
 use bevy_ecs::world::World;
 use futures::{Future, FutureExt, Stream};
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::mem;
-use std::ops::Deref;
+use parking_lot::{Mutex, RwLock};
+use std::cell::OnceCell;
 use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use crate::async_systems::AsyncWorldParam;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 use crate::channels::channel;
-use crate::queue::AsyncQueryQueue;
+use crate::reactors::{Reactors, REACTORS};
 use crate::{AsyncFailure, AsyncResult};
 use crate::{access::AsyncWorldMut, CHANNEL_CLOSED};
 
@@ -27,185 +27,106 @@ impl AsyncWorldMut {
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 
-    /// Create an [`AsyncEventReader`].
-    pub fn event_reader<E: Event>(&self) -> AsyncEventReader<E> {
-        AsyncEventReader { queue: self.queue.clone(), reader: Default::default() }
-    }
-}
-
-/// Async version of `EventReader`.
-/// 
-/// # Note
-/// 
-/// Unlike most accessors this struct holds internal state 
-/// as a [`ManualEventReader`],
-/// which keeps track of the current event tick.
-#[derive(Debug, Clone)]
-pub struct AsyncEventReader<E: Event> {
-    queue: Rc<AsyncQueryQueue>,
-    reader: Rc<RefCell<ManualEventReader<E>>>
-}
-
-impl<E: Event> AsyncEventReader<E> {
-    /// Poll an [`Event`] through cloning.
-    pub fn poll(&self) -> impl Future<Output = E> where E: Clone {
-        let (sender, receiver) = channel();
-        let reader = self.reader.clone();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let events = world.get_resource::<Events<E>>()?;
-                let result = reader.borrow_mut().read(events).next().cloned();
-                result
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Poll an [`Event`] through mapping.
-    pub fn poll_mapped<T: Clone + 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = T> {
-        let (sender, receiver) = channel();
-        let reader = self.reader.clone();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let events = world.get_resource::<Events<E>>()?;
-                let result = reader.borrow_mut().read(events).next().map(&mut f);
-                result
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Poll [`Event`]s through cloning until done, result must have at least one value.
-    pub fn poll_all(&self) -> impl Future<Output = Vec<E>> where E: Clone {
-        let (sender, receiver) = channel();
-        let reader = self.reader.clone();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let events = world.get_resource::<Events<E>>()?;
-                let result: Vec<_> = reader.borrow_mut().read(events).cloned().collect();
-                if result.is_empty() {
-                    return None;
-                }
-                Some(result)
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Poll [`Event`]s through mapping until done, result must have at least one value.
-    pub fn poll_all_mapped<T: 'static>(&self, mut f: impl FnMut(&E) -> T + 'static) -> impl Future<Output = Vec<T>> {
-        let (sender, receiver) = channel();
-        let reader = self.reader.clone();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let events = world.get_resource::<Events<E>>()?;
-                let result: Vec<_> = reader.borrow_mut().read(events).map(&mut f).collect();
-                if result.is_empty() {
-                    return None;
-                }
-                Some(result)
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Poll [`Event`]s until done, optimized for the stream use case.
-    fn poll_all_stream<T: 'static>(&self, mut f: impl FnMut(&E) -> T + 'static, mut queue: VecDeque<T>) -> impl Future<Output = VecDeque<T>> {
-        let (sender, receiver) = channel();
-        let reader = self.reader.clone();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let events = world.get_resource::<Events<E>>()?;
-                let len = queue.len();
-                queue.extend(reader.borrow_mut().read(events).map(&mut f));
-                if queue.len() == len {
-                    return None;
-                }
-                Some(mem::take(&mut queue))
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Convert the [`AsyncEventReader`] into a [`Stream`] through cloning.
-    pub fn into_stream(self) -> EventStream<E, E, impl FnMut(&E) -> E + Clone> where E: Clone{
-        EventStream {
-            reader: self,
-            mapper: E::clone,
-            cached: VecDeque::new(),
-            future: None,
+    /// Create a stream to an [`Event`], requires the corresponding [`react_to_event`] system.
+    pub fn event_stream<E: Event + Clone>(&self) -> EventStream<E> {
+        if !REACTORS.is_set() {
+            panic!("Can only be used within a `bevy_defer` future.")
         }
+        REACTORS.with(|r| r.get_event::<E>()).into_stream()
     }
+}
 
-    /// Convert the [`AsyncEventReader`] into a mapped [`Stream`].
-    pub fn into_mapped_stream<F: FnMut(&E) -> O + Clone + 'static, O: 'static>(self, f: F) -> EventStream<E, O, F> {
+/// A double buffered [`Stream`] of [`Event`]s.
+#[derive(Debug)]
+pub struct DoubleBufferedEvent<E: Event> {
+    last: RwLock<Vec<E>>,
+    this: RwLock<Vec<E>>,
+    wakers: Mutex<Vec<Waker>>,
+    current_frame: AtomicU32,
+}
+
+impl<E: Event + Clone> DoubleBufferedEvent<E> {
+    pub fn into_stream(self: Arc<Self>) -> EventStream<E> {
         EventStream {
-            reader: self,
-            mapper: f,
-            cached: VecDeque::new(),
-            future: None,
+            frame: self.current_frame.load(Ordering::Relaxed).wrapping_sub(1),
+            index: 0,
+            event: self
         }
     }
 }
 
-impl<E: Event> AsyncWorldParam for AsyncEventReader<E> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(executor.event_reader::<E>())
-    }
+/// A [`Stream`] of [`Event`]s, requires system [`react_to_event`] to function.
+/// 
+/// This follows bevy's double buffering semantics.
+#[derive(Debug)]
+pub struct EventStream<E: Event + Clone> {
+    frame: u32,
+    index: usize,
+    event: Arc<DoubleBufferedEvent<E>>,
 }
 
-/// Add method to [`AsyncEventReader`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncEventReaderDeref: Event + Sized {
-    type Target;
-    fn async_deref(this: &AsyncEventReader<Self>) -> &Self::Target;
-}
+impl<E: Event + Clone> Unpin for EventStream<E> {}
 
-impl<C> Deref for AsyncEventReader<C> where C: AsyncEventReaderDeref{
-    type Target = <C as AsyncEventReaderDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncEventReaderDeref::async_deref(self)
-    }
-}
-
-/// A [`Stream`] implementation of [`Events`].
-pub struct EventStream<E: Event, Out, F: FnMut(&E) -> Out + Clone> {
-    reader: AsyncEventReader<E>,
-    mapper: F,
-    cached: VecDeque<Out>,
-    future: Option<Pin<Box<dyn Future<Output = VecDeque<Out>>>>>
-}
-
-impl<E: Event, O, F: FnMut(&E) -> O + Clone> Unpin for EventStream<E, O, F> {}
-
-impl<E: Event, O: 'static, F: FnMut(&E) -> O + Clone + 'static> Stream for EventStream<E, O, F> {
-    type Item = O;
+impl<E: Event + Clone> Stream for EventStream<E> {
+    type Item = E;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(cached) = self.cached.pop_front() {
-            return Poll::Ready(Some(cached))
-        }
-        if let Some(fut) = &mut self.future {
-            match fut.poll_unpin(cx) {
-                Poll::Pending => return Poll::Pending,
-                Poll::Ready(v) => {
-                    self.future = None;
-                    self.cached = v;
-                    if let Some(first) = self.cached.pop_front() {
-                        return Poll::Ready(Some(first))
-                    }
-                },
+        let this = &mut *self;
+        let current_frame = this.event.current_frame.load(Ordering::Relaxed);
+        if current_frame != this.frame {
+            if this.frame != current_frame.wrapping_sub(1) {
+                this.frame = current_frame.wrapping_sub(1);
+                this.index = 0;
+            }
+            let lock = this.event.last.read();
+            if let Some(event) = lock.get(this.index).cloned() {
+                this.index += 1;
+                return Poll::Ready(Some(event));
+            } else {
+                this.frame = current_frame;
+                this.index = 0;
             }
         }
-        let queue = mem::take(&mut self.cached);
-        self.future = Some(Box::pin(self.reader.poll_all_stream(self.mapper.clone(), queue)));
-        self.poll_next(cx)
+        let lock = this.event.this.read();
+        if let Some(event) = lock.get(this.index).cloned() {
+            this.index += 1;
+            Poll::Ready(Some(event))
+        } else {
+            this.event.wakers.lock().push(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+}
+
+impl<E: Event> Default for DoubleBufferedEvent<E> {
+    fn default() -> Self {
+        Self { 
+            last: Default::default(), 
+            this: Default::default(), 
+            wakers: Default::default(), 
+            current_frame: Default::default() 
+        }
+    }
+}
+
+/// React to an event, this system is safe to be repeated in the schedule.
+pub fn react_to_event<E: Event + Clone>(
+    cached: Local<OnceCell<Arc<DoubleBufferedEvent<E>>>>,
+    frame: Res<FrameCount>,
+    reactors: Res<Reactors>,
+    mut reader: EventReader<E>,
+) {
+    let buffers = cached.get_or_init(||reactors.get_event::<E>());
+    if reader.len() > 0 {
+        buffers.wakers.lock().drain(..).for_each(|x| x.wake())
+    }
+    if buffers.current_frame.swap(frame.0, Ordering::Relaxed) == frame.0 {
+        buffers.this.write().extend(reader.read().cloned());
+    } else {
+        let mut this = buffers.this.write();
+        let mut last = buffers.last.write();
+        std::mem::swap::<Vec<_>>(this.as_mut(), last.as_mut());
+        this.clear();
+        this.extend(reader.read().cloned());
     }
 }

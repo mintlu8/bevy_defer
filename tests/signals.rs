@@ -4,7 +4,7 @@ use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
 use bevy_core::FrameCountPlugin;
 use bevy_ecs::{component::Component, event::{Event, EventWriter}, query::With, system::{Commands, Local, Query}};
-use bevy_defer::{async_system, async_systems::AsyncSystems, signal_ids, signals::{Signal, SignalSender}, world, AsyncExtension, AsyncPlugin};
+use bevy_defer::{async_system, async_systems::AsyncSystems, signal_ids, signals::{Signal, SignalSender}, systems::react_to_event, world, AsyncExtension, AsyncPlugin};
 use bevy_defer::signals::Signals;
 use bevy_tasks::futures_lite::StreamExt;
 use bevy_time::TimePlugin;
@@ -118,10 +118,12 @@ pub fn events() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_event::<AliceChat>();
     app.add_event::<BobChat>();
+    app.add_systems(Update, react_to_event::<AliceChat>);
+    app.add_systems(Update, react_to_event::<BobChat>);
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
-        assert_eq!(world.event_reader::<AliceChat>().poll().await.0, "Hello, Alice.");
+        assert_eq!(world.event_stream::<AliceChat>().next().await.unwrap().0, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(BobChat("Hello, Bob.".to_owned())).await?;
         ALICE.store(true, Ordering::Relaxed);
@@ -131,7 +133,7 @@ pub fn events() {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(AliceChat("Hello, Alice.".to_owned())).await?;
-        assert_eq!(world.event_reader::<BobChat>().poll().await.0, "Hello, Bob.");
+        assert_eq!(world.event_stream::<BobChat>().next().await.unwrap().0, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -156,9 +158,10 @@ pub fn stream() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_event::<Chat>();
     app.add_plugins(MinimalPlugins);
+    app.add_systems(Update, react_to_event::<Chat>);
     app.spawn_task(async {
         let world = world();
-        let mut stream = world.event_reader::<Chat>().into_stream();
+        let mut stream = world.event_stream::<Chat>();
         assert_eq!(stream.next().await, Some(Chat('r')));
         assert_eq!(stream.next().await, Some(Chat('u')));
         assert_eq!(stream.next().await, Some(Chat('s')));
@@ -177,7 +180,7 @@ pub fn stream() {
     });
     app.spawn_task(async {
         let world = world();
-        let mut stream = world.event_reader::<Chat>().into_mapped_stream(|c| c.0.to_ascii_uppercase());
+        let mut stream = world.event_stream::<Chat>().map(|c| c.0.to_ascii_uppercase());
         assert_eq!(stream.next().await, Some('R'));
         assert_eq!(stream.next().await, Some('U'));
         assert_eq!(stream.next().await, Some('S'));

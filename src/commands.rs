@@ -335,7 +335,7 @@ impl AsyncWorldMut {
 
     /// Obtain a [`Stream`] that reacts to changes of a [`States`].
     /// 
-    /// Requires system [`react_to_state`].
+    /// Requires system [`react_to_state`](crate::systems::react_to_state).
     pub fn state_stream<S: States + Clone + Default>(&self) -> impl Stream<Item = S> {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.rewind();

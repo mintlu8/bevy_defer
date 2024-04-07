@@ -42,8 +42,8 @@ impl Deref for AsyncWorld<'_, '_> {
     }
 }
 
-scoped_tls::scoped_thread_local!(static ASYNC_WORLD: AsyncWorldMut);
-scoped_tls::scoped_thread_local!(static SPAWNER: LocalSpawner);
+scoped_tls::scoped_thread_local!(pub(crate) static ASYNC_WORLD: AsyncWorldMut);
+scoped_tls::scoped_thread_local!(pub(crate) static SPAWNER: LocalSpawner);
 
 pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: LocalSpawner, f: impl FnOnce() -> T) -> T{
     ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), ||{
@@ -63,7 +63,7 @@ pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: LocalSpawner,
 /// If used outside a `bevy_defer` future.
 pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
     if !SPAWNER.is_set() {
-        panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
+        panic!("bevy_defer::spawn_scoped can only be used in a bevy_defer future.")
     }
     let (mut send, recv) = channel();
     let _ = SPAWNER.with(|s| s.spawn_local(
@@ -88,7 +88,7 @@ pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl 
 /// If used outside a `bevy_defer` future.
 pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     if !SPAWNER.is_set() {
-        panic!("bevy_defer::spawn_and_forget can only be used in a bevy_defer future.")
+        panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
     }
     let _ = SPAWNER.with(|s| s.spawn_local(async {let _ = fut.await; }));
 }

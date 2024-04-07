@@ -1,30 +1,32 @@
 //! Reactors for `bevy_ui`.
 
-use crate::signal_ids;
+use crate::reactors::Change;
 use bevy_math::Vec2;
+use bevy_ui::Interaction;
 use crate::signals::Signals;
-use bevy_ecs::{entity::Entity, system::{Query, Local}, query::Changed};
+use bevy_ecs::{entity::Entity, query::{Changed, With}, system::{Local, Query}};
 use rustc_hash::FxHashMap;
 
-signal_ids! {
-    /// [`Interaction`](bevy_ui::Interaction) changed in general.
-    /// 
-    /// Sends previous and current interaction.
-    pub UIInteractionChange: (bevy_ui::Interaction, bevy_ui::Interaction)
-}
+/// State machine [`Interaction`] changed to a different value.
+pub type UIInteractionChange = Change<Interaction>;
+
 
 /// System that provides reactivity for [`bevy_ui`], must be added manually.
+/// 
+/// This also acts as `react_to_state_machine` for [`Interaction`].
 pub fn ui_reactor(
     mut prev: Local<FxHashMap<Entity, bevy_ui::Interaction>>,
-    query: Query<(Entity, &Signals, &bevy_ui::Interaction, Option<&bevy_ui::RelativeCursorPosition>), Changed<bevy_ui::Interaction>>
+    query: Query<(Entity, &Signals, &bevy_ui::Interaction, Option<&bevy_ui::RelativeCursorPosition>), (Changed<bevy_ui::Interaction>, With<Signals>)>
 ) {
     use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
 
     for (entity, signals, interaction, relative) in query.iter() {
         let previous = prev.insert(entity, *interaction).unwrap_or(bevy_ui::Interaction::None);
         let position = relative.and_then(|x| x.normalized).unwrap_or(Vec2::ZERO);
-        signals.send::<UIInteractionChange>((previous, *interaction));
-        use bevy_ui::Interaction;
+        signals.send::<UIInteractionChange>(Change {
+            from: previous,
+            to: *interaction
+        });
         if interaction == &Interaction::Pressed {
             signals.send::<Pressed>(position);
         }

@@ -1,34 +1,38 @@
 //! Reactors for `bevy_mod_picking`.
 
-use crate::signal_ids;
+use crate::{reactors::Change, signal_ids};
 use bevy_math::Vec2;
 use crate::signals::Signals;
-use bevy_ecs::{entity::Entity, system::{Query, Local}, query::Changed};
+use bevy_ecs::{entity::Entity, query::{Changed, With}, system::{Local, Query}};
 use rustc_hash::FxHashMap;
 use bevy_mod_picking::{focus::PickingInteraction, pointer::PointerLocation, selection::PickSelection};
 use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
 
 signal_ids! {
-    /// [`PickingInteraction`] changed in general.
-    /// 
-    /// Sends previous and current interaction.
-    pub PickingInteractionChange: (PickingInteraction, PickingInteraction),
     /// [`PickSelection`] changed.
     pub PickingSelected: bool,
 }
 
+/// State machine [`PickingInteraction`] changed to a different value.
+pub type PickingInteractionChange = Change<PickingInteraction>;
+
 /// System that provides reactivity for [`bevy_mod_picking`], must be added manually.
+/// 
+/// This also acts as `react_to_state_machine` for [`PickingInteraction`].
 pub fn picking_reactor(
     mut prev: Local<FxHashMap<Entity, PickingInteraction>>,
     mut prev_select: Local<FxHashMap<Entity, bool>>,
-    interactions: Query<(Entity, &Signals, &PickingInteraction, Option<&PointerLocation>), Changed<PickingInteraction>>,
-    selections: Query<(Entity, &Signals, &PickSelection), Changed<PickSelection>>
+    interactions: Query<(Entity, &Signals, &PickingInteraction, Option<&PointerLocation>), (Changed<PickingInteraction>, With<Signals>)>,
+    selections: Query<(Entity, &Signals, &PickSelection), (Changed<PickSelection>, With<Signals>)>
 ) {
     for (entity, signals, interaction, relative) in interactions.iter() {
         let previous = prev.insert(entity, *interaction).unwrap_or(PickingInteraction::None);
         if interaction == &previous { continue; }
         let position = relative.and_then(|x| x.location().map(|x| x.position)).unwrap_or(Vec2::ZERO);
-        signals.send::<PickingInteractionChange>((previous, *interaction));
+        signals.send::<PickingInteractionChange>(Change {
+            from: previous, 
+            to: *interaction
+        });
         if interaction == &PickingInteraction::Pressed {
             signals.send::<Pressed>(position);
         }

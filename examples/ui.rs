@@ -121,7 +121,7 @@ fn setup(mut commands: Commands) {
                         Signals::from_receiver::<UIInteractionChange>(state),
                         AsyncSystems::from_single(async_system!(
                             |click: Receiver<UIInteractionChange>, this: AsyncComponent<Text>| {
-                                let variant = format!("{:?}", click.await.1);
+                                let variant = format!("{:?}", click.await.to);
                                 this.set(move |text| text.sections[0].value = variant).await.unwrap();
                             } 
                         ))

@@ -186,6 +186,17 @@ mod sealed {
                 false
             }
         }
+
+        /// Send a item through a signal, can be polled from the same sender.
+        /// 
+        /// Returns `true` if the sender exists.
+        pub fn send_if_changed(&self, item: T::Data) -> bool where T::Data: PartialEq{
+            if let Some(signals) = self.signals {
+                signals.send_if_changed::<T>(item)
+            } else {
+                false
+            }
+        }
         
         /// Send a item through a signal, cannot be polled from the same sender.
         /// 

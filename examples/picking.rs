@@ -28,11 +28,11 @@ fn setup(
             ..Default::default()
         },
         PickableBundle::default(),
-        Signals::from_sender::<PickingInteractionChange>(Signal::new((PickingInteraction::None, PickingInteraction::None)))
+        Signals::from_sender::<PickingInteractionChange>(Signal::default())
             .with_sender::<PickingSelected>(Signal::new(false)),
         AsyncSystems::from_iter([
             async_system!(|sender: Sender<PickingInteractionChange>, sp: AsyncComponent<Sprite>| {
-                match sender.recv().await.1 {
+                match sender.recv().await.to {
                     PickingInteraction::Pressed => sp.set(|x| x.color = Color::BLUE).await?,
                     _ => sp.set(|x| x.color = Color::RED).await?,
                 };

@@ -61,6 +61,18 @@ impl Signals {
         }
     }
 
+    /// Send a signal, can be polled through the sender.
+    /// 
+    /// Returns `true` if the signal exists.
+    pub fn send_if_changed<T: SignalId>(&self, item: T::Data) -> bool where T::Data: PartialEq{
+        if let Some(sig) = self.senders.get(&TypeId::of::<T>()).and_then(|x| x.downcast_ref::<Signal<T::Data>>()) {
+            sig.send_if_changed(item);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Send a signal, cannot be polled through the sender.
     /// 
     /// Returns `true` if the signal exists.

@@ -36,7 +36,7 @@ pub mod access {
     pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut, AsyncChild};
     pub use crate::async_query::{AsyncQuery, AsyncEntityQuery};
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
-    pub use crate::async_event::{AsyncEventReader, EventStream};
+    pub use crate::async_event::EventStream;
     pub use crate::async_asset::AsyncAsset;
     pub use crate::ext::AsyncScene;
 }
@@ -45,7 +45,6 @@ pub mod extensions {
     //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
     pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref, AsyncSystemParamDeref};
     pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref};
-    pub use crate::async_event::AsyncEventReaderDeref;
     pub use crate::async_asset::AsyncAssetDeref;
 }
 
@@ -54,6 +53,8 @@ pub mod systems {
     pub use crate::executor::run_async_executor;
     pub use crate::async_systems::push_async_systems;
     pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
+    pub use crate::async_event::react_to_event;
+    pub use crate::reactors::react_to_state;
 }
 
 use futures::{task::LocalSpawnExt, Future};
