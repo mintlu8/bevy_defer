@@ -1,5 +1,5 @@
+//! Signals and synchronization primitives for reacting to standard bevy events.
 use std::{any::{Any, TypeId}, borrow::Borrow, convert::Infallible, marker::PhantomData};
-
 use bevy_ecs::{change_detection::DetectChanges, schedule::{State, States}, system::{Local, Res, Resource}};
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
