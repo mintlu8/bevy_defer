@@ -118,7 +118,7 @@ We provide types mimicking bevy's types:
 | `AsyncComponent` | `Component` |
 | `AsyncResource` | `Resource` |
 | `AsyncNonSend` | `NonSend` |
-| `AsyncEventReader` | `EventReader` |
+| `EventStream` | `EventReader` |
 | `AsyncAsset` | `Handle` |
 
 `world` can be accessed by the `world()` method and

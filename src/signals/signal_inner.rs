@@ -6,7 +6,7 @@ use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 use std::sync::Arc;
 
 use std::sync::atomic::Ordering;
-use std::future::poll_fn;
+use futures::future::FusedFuture;
 use futures::{Future, Sink, Stream};
 use parking_lot::Mutex;
 
@@ -56,6 +56,11 @@ impl<T: Send + Sync + 'static> Signal<T> {
             }),
             tick: AtomicU32::new(0),
         })}
+    }
+
+    /// Create a signal from [`SignalInner`], this can be used to share the read tick.
+    pub fn from_inner(inner: Arc<SignalInner<T>>) -> Self {
+        Self { inner }
     }
 
     /// Borrow the inner value with shared read tick.
@@ -160,28 +165,45 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     }
 
     /// Poll the signal value asynchronously.
-    pub fn poll(self: &Arc<Self>) -> impl Future<Output = T> where T: Clone {
-        let this = self.clone();
-        async move {
-            loop {
-                let tick = this.inner.tick.load(Ordering::Relaxed);
-                if this.tick.swap(tick, Ordering::Relaxed) != tick {
-                    return this.inner.data.lock().clone();
-                } else {
-                    let mut yielded = false;
-                    poll_fn(|ctx| if yielded {
-                        Poll::Ready(())
-                    } else {
-                        yielded = true;
-                        let mut lock = this.inner.wakers.lock();
-                        lock.push(ctx.waker().clone());
-                        Poll::Pending
-                    }).await
-                }
-            }
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub fn poll(self: &Arc<Self>) -> SignalFuture<T> where T: Clone {
+        SignalFuture {
+            signal: self.clone(),
+            is_terminated: false,
         }
     }
 }
+
+/// Future for polling a [`Signal`] once.
+pub struct SignalFuture<T: Clone>{
+    signal: Arc<SignalInner<T>>,
+    is_terminated: bool,
+}
+
+impl<T: Clone> Unpin for SignalFuture<T> {}
+
+impl<T: Clone> Future for SignalFuture<T> {
+    type Output = T;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let tick = self.signal.inner.tick.load(Ordering::Relaxed);
+        if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
+            self.is_terminated = true;
+            Poll::Ready(self.signal.inner.data.lock().clone())
+        } else {
+            let mut lock = self.signal.inner.wakers.lock();
+            lock.push(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+}
+
+impl<T: Clone> FusedFuture for SignalFuture<T> {
+    fn is_terminated(&self) -> bool {
+        self.is_terminated
+    }
+}
+
 
 impl<T> Unpin for Signal<T> {}
 

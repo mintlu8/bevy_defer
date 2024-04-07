@@ -99,11 +99,11 @@ fn setup(mut commands: Commands) {
                     AsyncSystems::from_single(async_system!(
                         |click: Sender<Click>, press: Sender<Pressed>, focus: Sender<ObtainFocus>, lose: Sender<LoseFocus>, cancel: Sender<ClickCancelled>| {
                             futures::select_biased! {
-                                pos = click.fuse() => println!("Clicked at {pos}"),
-                                pos = press.fuse() => println!("Pressed at {pos}"),
-                                pos = cancel.fuse() => println!("Click cancelled at {pos}"),
-                                pos = focus.fuse() => println!("Focus obtained at {pos}"),
-                                pos = lose.fuse() => println!("Focus lost at {pos}"),
+                                pos = click.recv() => println!("Clicked at {pos}"),
+                                pos = press.recv() => println!("Pressed at {pos}"),
+                                pos = cancel.recv() => println!("Click cancelled at {pos}"),
+                                pos = focus.recv() => println!("Focus obtained at {pos}"),
+                                pos = lose.recv() => println!("Focus lost at {pos}"),
                             }
                         } 
                     ))
@@ -145,23 +145,23 @@ fn setup(mut commands: Commands) {
                 AsyncSystems::from_single(async_system!(
                     |click: Receiver<Click>, press: Receiver<Pressed>, focus: Receiver<ObtainFocus>, lose: Receiver<LoseFocus>, cancel: Receiver<ClickCancelled>, this: AsyncComponent<Text>| {
                         futures::select_biased! {
-                            pos = click.fuse() => {
+                            pos = click.recv() => {
                                 let s = format!("Clicked at {pos}");
                                 this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
-                            pos = press.fuse() => {
+                            pos = press.recv() => {
                                 let s = format!("Pressed at {pos}");
                                 this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
-                            pos = focus.fuse() => {
+                            pos = focus.recv() => {
                                 let s = format!("Obtained focus at {pos}");
                                 this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
-                            pos = lose.fuse() => {
+                            pos = lose.recv() => {
                                 let s = format!("Lose focus at {pos}");
                                 this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },
-                            pos = cancel.fuse() => {
+                            pos = cancel.recv() => {
                                 let s = format!("Click cancelled at {pos}");
                                 this.set(move |text| text.sections[0].value = s).await.unwrap();
                             },

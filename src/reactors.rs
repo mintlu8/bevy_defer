@@ -4,7 +4,8 @@ use bevy_ecs::{change_detection::DetectChanges, component::Component, entity::En
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use crate::{async_event::DoubleBufferedEvent, signals::{Signal, SignalId, SignalSender, Signals}, tls_resource};
+use crate::{async_event::DoubleBufferedEvent, tls_resource};
+use crate::signals::{Signal, SignalId, SignalSender, Signals, Receiver};
 
 /// Signal sending changed value of a [`States`].
 #[derive(Debug, Clone, Copy)]
@@ -92,12 +93,13 @@ impl<T: Component + Clone + Default> SignalId for Change<T> {
     type Data = Change<T>;
 }
 
-/// React to a [`Component`] change, returns the current and previous value as a [`Change`] signal.
+/// React to a [`Component`] change, usually for a state machine like `bevy_ui::Interaction`.
+/// Returns the current and previous value as a [`Change`] signal.
 /// 
 /// # Guarantee
 /// 
 /// `from` and `to` are not equal.
-pub fn react_to_state_machine<M: Component + Clone + Default + PartialEq>(
+pub fn react_to_component_change<M: Component + Clone + Default + PartialEq>(
     mut prev: Local<FxHashMap<Entity, M>>,
     query: Query<(Entity, &M, SignalSender<Change<M>>), (Changed<M>, With<Signals>)>
 ) {
@@ -111,6 +113,11 @@ pub fn react_to_state_machine<M: Component + Clone + Default + PartialEq>(
         prev.insert(entity, state.clone());
     }
 }
+
+/// Alias for the [`Change<T>`] signal receiver, that reacts to a change in a component.
+/// 
+/// Requires corresponding [`react_to_component_change`] system.
+pub type StateMachine<T> = Receiver<Change<T>>;
 
 trait NameAndType {
     fn str(&self) -> &str;

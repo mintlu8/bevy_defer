@@ -46,11 +46,11 @@ pub fn init(mut commands: Commands) {
         Signals::from_receiver::<SigText>(signal.clone()),
         AsyncSystems::from_single(
             async_system!(|sig: Receiver<SigText>|{
-                let sig = &sig;
-                assert_eq!(sig.await, "hello");
-                assert_eq!(sig.await, "rust");
-                assert_eq!(sig.await, "and");
-                assert_eq!(sig.await, "bevy");
+                let mut stream = sig.into_stream();
+                assert_eq!(stream.next().await, Some("hello"));
+                assert_eq!(stream.next().await, Some("rust"));
+                assert_eq!(stream.next().await, Some("and"));
+                assert_eq!(stream.next().await, Some("bevy"));
                 LOCK.store(true, Ordering::SeqCst)
             })
         )

@@ -1,9 +1,14 @@
-use std::{any::Any, marker::PhantomData, pin::pin};
-use std::future::Future;
+use std::future::IntoFuture;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::{any::Any, marker::PhantomData};
 use std::sync::Arc;
 use bevy_ecs::entity::Entity;
+use futures::Stream;
 use crate::async_world::AsyncWorldMut;
 use crate::async_systems::AsyncEntityParam;
+use super::signal_inner::SignalFuture;
+use super::Signal;
 use super::{signal_component::Signals, signal_inner::SignalInner};
 
 /// A marker type that indicates the type and purpose of a signal.
@@ -47,7 +52,9 @@ impl<T: Clone + Default + Send + Sync + 'static> SignalId for Fac<T> {
 }
 
 /// [`AsyncEntityParam`] for sending a signal.
-pub struct Sender<T: SignalId>(Arc<SignalInner<T::Data>>, PhantomData<T>);
+pub struct Sender<T: SignalId>(Signal<T::Data>);
+
+impl<T: SignalId> Unpin for Sender<T> {}
 
 impl<T: SignalId> Sender<T> {
     /// Send a value with a signal, can be polled by the same sender.
@@ -61,8 +68,85 @@ impl<T: SignalId> Sender<T> {
     }
 
     /// Receives a value from the sender.
-    pub async fn recv(&self) -> T::Data {
-        self.await
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub fn recv(&self) -> SignalFuture<T::Data> {
+        self.0.poll()
+    }
+}
+
+/// [`AsyncEntityParam`] for receiving a signal.
+pub struct Receiver<T: SignalId>(Signal<T::Data>);
+
+impl<T: SignalId> Unpin for Receiver<T> {}
+
+impl<T: SignalId> Receiver<T> {
+    /// Receive a value from the receiver.
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub fn recv(&self) -> SignalFuture<T::Data> {
+        self.0.poll()
+    }
+
+    /// Convert into a stream.
+    pub fn into_stream(self) -> impl Stream<Item = T::Data> {
+        self.0
+    }
+}
+
+impl<T: SignalId> Stream for Receiver<T> {
+    type Item = T::Data;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let signal = Pin::new(&mut self.0);
+        Signal::poll_next(signal, cx)
+    }
+}
+
+impl<T: SignalId> Stream for Sender<T> {
+    type Item = T::Data;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let signal = Pin::new(&mut self.0);
+        Signal::poll_next(signal, cx)
+    }
+}
+
+impl<T: SignalId> IntoFuture for &Receiver<T> {
+    type Output = T::Data;
+    
+    type IntoFuture = SignalFuture<T::Data>;
+    
+    fn into_future(self) -> Self::IntoFuture {
+        self.0.poll()
+    }
+}
+
+impl<T: SignalId> IntoFuture for &Sender<T> {
+    type Output = T::Data;
+    
+    type IntoFuture = SignalFuture<T::Data>;
+    
+    fn into_future(self) -> Self::IntoFuture {
+        self.0.poll()
+    }
+}
+
+impl<T: SignalId> IntoFuture for Receiver<T> {
+    type Output = T::Data;
+    
+    type IntoFuture = SignalFuture<T::Data>;
+    
+    fn into_future(self) -> Self::IntoFuture {
+        self.0.poll()
+    }
+}
+
+impl<T: SignalId> IntoFuture for Sender<T> {
+    type Output = T::Data;
+    
+    type IntoFuture = SignalFuture<T::Data>;
+    
+    fn into_future(self) -> Self::IntoFuture {
+        self.0.poll()
     }
 }
 
@@ -74,61 +158,14 @@ impl<T: SignalId> AsyncEntityParam for Sender<T>  {
     }
 
     fn from_async_context(
-            _: Entity,
-            _: &AsyncWorldMut,
-            signal: Self::Signal,
-            _: &[Entity],
-        ) -> Option<Self> {
+        _: Entity,
+        _: &AsyncWorldMut,
+        signal: Self::Signal,
+        _: &[Entity],
+    ) -> Option<Self> {
         Some(Sender(
-            signal,
-            PhantomData
+            Signal::from_inner(signal)
         ))
-    }
-}
-
-/// [`AsyncEntityParam`] for receiving a signal.
-pub struct Receiver<T: SignalId>(Arc<SignalInner<T::Data>>, PhantomData<T>);
-
-impl<T: SignalId> Future for &Receiver<T> {
-    type Output = T::Data;
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        let signal = self.0.clone();
-        pin!(signal.poll()).poll(cx)
-    }
-}
-
-impl<T: SignalId> Future for &Sender<T> {
-    type Output = T::Data;
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        let signal = self.0.clone();
-        pin!(signal.poll()).poll(cx)
-    }
-}
-
-impl<T: SignalId> Future for Receiver<T> {
-    type Output = T::Data;
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        let signal = self.0.clone();
-        pin!(signal.poll()).poll(cx)
-    }
-}
-
-impl<T: SignalId> Future for Sender<T> {
-    type Output = T::Data;
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        let signal = self.0.clone();
-        pin!(signal.poll()).poll(cx)
-    }
-}
-
-impl<T: SignalId> Receiver<T> {
-    /// Receive a signal.
-    pub async fn recv(&self) -> T::Data {
-        self.await
     }
 }
 
@@ -140,14 +177,13 @@ impl<T: SignalId> AsyncEntityParam for Receiver<T>  {
     }
 
     fn from_async_context(
-            _: Entity,
-            _: &AsyncWorldMut,
-            signal: Self::Signal,
-            _: &[Entity],
+        _: Entity,
+        _: &AsyncWorldMut,
+        signal: Self::Signal,
+        _: &[Entity],
     ) -> Option<Self> {
         Some(Receiver(
-            signal,
-            PhantomData
+            Signal::from_inner(signal),
         ))
     }
 }

@@ -9,6 +9,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
+use crate::async_systems::AsyncWorldParam;
 use crate::channels::channel;
 use crate::reactors::{Reactors, REACTORS};
 use crate::{AsyncFailure, AsyncResult};
@@ -128,5 +129,13 @@ pub fn react_to_event<E: Event + Clone>(
         std::mem::swap::<Vec<_>>(this.as_mut(), last.as_mut());
         this.clear();
         this.extend(reader.read().cloned());
+    }
+}
+
+impl<E: Event + Clone> AsyncWorldParam for EventStream<E> {
+    fn from_async_context(
+        executor: &AsyncWorldMut,
+    ) -> Option<Self> {
+        Some(executor.event_stream())
     }
 }
