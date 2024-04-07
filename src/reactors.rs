@@ -92,8 +92,12 @@ impl<T: Component + Clone + Default> SignalId for Change<T> {
     type Data = Change<T>;
 }
 
-/// React to a component change, returns the current and previous value as a [`Change`] signal.
-pub fn react_to_state_machine<M: Component + Clone + Default + Eq>(
+/// React to a [`Component`] change, returns the current and previous value as a [`Change`] signal.
+/// 
+/// # Guarantee
+/// 
+/// `from` and `to` are not equal.
+pub fn react_to_state_machine<M: Component + Clone + Default + PartialEq>(
     mut prev: Local<FxHashMap<Entity, M>>,
     query: Query<(Entity, &M, SignalSender<Change<M>>), (Changed<M>, With<Signals>)>
 ) {
