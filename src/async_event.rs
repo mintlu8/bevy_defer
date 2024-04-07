@@ -117,7 +117,7 @@ pub fn react_to_event<E: Event + Clone>(
     mut reader: EventReader<E>,
 ) {
     let buffers = cached.get_or_init(||reactors.get_event::<E>());
-    if reader.len() > 0 {
+    if !reader.is_empty() {
         buffers.wakers.lock().drain(..).for_each(|x| x.wake())
     }
     if buffers.current_frame.swap(frame.0, Ordering::Relaxed) == frame.0 {
