@@ -133,7 +133,7 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Obtain an [`AsyncResource`] of the entity.
+    /// Obtain an [`AsyncResource`].
     /// 
     /// # Note
     /// 
@@ -145,7 +145,7 @@ impl AsyncWorldMut {
         }
     }
 
-    /// Obtain an [`AsyncNonSend`] of the entity.
+    /// Obtain an [`AsyncNonSend`].
     /// 
     /// # Note
     /// 
