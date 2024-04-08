@@ -1,6 +1,6 @@
 //! Per-entity repeatable async functions.
 
-use std::{future::Future, ops::{Deref, DerefMut}, sync::Arc, task::{Poll, Waker}};
+use std::{future::Future, num::NonZeroU32, ops::{Deref, DerefMut}, sync::Arc, task::{Poll, Waker}};
 use bevy_hierarchy::Children;
 use bevy_reflect::Reflect;
 use futures::{task::LocalSpawnExt, FutureExt};
@@ -146,6 +146,7 @@ pub struct AsyncSystem {
         &[Entity],
     ) -> Option<PinnedFut> + Send + Sync> ,
     pub(crate) marker: ParentAlive,
+    pub id: Option<NonZeroU32>,
 }
 
 impl AsyncSystem {
@@ -154,14 +155,21 @@ impl AsyncSystem {
             function: Box::new(move |entity, executor, signals, children| {
                 f(entity, executor.clone(), signals, children).map(|x| Box::pin(x) as PinnedFut)
             }),
-            marker: ParentAlive::new()
+            marker: ParentAlive::new(),
+            id: None
         }
+    }
+
+    /// Mark the [`AsyncSystem`] with an `id` that can be used to remove this system.
+    pub fn with_id(mut self, id: NonZeroU32) -> Self {
+        self.id = Some(id);
+        self
     }
 }
 
 impl Debug for AsyncSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AsyncSystem").finish()
+        f.debug_struct("AsyncSystem").field("id", &self.id).finish()
     }
 }
 
@@ -214,6 +222,13 @@ impl AsyncSystems {
     pub fn extend(mut self, systems: AsyncSystems) -> Self {
         self.systems.extend(systems.systems);
         self
+    }
+
+    /// Remove all [`AsyncSystem`]s with a specific id.
+    /// 
+    /// This will cancel currently running futures.
+    pub fn remove_by_id(&mut self, id: NonZeroU32) {
+        self.retain(|x| x.id != Some(id))
     }
 }
 
