@@ -16,7 +16,10 @@ use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 
 
 /// Construct a [`Future`] via [`AsyncSystem`] semantics. 
-/// This uses the [`AsyncWorldParam`] abstraction, as there is no active entity.
+/// 
+/// The future repeats forever, unless [`AsyncFailure::ManuallyKilled`] is returned.
+/// 
+/// This function uses [`AsyncWorldParam`] as parameters, as there is no active entity.
 /// 
 /// See [`async_system!`](crate::async_system) for syntax.
 #[macro_export]
@@ -28,10 +31,12 @@ macro_rules! system_future {
                 let __world = $crate::world();
                 loop {
                     $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::from_async_context(&__world).ok_or($crate::AsyncFailure::WorldParamNotFound)?;)*
-                    let _ = async {
+                    if let Err(AsyncFailure::ManuallyKilled) = async {
                         let _ = $body;
                         Result::<(), $crate::AsyncFailure>::Ok(())
-                    }.await;
+                    }.await {
+                        return Result::<(), $crate::AsyncFailure>::Ok(())
+                    }
                 }
             }
         }

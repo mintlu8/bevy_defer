@@ -297,6 +297,9 @@ pub enum AsyncFailure {
     WorldParamNotFound,
     #[error("SystemId not found")]
     SystemIdNotFound,
+    /// Return `Err(ManuallyKilled)` to terminate a `system_future!` future.
+    #[error("manually killed a `system_future!` future")]
+    ManuallyKilled,
 }
 
 #[doc(hidden)]
