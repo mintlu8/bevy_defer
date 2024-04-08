@@ -160,7 +160,7 @@ impl AsyncSystem {
         }
     }
 
-    /// Mark the [`AsyncSystem`] with an `id` that can be used to remove this system.
+    /// Mark the [`AsyncSystem`] with an `id` that can be later used to remove this system.
     pub fn with_id(mut self, id: NonZeroU32) -> Self {
         self.id = Some(id);
         self
