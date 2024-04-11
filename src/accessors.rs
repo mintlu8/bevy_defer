@@ -53,6 +53,10 @@ pub trait AsyncAccessRef:
     type Generic: 'static;
 }
 
+pub trait AsyncTake: AsyncAccessRef{
+    fn take<'t>(world: &'t mut World, cx: &Self::Ctx) -> AsyncResult<Self::Generic>;
+}
+
 pub trait AsyncAccess {
     type Ctx: 'static;
     type Ref<'t>;
@@ -61,6 +65,20 @@ pub trait AsyncAccess {
     fn world(&self) -> &AsyncWorldMut;
     fn as_ctx(&self) -> Self::Ctx;
     fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Ctx) -> AsyncResult<Self::RefMut<'t>>;
+
+    fn take<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
+        let ctx = self.as_ctx();
+        self.world().run(move |w| Ok(<Self as AsyncTake>::take(w, &ctx)?))
+    }
+
+    fn take_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
+        let ctx = self.as_ctx();
+        self.world().watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
+            Ok(result) => Some(Ok(result)),
+            Err(err) if Self::should_continue(err) => None,
+            Err(err) => Some(Err(err)),
+        })
+    }
 
     fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static{
         let ctx = self.as_ctx();
@@ -112,6 +130,15 @@ pub trait AsyncAccess {
 
     fn cloned<'a>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> where Self: AsyncAccessRef, Self::Generic: Clone {
         self.get(move |a| a.clone())
+    }
+
+    fn clone_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef, Self::Generic: Clone {
+        let ctx = self.as_ctx();
+        self.world().watch(move |w| match Self::from_ref_world(w, &ctx) {
+            Ok(result) => Some(Ok(result.clone())),
+            Err(err) if Self::should_continue(err) => None,
+            Err(err) => Some(Err(err)),
+        })
     }
 
     /// Interpolate to a new value from the previous value.
@@ -224,7 +251,6 @@ impl<C: Component> AsyncAccess for AsyncComponent<C> {
 }
 
 impl<C: Component> AsyncReadonlyAccess for AsyncComponent<C> {
-
     fn from_ref_world<'t>(world: &'t World, cx: &Self::Ctx) -> AsyncResult<Self::Ref<'t>> {
         world.get_entity(*cx)
             .ok_or(AsyncFailure::EntityNotFound)?
@@ -235,6 +261,13 @@ impl<C: Component> AsyncReadonlyAccess for AsyncComponent<C> {
 
 impl<C: Component> AsyncAccessRef for AsyncComponent<C> {
     type Generic = C;
+}
+
+impl<C: Component> AsyncTake for AsyncComponent<C> {
+    fn take<'t>(world: &'t mut World, cx: &Self::Ctx) -> AsyncResult<Self::Generic> {
+        world.get_entity_mut(*cx).ok_or(AsyncFailure::EntityNotFound)?
+            .take::<C>().ok_or(AsyncFailure::ComponentNotFound)
+    }
 }
 
 impl<R: Resource> AsyncAccess for AsyncResource<R> {
@@ -262,7 +295,6 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
 }
 
 impl<R: Resource> AsyncReadonlyAccess for AsyncResource<R> {
-
     fn from_ref_world<'t>(world: &'t World, _: &Self::Ctx) -> AsyncResult<Self::Ref<'t>> {
         world.get_resource().ok_or(AsyncFailure::ResourceNotFound)
     }
@@ -270,6 +302,12 @@ impl<R: Resource> AsyncReadonlyAccess for AsyncResource<R> {
 
 impl<R: Resource> AsyncAccessRef for AsyncResource<R> {
     type Generic = R;
+}
+
+impl<R: Resource> AsyncTake for AsyncResource<R> {
+    fn take<'t>(world: &'t mut World, _: &Self::Ctx) -> AsyncResult<Self::Generic> {
+        world.remove_resource().ok_or(AsyncFailure::ResourceNotFound)
+    }
 }
 
 impl<R: Resource> AsyncAccess for AsyncNonSend<R> {
@@ -305,6 +343,12 @@ impl<R: Resource> AsyncReadonlyAccess for AsyncNonSend<R> {
 
 impl<R: Resource> AsyncAccessRef for AsyncNonSend<R> {
     type Generic = R;
+}
+
+impl<R: Resource> AsyncTake for AsyncNonSend<R> {
+    fn take<'t>(world: &'t mut World, _: &Self::Ctx) -> AsyncResult<Self::Generic> {
+        world.remove_non_send_resource().ok_or(AsyncFailure::ResourceNotFound)
+    }
 }
 
 impl<A: Asset> AsyncAccess for AsyncAsset<A> {
@@ -344,4 +388,11 @@ impl<A: Asset> AsyncReadonlyAccess for AsyncAsset<A> {
 
 impl<A: Asset> AsyncAccessRef for AsyncAsset<A> {
     type Generic = A;
+}
+
+impl<A: Asset> AsyncTake for AsyncAsset<A> {
+    fn take<'t>(world: &'t mut World, handle: &Self::Ctx) -> AsyncResult<Self::Generic> {
+        world.get_resource_mut::<Assets<A>>().ok_or(AsyncFailure::ResourceNotFound)?
+            .remove(handle).ok_or(AsyncFailure::AssetNotFound)
+    }
 }

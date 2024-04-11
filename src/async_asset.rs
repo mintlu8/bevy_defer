@@ -1,10 +1,10 @@
 use std::{ops::Deref, rc::Rc};
-use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
+use bevy_asset::{Asset, AssetPath, AssetServer, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::{future::Either, Future, FutureExt};
 use std::future::ready;
-use crate::{accessors::Captures, async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, AsyncAccess, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
-use crate::locals::{with_asset_server, with_world_ref};
+use crate::{accessors::Captures, async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, CHANNEL_CLOSED};
+use crate::locals::with_asset_server;
 
 
 /// Async version of [`Handle`].
@@ -73,13 +73,6 @@ impl<A: Asset> AsyncAsset<A> {
         self.handle
     }
 
-    /// Clone an `Asset`, repeat until the asset is loaded.
-    pub fn clone_on_load(
-        &self, 
-    ) -> impl Future<Output = AsyncResult<A>> + 'static + Captures<&'_ ()> where A: Clone {
-        self.watch(|x| Some(x.clone()))
-    }
-
     /// Repeat until the asset is loaded, returns false if loading failed.
     pub fn loaded<T: 'static> (
         &self, 
@@ -104,49 +97,6 @@ impl<A: Asset> AsyncAsset<A> {
             sender
         );
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
-    }
-
-    /// Run a function on an `Asset` and obtain the result,
-    /// repeat until the asset is loaded.
-    pub fn get<T: 'static> (
-        &self, 
-        mut f: impl FnMut(&A) -> T + Send + 'static
-    ) -> impl Future<Output = AsyncResult<T>> {
-        if let Ok(Some(result)) = with_world_ref(|world| {
-            world.get_resource::<Assets<A>>()
-                .and_then(|x| x.get(&self.handle))
-                .map(&mut f)
-        }) {
-            return Either::Right(ready(Ok(result)))
-        };
-        let (sender, receiver) = channel();
-        let handle = self.handle.id();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let Some(assets) = world.get_resource::<Assets<A>>()
-                    else { return Some(Err(AsyncFailure::ResourceNotFound)) };
-                assets.get(handle).map(|x|Ok(f(x)))
-            },
-            sender
-        );
-        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
-    }
-
-    /// Remove an `Asset` and obtain it, repeat until the asset is loaded.
-    pub fn take(
-        &self, 
-    ) -> impl Future<Output = AsyncResult<A>> {
-        let (sender, receiver) = channel();
-        let id = self.handle.id();
-        self.queue.repeat(
-            move |world: &mut World| {
-                let Some(mut assets) = world.get_resource_mut::<Assets<A>>()
-                    else { return Some(Err(AsyncFailure::ResourceNotFound)) };
-                assets.remove(id).map(Ok)
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
 
