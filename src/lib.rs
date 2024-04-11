@@ -303,6 +303,9 @@ pub enum AsyncFailure {
     /// Return `Err(ManuallyKilled)` to terminate a `system_future!` future.
     #[error("manually killed a `system_future!` future")]
     ManuallyKilled,
+
+    #[error("This error should not happen.")]
+    ShouldNotHappen,
 }
 
 #[doc(hidden)]

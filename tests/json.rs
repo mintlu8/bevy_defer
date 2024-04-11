@@ -48,9 +48,9 @@ pub fn procedural(){
         let one = world.load_asset::<JsonNumber>("1.json");
         let four = world.load_asset::<JsonNumber>("4.json");
         let sixty_nine = world.load_asset::<JsonNumber>("69.json");
-        assert_eq!(one.get(|x| x.0).await?, 1);
-        assert_eq!(four.get(|x| x.0).await?, 4);
-        assert_eq!(sixty_nine.get(|x| x.0).await?, 69);
+        assert_eq!(one.get_on_load(|x| x.0).await?, 1);
+        assert_eq!(four.get_on_load(|x| x.0).await?, 4);
+        assert_eq!(sixty_nine.get_on_load(|x| x.0).await?, 69);
         lock2.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -83,9 +83,9 @@ pub fn concurrent(){
         );
 
         let (one, four, sixty_nine) = futures::try_join!(
-            one.get(|x| x.0),
-            four.get(|x| x.0),
-            sixty_nine.get(|x| x.0),
+            one.get_on_load(|x| x.0),
+            four.get_on_load(|x| x.0),
+            sixty_nine.get_on_load(|x| x.0),
         )?;
         assert_eq!(one, 1);
         assert_eq!(four, 4);

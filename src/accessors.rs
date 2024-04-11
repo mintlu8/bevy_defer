@@ -128,6 +128,29 @@ pub trait AsyncAccess {
         Either::Left(self.world().run(|w| f(w)))
     }
 
+    fn get_on_load<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncReadonlyAccess{
+        let ctx = self.as_ctx();
+        let mut f = Some(f);
+        // Wrap a FnOnce in a FnMut.
+        let f = move |world: &World| {
+            let item = Self::from_ref_world(world, &ctx)?;
+            if let Some(f) = f.take() {
+                Ok(f(item))
+            } else {
+                Err(AsyncFailure::ShouldNotHappen)
+            }
+        }; 
+        let mut f = match with_world_ref(f) {
+            Ok(result) => return Either::Right(ready(result)),
+            Err(f) => f,
+        };
+        Either::Left(self.world().watch(move |w| match f(w) {
+            Ok(result) => Some(Ok(result)),
+            Err(err) if Self::should_continue(err) => None,
+            Err(err) => Some(Err(err)),
+        }))
+    }
+
     fn cloned<'a>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> where Self: AsyncAccessRef, Self::Generic: Clone {
         self.get(move |a| a.clone())
     }
