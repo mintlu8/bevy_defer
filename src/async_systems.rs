@@ -3,7 +3,7 @@
 use std::{future::Future, num::NonZeroU32, ops::{Deref, DerefMut}, sync::Arc, task::{Poll, Waker}};
 use bevy_hierarchy::Children;
 use bevy_reflect::Reflect;
-use futures::{task::LocalSpawnExt, FutureExt};
+use futures::FutureExt;
 use parking_lot::Mutex;
 use ref_cast::RefCast;
 use std::fmt::Debug;
@@ -284,7 +284,6 @@ pub fn push_async_systems(
     exec: NonSend<AsyncExecutor>,
     mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems, Option<&Children>)>
 ) {
-    let spawner = exec.spawner();
     for (entity, signals, mut systems, children) in query.iter_mut() {
         let signals = signals.unwrap_or(&dummy);
         for system in systems.systems.iter_mut(){
@@ -292,12 +291,9 @@ pub fn push_async_systems(
                 let alive = system.marker.clone_child();
                 let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
                 let Some(fut) = (system.function)(entity, AsyncWorldMut::ref_cast(&executor.0), signals, children) else {continue};
-                let _ = spawner.spawn_local(async move {
-                    futures::select_biased! {
-                        _ = alive.fuse() => (),
-                        _ = fut.fuse() => (),
-                    };
-                });
+                let _ = exec.spawn(
+                    futures::future::select(alive, fut.map(|_| ()))
+                );
             }
         }
     }

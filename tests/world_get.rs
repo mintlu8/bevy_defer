@@ -3,7 +3,7 @@ use bevy::{sprite::{Sprite, SpriteBundle}, transform::components::{GlobalTransfo
 use bevy_app::App;
 use bevy_core::FrameCountPlugin;
 use bevy_ecs::{component::Component, query::With};
-use bevy_defer::{system_future, world, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_defer::{system_future, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin};
 use bevy_time::TimePlugin;
 
 #[derive(Component)]

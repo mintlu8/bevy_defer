@@ -13,6 +13,7 @@ mod async_event;
 pub mod signals;
 mod executor;
 mod commands;
+mod accessors;
 mod ext;
 mod locals;
 mod queue;
@@ -27,9 +28,9 @@ use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
+pub use accessors::AsyncAccess;
 
-pub use crate::async_world::{world, in_async_context, spawn, spawn_scoped};
-use crate::async_world::world_scope;
+pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 
 pub mod access {
     //! Asynchronous accessors to the `World`.
@@ -57,7 +58,7 @@ pub mod systems {
     pub use crate::reactors::react_to_state;
 }
 
-use futures::{task::LocalSpawnExt, Future};
+use std::future::Future;
 //pub use object::{Object, AsObject};
 pub use crate::channels::channel;
 pub use crate::locals::LocalResourceScope;
@@ -199,7 +200,7 @@ pub trait AsyncExtension {
 
 impl AsyncExtension for World {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult>  + 'static) -> &mut Self {
-        let _ = self.non_send_resource::<AsyncExecutor>().spawner().spawn_local(async move {
+        let _ = self.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")
@@ -219,7 +220,7 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self {
-        let _ = self.world.non_send_resource::<AsyncExecutor>().spawner().spawn_local(async move {
+        let _ = self.world.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")

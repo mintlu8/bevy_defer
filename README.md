@@ -256,10 +256,6 @@ let (a, b, c, d, e, f) = futures::join! {
 }.await;
 ```
 
-The implementation of the executor is currently based on `FuturesUnordered`, which has some historical woes:
-<https://without.boats/blog/futures-unordered/>. We are not doing anything that can potentially deadlock
-`FuturesUnordered` in this crate but keep this in mind when designing your systems.
-
 ## Versions
 
 | bevy | bevy_defer         |

@@ -1,13 +1,13 @@
-use std::{any::{Any, TypeId}, future::{poll_fn, ready, Future}, task::Poll};
+use std::{any::{Any, TypeId}, future::{poll_fn, Future}, task::Poll};
 use bevy_app::AppExit;
 use bevy_utils::Duration;
-use futures::{future::Either, FutureExt, Stream};
+use futures::{future::{ready, FusedFuture}, Stream};
 use rustc_hash::FxHashMap;
 use crate::{channels::channel, executor::COMMAND_QUEUE, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
-
+use futures::{FutureExt, future::Either};
 impl AsyncWorldMut {
     /// Apply a command, does not wait for it to complete.
     /// 
@@ -66,7 +66,7 @@ impl AsyncWorldMut {
     /// world().run(|w: &mut World| w.resource::<Int>().0).await
     /// # );
     /// ```
-    pub fn run<T: Send + 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
+    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         self.queue.once(f, sender);
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
@@ -85,7 +85,7 @@ impl AsyncWorldMut {
     /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
     /// # );
     /// ```
-    pub fn watch<T: Send + 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> {
+    pub fn watch<T: 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> {
         let (sender, receiver) = channel();
         self.queue.repeat(f, sender);
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
@@ -351,7 +351,7 @@ impl AsyncWorldMut {
     /// world().sleep(5.4).await
     /// # });
     /// ```
-    pub fn sleep(&self, duration: impl AsSeconds) -> impl Future<Output = ()> {
+    pub fn sleep(&self, duration: impl AsSeconds) -> impl Future<Output = ()> + FusedFuture{
         let duration = duration.as_duration();
         if duration <= Duration::ZERO {
             return Either::Right(ready(()));
@@ -370,7 +370,7 @@ impl AsyncWorldMut {
     /// world().sleep_frames(12).await
     /// # });
     /// ```
-    pub fn sleep_frames(&self, frames: u32) -> impl Future<Output = ()> {
+    pub fn sleep_frames(&self, frames: u32) -> impl Future<Output = ()> + FusedFuture{
         let (sender, receiver) = channel();
         if frames == 0{
             return Either::Right(ready(()));

@@ -1,5 +1,5 @@
 use bevy::{prelude::*, sprite::SpriteBundle};
-use bevy_defer::{async_system, async_systems::AsyncSystems, picking::{picking_reactor, PickingInteractionChange, PickingSelected}, signals::{Signal, Signals}, AsyncPlugin};
+use bevy_defer::{async_system, async_systems::AsyncSystems, picking::{picking_reactor, PickingInteractionChange, PickingSelected}, signals::{Signal, Signals}, AsyncAccess, AsyncPlugin};
 use bevy_mod_picking::prelude::*;
 
 fn main() {

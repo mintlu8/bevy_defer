@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::{Deref, DerefMut}, pin::pin, time::Duration
 use bevy::MinimalPlugins;
 use bevy_app::{App, First};
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
-use bevy_defer::{access::AsyncComponent, extensions::AsyncComponentDeref, signal_ids, spawn_scoped, reactors::react_to_state, world, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_defer::{access::AsyncComponent, extensions::AsyncComponentDeref, reactors::react_to_state, signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin};
 use bevy_tasks::futures_lite::StreamExt;
 use futures::FutureExt;
 use ref_cast::RefCast;
@@ -108,9 +108,9 @@ pub fn main() {
         // This is an `AsyncWorldMut`.
         // like tokio::spawn() this only works in the async context.
         let world = world();
-        let mut three = pin!(&mut world.sleep(3.0).fuse());
-        let mut two = pin!(&mut world.sleep(2.0).fuse());
-        let mut one = pin!(&mut world.sleep(1.0).fuse());
+        let mut three = pin!(&mut world.sleep(3.0));
+        let mut two = pin!(&mut world.sleep(2.0));
+        let mut one = pin!(&mut world.sleep(1.0));
         loop {
             futures::select!(
                 _ = three => { println!("1"); break; },

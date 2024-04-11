@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_defer::signals::Signal;
+use bevy_defer::AsyncAccess;
 use bevy_defer::{async_system, signals::Signals, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
 use bevy_defer::picking::{ui_reactor, AsyncUIButton, ClickCancelled, Click, UIInteractionChange, LoseFocus, ObtainFocus, Pressed};
 use bevy_ui::RelativeCursorPosition;

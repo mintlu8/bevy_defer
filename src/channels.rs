@@ -1,6 +1,8 @@
 //! `!Send` version of `futures_channels::oneshot`
 use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
-use futures::Future;
+use std::future::Future;
+
+use futures::future::FusedFuture;
 
 /// Sender for a `!Send` oneshot channel.
 #[derive(Debug)]
@@ -194,5 +196,11 @@ impl<T> Future for Receiver<T> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.0.recv(cx)
+    }
+}
+
+impl<T> FusedFuture for Receiver<T> {
+    fn is_terminated(&self) -> bool {
+        self.0.complete.get()
     }
 }

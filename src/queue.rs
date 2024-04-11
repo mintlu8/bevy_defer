@@ -8,7 +8,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
 use bevy_utils::Duration;
-use futures::Future;
+use std::future::Future;
 use futures::FutureExt;
 use crate::{async_world::AsyncWorldMut, cancellation::TaskCancellation, channel, channels::Sender, QueryQueue};
 
@@ -62,7 +62,7 @@ pub struct AsyncQueryQueue {
     pub(crate) repeat_queue: RefCell<Vec<QueryCallback>>,
     pub(crate) fixed_queue: RefCell<Vec<FixedTask>>,
     pub(crate) time_series: RefCell<BinaryHeap<TimeIndex<Duration, Sender<()>>>>,
-    pub(crate) frames_series: RefCell<BinaryHeap<TimeIndex<u32, Sender<()>>>>,
+    pub(crate) frame_series: RefCell<BinaryHeap<TimeIndex<u32, Sender<()>>>>,
     pub(crate) yielded: RefCell<Vec<Waker>>,
     pub(crate) now: Cell<Duration>,
     pub(crate) frame: Cell<u32>,
@@ -75,7 +75,7 @@ impl std::fmt::Debug for AsyncQueryQueue {
             .field("repeat_queue", &self.repeat_queue.borrow().len())
             .field("fixed_queue", &self.fixed_queue.borrow().len())
             .field("time_series", &self.time_series.borrow().len())
-            .field("frames_series", &self.frames_series.borrow().len())
+            .field("frames_series", &self.frame_series.borrow().len())
             .field("yielded", &self.yielded.borrow().len())
             .field("now", &self.now.get())
             .field("frame", &self.frame.get())
@@ -177,7 +177,7 @@ impl AsyncQueryQueue {
     }
 
     pub fn timed_frames(&self, duration: u32, channel: Sender<()>) {
-        self.frames_series.borrow_mut().push(
+        self.frame_series.borrow_mut().push(
             TimeIndex(self.frame.get() + duration, channel)
         )
     }
@@ -220,7 +220,7 @@ pub fn run_time_series(
         let _ = time_series.pop().unwrap().1.send(());
     }
     queue.frame.set(frames.0);
-    let mut frame_series = queue.frames_series.borrow_mut();
+    let mut frame_series = queue.frame_series.borrow_mut();
     while frame_series.peek().map(|x| x.0 <= frames.0).unwrap_or(false) {
         let _ = frame_series.pop().unwrap().1.send(());
     }

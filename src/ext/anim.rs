@@ -2,7 +2,7 @@ use bevy_animation::{AnimationClip, AnimationPlayer, RepeatAnimation};
 use bevy_asset::Handle;
 use ref_cast::RefCast;
 
-use crate::{access::AsyncComponent, extensions::AsyncComponentDeref, tween::AsSeconds, AsyncResult};
+use crate::{access::AsyncComponent, extensions::AsyncComponentDeref, tween::AsSeconds, AsyncAccess, AsyncResult};
 
 #[derive(RefCast)]
 #[repr(transparent)]
