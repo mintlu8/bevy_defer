@@ -1,11 +1,11 @@
 use std::{borrow::BorrowMut, cell::OnceCell};
 
 use bevy_asset::{Asset, Assets, Handle};
-use bevy_ecs::{component::Component, entity::Entity, system::Resource, world::World};
+use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::Resource, world::World};
 use futures::{future::{ready, Either}, Future};
 use ref_cast::RefCast;
 
-use crate::{async_asset::AsyncAsset, async_world::AsyncWorldMut, cancellation::TaskCancellation, channel, locals::with_world_ref, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::{async_asset::AsyncAsset, async_query::{AsyncQuery, OwnedQueryState}, async_world::AsyncWorldMut, cancellation::TaskCancellation, channel, locals::with_world_ref, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 use crate::tween::{AsSeconds, Lerp, Playback};
 use crate::async_values::{AsyncComponent, AsyncNonSend, AsyncResource};
 
@@ -417,5 +417,23 @@ impl<A: Asset> AsyncTake for AsyncAsset<A> {
     fn take<'t>(world: &'t mut World, handle: &Self::Ctx) -> AsyncResult<Self::Generic> {
         world.get_resource_mut::<Assets<A>>().ok_or(AsyncFailure::ResourceNotFound)?
             .remove(handle).ok_or(AsyncFailure::AssetNotFound)
+    }
+}
+
+impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncQuery<D, F> {
+    type Ctx = ();
+    type Ref<'t> = OwnedQueryState<'t, D, F>;
+    type RefMut<'t> = OwnedQueryState<'t, D, F>;
+
+    fn world(&self) -> &AsyncWorldMut {
+        AsyncWorldMut::ref_cast(&self.queue)
+    }
+
+    fn as_ctx(&self) -> Self::Ctx {
+        ()
+    }
+
+    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Ctx) -> AsyncResult<Self::RefMut<'t>> {
+        Ok(OwnedQueryState::new(world))
     }
 }

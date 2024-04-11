@@ -1,7 +1,7 @@
-use crate::{async_systems::AsyncWorldParam, async_world::AsyncWorldMut, signals::Signals, CHANNEL_CLOSED};
+use crate::{async_systems::AsyncWorldParam, async_world::AsyncWorldMut, signals::Signals, AsyncAccess, CHANNEL_CLOSED};
 use bevy_ecs::{
     entity::Entity,
-    query::{QueryData, QueryFilter, QueryIter, QuerySingleError, QueryState, WorldQuery},
+    query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
     system::Resource,
     world::World,
 };
@@ -47,78 +47,20 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
         &self,
         f: impl FnOnce(T::Item<'_>) -> U + 'static,
     ) -> impl Future<Output = AsyncResult<U>> + 'static {
-        let (sender, receiver) = channel();
-        self.queue.once(
-            move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
-                Some(mut state) => {
-                    let result = state.0.get_single_mut(world).map(f).map_err(|e| match e {
-                        QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
-                        QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
-                    });
-                    world.insert_resource(state);
-                    result
-                }
-                None => {
-                    let mut state = ResQueryCache(world.query_filtered::<T, F>());
-                    let result = state.0.get_single_mut(world).map(f).map_err(|e| match e {
-                        QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
-                        QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
-                    });
-                    world.insert_resource(state);
-                    result
-                }
-            },
-            sender,
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        self.world().run(|w| Ok(f(OwnedQueryState::<T, F>::new(w).single_mut()?)))
     }
     
     /// Run a function on the iterator.
     pub fn for_each (
         &self,
-        f: impl FnMut(T::Item<'_>) + 'static,
+        mut f: impl FnMut(T::Item<'_>) + 'static,
     ) -> impl Future<Output = ()> + 'static {
-        let (sender, receiver) = channel();
-        self.queue.once(
-            move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
-                Some(mut state) => {
-                    state.0.iter_mut(world).for_each(f);
-                    world.insert_resource(state);
-                }
-                None => {
-                    let mut state = ResQueryCache(world.query_filtered::<T, F>());
-                    state.0.iter_mut(world).for_each(f);
-                    world.insert_resource(state);
-                }
-            },
-            sender,
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Run a function on the iterator returned by [`Query`] and obtain the result.
-    pub fn iter<U: 'static> (
-        &self,
-        f: impl FnOnce(QueryIter<'_, '_, T, F>) -> U + 'static,
-    ) -> impl Future<Output = U> + 'static {
-        let (sender, receiver) = channel();
-        self.queue.once(
-            move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
-                Some(mut state) => {
-                    let value = f(state.0.iter_mut(world));
-                    world.insert_resource(state);
-                    value
-                }
-                None => {
-                    let mut state = ResQueryCache(world.query_filtered::<T, F>());
-                    let value = f(state.0.iter_mut(world));
-                    world.insert_resource(state);
-                    value
-                }
-            },
-            sender,
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        self.world().run(move |w| {
+            let mut state = OwnedQueryState::<T, F>::new(w);
+            for item in state.iter_mut(){
+                f(item);
+            }
+        })
     }
 }
 
@@ -236,5 +178,76 @@ impl<C, F> Deref for AsyncEntityQuery<C, F> where C: AsyncEntityQueryDeref, F: Q
 
     fn deref(&self) -> &Self::Target {
         AsyncEntityQueryDeref::async_deref(self)
+    }
+}
+
+/// A [`World`] reference and a cached [`QueryState`].
+/// 
+/// Stores the [`QueryState`] in the [`World`] on drop.
+pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
+    world: &'t mut World,
+    state: Option<QueryState<D, F>>,
+}
+
+/// A [`World`] reference and a cached [`QueryState`].
+/// 
+/// Stores the [`QueryState`] in the [`World`] on drop.
+pub struct OwnedQuerySingle<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
+    world: D::Item<'t>,
+    state: Option<QueryState<D, F>>,
+}
+
+impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D, F> {
+    pub fn new(world: &mut World) -> OwnedQueryState<D, F> {
+        OwnedQueryState {
+            state: match world.remove_resource::<ResQueryCache<D, F>>() {
+                Some(item) => Some(item.0),
+                None => Some(QueryState::new(world)),
+            },
+            world,
+        }
+    }
+
+    pub fn single(&mut self) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
+        self.state.as_mut().unwrap()
+            .get_single(self.world).map_err(|_|AsyncFailure::EntityNotFound)
+    }
+
+    pub fn single_mut(&mut self) -> Result<D::Item<'_>, AsyncFailure> {
+        self.state.as_mut().unwrap()
+            .get_single_mut(self.world).map_err(|_|AsyncFailure::EntityNotFound)
+    }
+
+    pub fn get(&mut self, entity: Entity) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
+        self.state.as_mut().unwrap()
+            .get(self.world, entity).map_err(|_|AsyncFailure::EntityNotFound)
+    }
+
+    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_>, AsyncFailure> {
+        self.state.as_mut().unwrap()
+            .get_mut(self.world, entity).map_err(|_|AsyncFailure::EntityNotFound)
+    }
+
+    pub fn iter<'s>(&'s mut self) -> QueryIter<'s, 's, D::ReadOnly, F> {
+        self.state.as_mut().unwrap().iter(self.world)
+    }
+
+    pub fn iter_mut<'s>(&'s mut self) -> QueryIter<'s, 's, D, F>  {
+        self.state.as_mut().unwrap().iter_mut(self.world)
+    }
+}
+
+impl<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator for &'s mut OwnedQueryState<'w, D, F> {
+    type Item = D::Item<'s>;
+    type IntoIter = QueryIter<'s, 's, D, F>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.state.as_mut().unwrap().iter_mut(self.world)
+    }
+}
+
+impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> Drop for OwnedQueryState<'t, D, F> {
+    fn drop(&mut self) {
+        self.world.insert_resource(ResQueryCache(self.state.take().unwrap()))
     }
 }

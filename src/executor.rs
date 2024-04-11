@@ -68,7 +68,8 @@ pub fn in_async_context() -> bool {
     ASYNC_WORLD.is_set()
 }
 
-/// Resource containing a reference to an async executor.
+/// [`NonSend`] resource containing a reference to an async executor, 
+/// this resource can be cloned used to spawn futures.
 #[derive(Debug, Default, Clone)]
 pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
 
@@ -82,7 +83,7 @@ impl AsyncExecutor {
     }
 }
 
-/// Queue for deferred queries applied on the `World`.
+/// A `!Send` Queue for deferred queries applied on the `World`.
 #[derive(Debug, Default)]
 pub struct QueryQueue(pub(crate) Rc<AsyncQueryQueue>);
 
