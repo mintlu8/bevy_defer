@@ -3,7 +3,7 @@ use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt};
-use bevy_defer::{world, AsyncExtension, AsyncPlugin};
+use bevy_defer::{world, AsyncAccess, AsyncExtension, AsyncPlugin};
 use bevy_reflect::TypePath;
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
@@ -159,9 +159,9 @@ pub fn take(){
             world.load_asset::<JsonNumber>("69.json"),
         );
         let (one, four, sixty_nine) = futures::try_join!(
-            one.take(),
-            four.take(),
-            sixty_nine.take(),
+            one.take_on_load(),
+            four.take_on_load(),
+            sixty_nine.take_on_load(),
         )?;
         assert_eq!(one.0, 1);
         assert_eq!(four.0, 4);
