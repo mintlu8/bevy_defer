@@ -380,6 +380,9 @@ impl AsyncWorldMut {
     }
 
     /// Yield control back to the `bevy_defer` executor.
+    /// 
+    /// Unlike `yield_now` from `futures_lite`,
+    /// the future will be resumed on the next execution point.
     pub fn yield_now(&self) -> impl Future<Output = ()> {
         let mut yielded = false;
         let queue = self.queue.clone();

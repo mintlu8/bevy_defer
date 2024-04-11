@@ -39,17 +39,20 @@ pub trait AsyncAccess {
         })
     }
 
-    fn exists(&self) -> impl Future<Output = ()> {
+    fn exists(&self) -> impl Future<Output = ()> where Self: AsyncReadonlyAccess {
+        let ctx = self.as_ctx();
+        if matches!(with_world_ref(|w| Self::from_ref_world(w, ctx).is_ok()), Ok(true)) {
+            return Either::Right(ready(()))
+        };
         use futures::FutureExt;
         let (sender, receiver) = channel();
-        let ctx = self.as_ctx();
         self.world().queue.repeat(
             move |world: &mut World| {
                 Self::from_mut_world(world, ctx).ok().map(|_| ())
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
 
@@ -73,7 +76,7 @@ pub trait AsyncAccess {
     fn interpolate_to<V: Lerp>(
         &self, 
         to: V,
-        mut get: impl FnMut(Self::RefMut<'_>) -> V + Send + 'static,
+        mut get: impl FnMut(Self::Ref<'_>) -> V + Send + 'static,
         mut set: impl FnMut(Self::RefMut<'_>, V) + Send + 'static,
         mut curve: impl FnMut(f32) -> f32 + Send + 'static,
         duration: impl AsSeconds,
@@ -87,15 +90,15 @@ pub trait AsyncAccess {
         let ctx = self.as_ctx();
         async move {
             world.fixed_routine(move |world, dt| {
-                let component = Self::from_mut_world(world, ctx).unwrap();
-                let source = source.get_or_init(||get(component)).clone();
+                let Ok(item) = Self::from_mut_world(world, ctx) else { return None };
+                let source = source.get_or_init(||get(item)).clone();
                 t += dt.as_secs_f32();
                 if t > duration {
-                    set(component.borrow_mut(), to.clone());
+                    set(item.borrow_mut(), to.clone());
                     Some(Ok(()))
                 } else {
                     let fac = curve(t / duration);
-                    set(component.borrow_mut(), V::lerp(source, to.clone(), fac));
+                    set(item.borrow_mut(), V::lerp(source, to.clone(), fac));
                     None
                 }
             }, cancel).await.unwrap_or(Ok(()))
@@ -130,12 +133,12 @@ pub trait AsyncAccess {
         let cancel = cancel.into();
         async move {
             world.fixed_routine(move |world, dt| {
-                let component = Self::from_mut_world(world, ctx).unwrap();
+                let Ok(item) = Self::from_mut_world(world, ctx) else { return None };
                 t += dt.as_secs_f32() / duration;
                 let fac = if t > 1.0 {
                     match playback {
                         Playback::Once => {
-                            write(component, span(1.0));
+                            write(item, span(1.0));
                             return Some(Ok(()))
                         },
                         Playback::Loop => {
@@ -150,7 +153,7 @@ pub trait AsyncAccess {
                 } else {
                     t
                 };
-                write(component, span(curve(fac)));
+                write(item, span(curve(fac)));
                 None
             }, cancel).await.unwrap_or(Ok(()))
         }
