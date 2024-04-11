@@ -3,7 +3,8 @@ use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::{future::Either, Future, FutureExt};
 use std::future::ready;
-use crate::{async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, locals::{with_asset_server, with_world_ref}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::{accessors::Captures, async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, AsyncAccess, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::locals::{with_asset_server, with_world_ref};
 
 
 /// Async version of [`Handle`].
@@ -73,16 +74,16 @@ impl<A: Asset> AsyncAsset<A> {
     }
 
     /// Clone an `Asset`, repeat until the asset is loaded.
-    pub fn cloned(
+    pub fn clone_on_load(
         &self, 
-    ) -> impl Future<Output = AsyncResult<A>> where A: Clone {
-        self.get(Clone::clone)
+    ) -> impl Future<Output = AsyncResult<A>> + 'static + Captures<&'_ ()> where A: Clone {
+        self.watch(|x| Some(x.clone()))
     }
 
     /// Repeat until the asset is loaded, returns false if loading failed.
     pub fn loaded<T: 'static> (
         &self, 
-    ) -> impl Future<Output = bool> {
+    ) -> impl Future<Output = bool> + 'static + Captures<&'_ ()> {
         match with_asset_server(|server| {
             server.load_state(&self.handle)
         }) {

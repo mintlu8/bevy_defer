@@ -121,9 +121,9 @@ pub fn cloned(){
             world.load_asset::<JsonNumber>("69.json"),
         );
         let (one, four, sixty_nine) = futures::try_join!(
-            one.cloned(),
-            four.cloned(),
-            sixty_nine.cloned(),
+            one.clone_on_load(),
+            four.clone_on_load(),
+            sixty_nine.clone_on_load(),
         )?;
         assert_eq!(one.0, 1);
         assert_eq!(four.0, 4);

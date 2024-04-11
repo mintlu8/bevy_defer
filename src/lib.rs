@@ -28,7 +28,7 @@ use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
-pub use accessors::AsyncAccess;
+pub use accessors::{AsyncAccess, Captures};
 
 pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 
@@ -271,7 +271,7 @@ impl Command for SpawnFn {
 /// 
 /// This type is designed to be match friendly but not necessarily carry all the debugging information.
 /// It might me more correct to either match or unwrap this error instead of propagating it.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum AsyncFailure {
     #[error("async channel closed")]
@@ -286,6 +286,8 @@ pub enum AsyncFailure {
     ComponentNotFound,
     #[error("resource not found")]
     ResourceNotFound,
+    #[error("asset not found")]
+    AssetNotFound,
     #[error("event not registered")]
     EventNotRegistered,
     #[error("signal not found")]
@@ -344,3 +346,4 @@ macro_rules! test_spawn {
         }
     };
 }
+

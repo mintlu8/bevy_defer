@@ -69,8 +69,8 @@ pub fn in_async_context() -> bool {
 }
 
 /// Resource containing a reference to an async executor.
-#[derive(Debug, Default)]
-pub struct AsyncExecutor(pub(crate) async_executor::LocalExecutor<'static>);
+#[derive(Debug, Default, Clone)]
+pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
 
 impl AsyncExecutor {
     pub fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) {
