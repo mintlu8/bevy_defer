@@ -6,7 +6,7 @@ use crate::signals::Signals;
 use bevy_ecs::{entity::Entity, query::{Changed, With}, system::{Local, Query}};
 use rustc_hash::FxHashMap;
 use bevy_mod_picking::{focus::PickingInteraction, pointer::PointerLocation, selection::PickSelection};
-use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
+use super::{Clicked, ClickCancelled, LostFocus, ObtainedFocus, Pressed};
 
 signal_ids! {
     /// [`PickSelection`] changed.
@@ -19,7 +19,7 @@ pub type PickingInteractionChange = Change<PickingInteraction>;
 /// System that provides reactivity for [`bevy_mod_picking`], must be added manually.
 /// 
 /// This also acts as `react_to_state_machine` for [`PickingInteraction`].
-pub fn picking_reactor(
+pub fn react_to_picking(
     mut prev: Local<FxHashMap<Entity, PickingInteraction>>,
     mut prev_select: Local<FxHashMap<Entity, bool>>,
     interactions: Query<(Entity, &Signals, &PickingInteraction, Option<&PointerLocation>), (Changed<PickingInteraction>, With<Signals>)>,
@@ -37,15 +37,15 @@ pub fn picking_reactor(
             signals.send::<Pressed>(position);
         }
         match (previous, interaction) {
-            (PickingInteraction::Pressed, PickingInteraction::Hovered) => signals.send::<Click>(position),
+            (PickingInteraction::Pressed, PickingInteraction::Hovered) => signals.send::<Clicked>(position),
             (PickingInteraction::Pressed, PickingInteraction::None) => signals.send::<ClickCancelled>(position),
             _ => false,
         };
         if previous == PickingInteraction::None {
-            signals.send::<ObtainFocus>(position);
+            signals.send::<ObtainedFocus>(position);
         }
         if interaction == &PickingInteraction::None {
-            signals.send::<LoseFocus>(position);
+            signals.send::<LostFocus>(position);
         }
     }
 
@@ -67,7 +67,7 @@ mod sealed {
     use crate::access::AsyncEntityQuery;
     use crate::access::deref::AsyncEntityQueryDeref;
     use crate::AsyncAccess;
-    
+
     /// [`QueryData`] for asynchronously accessing a `bevy_mod_picking` pickable's state.
     #[derive(Debug, QueryData)]
     pub struct AsyncPicking {

@@ -24,17 +24,17 @@ signal_ids! {
     /// 
     /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition) if sender is ui,
     /// [`PointerLocation`](bevy_mod_picking::pointer::PointerLocation) if sender is `bevy_mod_picking`.
-    pub Click: Vec2,
+    pub Clicked: Vec2,
     /// [`Interaction`](bevy_ui::Interaction) from `None` to `Hovered|Pressed`.
     /// 
     /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition) if sender is ui,
     /// [`PointerLocation`](bevy_mod_picking::pointer::PointerLocation) if sender is `bevy_mod_picking`.
-    pub ObtainFocus: Vec2,
+    pub ObtainedFocus: Vec2,
     /// [`Interaction`](bevy_ui::Interaction) from `Hovered|Pressed` to `None`.
     /// 
     /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition) if sender is ui,
     /// [`PointerLocation`](bevy_mod_picking::pointer::PointerLocation) if sender is `bevy_mod_picking`.
-    pub LoseFocus: Vec2,
+    pub LostFocus: Vec2,
     /// [`Interaction`](bevy_ui::Interaction) from `Pressed` to `None`.
     /// 
     /// Sends [`RelativeCursorPosition`](bevy_ui::RelativeCursorPosition) if sender is ui,

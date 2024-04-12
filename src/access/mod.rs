@@ -13,4 +13,3 @@ pub use async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemP
 pub use async_query::{AsyncQuery, AsyncQuerySingle, AsyncEntityQuery};
 pub use async_asset::AsyncAsset;
 pub use async_event::EventStream;
-pub use crate::ext::AsyncScene;

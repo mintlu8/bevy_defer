@@ -67,7 +67,7 @@ impl AsyncWorldMut {
     /// world().run(|w: &mut World| w.resource::<Int>().0).await
     /// # );
     /// ```
-    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> {
+    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> + 'static {
         let (sender, receiver) = channel();
         self.queue.once(f, sender);
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
@@ -86,7 +86,7 @@ impl AsyncWorldMut {
     /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
     /// # );
     /// ```
-    pub fn watch<T: 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> {
+    pub fn watch<T: 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> + 'static {
         let (sender, receiver) = channel();
         self.queue.repeat(f, sender);
         receiver.map(|x| x.expect(CHANNEL_CLOSED))
@@ -101,7 +101,7 @@ impl AsyncWorldMut {
     /// world().run_schedule(Update).await
     /// # );
     /// ```
-    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> {
+    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> + 'static {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
                 world.try_run_schedule(schedule)
@@ -121,7 +121,7 @@ impl AsyncWorldMut {
     /// world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await
     /// # );
     /// ```
-    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> impl Future<Output = SystemId<I, O>> {
+    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> impl Future<Output = SystemId<I, O>> + 'static {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
                 world.register_system(system)
@@ -141,7 +141,7 @@ impl AsyncWorldMut {
     /// world().run_system(id).await.unwrap();
     /// # });
     /// ```
-    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> impl Future<Output = AsyncResult<O>> {
+    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> impl Future<Output = AsyncResult<O>> + 'static {
         self.run_system_with_input(system, ())
     }
 
@@ -155,7 +155,7 @@ impl AsyncWorldMut {
     /// world().run_system_with_input(id, 4.0).await.unwrap();
     /// # });
     /// ```
-    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> impl Future<Output = AsyncResult<O>> {
+    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> impl Future<Output = AsyncResult<O>> + 'static {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
                 world.run_system_with_input(system, input)
@@ -179,7 +179,7 @@ impl AsyncWorldMut {
     /// world().run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await.unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> impl Future<Output = AsyncResult<O>> {
+    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> impl Future<Output = AsyncResult<O>> + 'static {
         self.run_cached_system_with_input(system, ())
     }
 
@@ -196,7 +196,7 @@ impl AsyncWorldMut {
     /// world().run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).await.unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> impl Future<Output = AsyncResult<O>> {
+    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> impl Future<Output = AsyncResult<O>> + 'static {
         #[derive(Debug, Resource, Default)]
         struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
 
@@ -228,7 +228,7 @@ impl AsyncWorldMut {
     /// world().spawn_empty().await
     /// # );
     /// ```
-    pub fn spawn_empty(&self) -> impl Future<Output = AsyncEntityMut> {
+    pub fn spawn_empty(&self) -> impl Future<Output = AsyncEntityMut> + 'static {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
             move |world: &mut World| {
@@ -252,7 +252,7 @@ impl AsyncWorldMut {
     /// world().spawn_bundle(SpriteBundle::default()).await
     /// # );
     /// ```
-    pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> {
+    pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> + 'static {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
             move |world: &mut World| {
@@ -276,7 +276,7 @@ impl AsyncWorldMut {
     /// world().set_state(MyState::A).await
     /// # });
     /// ```
-    pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> {
+    pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> + 'static {
         let (sender, receiver) = channel();
         self.queue.once(
             move |world: &mut World| {
@@ -298,7 +298,7 @@ impl AsyncWorldMut {
     /// world().get_state::<MyState>().await
     /// # });
     /// ```
-    pub fn get_state<S: States>(&self) -> impl Future<Output = AsyncResult<S>> {
+    pub fn get_state<S: States>(&self) -> impl Future<Output = AsyncResult<S>> + 'static {
         let f = move |world: &World| {
             world.get_resource::<State<S>>().map(|s| s.get().clone())
                     .ok_or(AsyncFailure::ResourceNotFound)
@@ -322,7 +322,7 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     #[deprecated = "Use `state_stream` instead."]
-    pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> {
+    pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> + 'static {
         let (sender, receiver) = channel::<()>();
         self.queue.repeat(
             move |world: &mut World| {
@@ -337,7 +337,7 @@ impl AsyncWorldMut {
     /// Obtain a [`Stream`] that reacts to changes of a [`States`].
     /// 
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
-    pub fn state_stream<S: States + Clone + Default>(&self) -> impl Stream<Item = S> {
+    pub fn state_stream<S: States + Clone + Default>(&self) -> impl Stream<Item = S> + 'static {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.rewind();
         signal
@@ -352,7 +352,7 @@ impl AsyncWorldMut {
     /// world().sleep(5.4).await
     /// # });
     /// ```
-    pub fn sleep(&self, duration: impl AsSeconds) -> impl Future<Output = ()> + FusedFuture{
+    pub fn sleep(&self, duration: impl AsSeconds) -> impl FusedFuture<Output = ()> + 'static {
         let duration = duration.as_duration();
         if duration <= Duration::ZERO {
             return Either::Right(ready(()));
@@ -371,7 +371,7 @@ impl AsyncWorldMut {
     /// world().sleep_frames(12).await
     /// # });
     /// ```
-    pub fn sleep_frames(&self, frames: u32) -> impl Future<Output = ()> + FusedFuture{
+    pub fn sleep_frames(&self, frames: u32) -> impl FusedFuture<Output = ()> + 'static {
         let (sender, receiver) = channel();
         if frames == 0{
             return Either::Right(ready(()));

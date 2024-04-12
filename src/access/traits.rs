@@ -58,7 +58,7 @@ pub trait AsyncAccessRef:
 
 /// Allows the `take` method
 pub trait AsyncTake: AsyncAccessRef{
-    fn take<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic>;
+    fn take(world: &mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic>;
 }
 
 /// Allows the `on_load` method family.
@@ -89,13 +89,13 @@ pub trait AsyncAccess {
     fn from_mut_cx<'t>(cx: &'t mut Self::RefMutCx<'_>, cx: &Self::Cx) -> AsyncResult<Self::RefMut<'t>>;
 
     /// Remove and obtain the item from the world.
-    fn take<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
-        let ctx = self.as_cx();
-        self.world().run(move |w| Ok(<Self as AsyncTake>::take(w, &ctx)?))
+    fn take(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
+        let cx = self.as_cx();
+        self.world().run(move |w| <Self as AsyncTake>::take(w, &cx))
     }
 
     /// Remove and obtain the item from the world once loaded.
-    fn take_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake + AsyncLoad {
+    fn take_on_load(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake + AsyncLoad {
         let ctx = self.as_cx();
         self.world().watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
             Ok(result) => Some(Ok(result)),
@@ -351,7 +351,7 @@ impl<C: Component> AsyncAccessRef for AsyncComponent<C> {
 }
 
 impl<C: Component> AsyncTake for AsyncComponent<C> {
-    fn take<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic> {
         world.get_entity_mut(*cx).ok_or(AsyncFailure::EntityNotFound)?
             .take::<C>().ok_or(AsyncFailure::ComponentNotFound)
     }
@@ -395,7 +395,7 @@ impl<R: Resource> AsyncAccessRef for AsyncResource<R> {
 }
 
 impl<R: Resource> AsyncTake for AsyncResource<R> {
-    fn take<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
         world.remove_resource().ok_or(AsyncFailure::ResourceNotFound)
     }
 }
@@ -442,7 +442,7 @@ impl<R: 'static> AsyncAccessRef for AsyncNonSend<R> {
 impl<R: 'static> AsyncLoad for AsyncNonSend<R> {}
 
 impl<R: 'static> AsyncTake for AsyncNonSend<R> {
-    fn take<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
         world.remove_non_send_resource().ok_or(AsyncFailure::ResourceNotFound)
     }
 }
@@ -492,7 +492,7 @@ impl<A: Asset> AsyncAccessRef for AsyncAsset<A> {
 }
 
 impl<A: Asset> AsyncTake for AsyncAsset<A> {
-    fn take<'t>(world: &'t mut World, handle: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, handle: &Self::Cx) -> AsyncResult<Self::Generic> {
         world.get_resource_mut::<Assets<A>>().ok_or(AsyncFailure::ResourceNotFound)?
             .remove(handle).ok_or(AsyncFailure::AssetNotFound)
     }

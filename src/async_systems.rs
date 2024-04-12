@@ -291,7 +291,7 @@ pub fn push_async_systems(
                 let alive = system.marker.clone_child();
                 let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
                 let Some(fut) = (system.function)(entity, AsyncWorldMut::ref_cast(&executor.0), signals, children) else {continue};
-                let _ = exec.spawn(
+                exec.spawn(
                     futures::future::select(alive, fut.map(|_| ()))
                 );
             }

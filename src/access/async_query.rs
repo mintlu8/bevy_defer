@@ -174,11 +174,11 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
             .get_mut(self.world, entity).map_err(|_|AsyncFailure::EntityNotFound)
     }
 
-    pub fn iter<'s>(&'s mut self) -> QueryIter<'s, 's, D::ReadOnly, F> {
+    pub fn iter(&mut self) -> QueryIter<D::ReadOnly, F> {
         self.state.as_mut().unwrap().iter(self.world)
     }
 
-    pub fn iter_mut<'s>(&'s mut self) -> QueryIter<'s, 's, D, F>  {
+    pub fn iter_mut(&mut self) -> QueryIter<D, F>  {
         self.state.as_mut().unwrap().iter_mut(self.world)
     }
 }

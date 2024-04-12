@@ -14,11 +14,11 @@ pub type UIInteractionChange = Change<Interaction>;
 /// System that provides reactivity for [`bevy_ui`], must be added manually.
 /// 
 /// This also acts as `react_to_state_machine` for [`Interaction`].
-pub fn ui_reactor(
+pub fn react_to_ui(
     mut prev: Local<FxHashMap<Entity, bevy_ui::Interaction>>,
     query: Query<(Entity, &Signals, &bevy_ui::Interaction, Option<&bevy_ui::RelativeCursorPosition>), (Changed<bevy_ui::Interaction>, With<Signals>)>
 ) {
-    use crate::picking::{Click, ClickCancelled, LoseFocus, ObtainFocus, Pressed};
+    use super::{Clicked, ClickCancelled, LostFocus, ObtainedFocus, Pressed};
 
     for (entity, signals, interaction, relative) in query.iter() {
         let previous = prev.insert(entity, *interaction).unwrap_or(bevy_ui::Interaction::None);
@@ -31,15 +31,15 @@ pub fn ui_reactor(
             signals.send::<Pressed>(position);
         }
         match (previous, interaction) {
-            (Interaction::Pressed, Interaction::Hovered) => signals.send::<Click>(position),
+            (Interaction::Pressed, Interaction::Hovered) => signals.send::<Clicked>(position),
             (Interaction::Pressed, Interaction::None) => signals.send::<ClickCancelled>(position),
             _ => false,
         };
         if previous == Interaction::None {
-            signals.send::<ObtainFocus>(position);
+            signals.send::<ObtainedFocus>(position);
         }
         if interaction == &Interaction::None {
-            signals.send::<LoseFocus>(position);
+            signals.send::<LostFocus>(position);
         }
     }
 }

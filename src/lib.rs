@@ -1,8 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
-use bevy_core::FrameCountPlugin;
-use bevy_time::TimePlugin;
 use bevy_utils::intern::Interned;
 use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 
@@ -19,7 +17,6 @@ pub mod reactors;
 pub mod cancellation;
 pub mod tween;
 pub mod channels;
-pub mod picking;
 use bevy_ecs::{schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet}, system::{Command, Commands}, world::World};
 use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
@@ -33,14 +30,20 @@ pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 
 pub mod systems {
     //! Systems in `bevy_defer`.
+    //! 
+    //! Systems named `react_to_*` must be added manually.
     pub use crate::executor::run_async_executor;
     pub use crate::async_systems::push_async_systems;
     pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
     pub use crate::access::async_event::react_to_event;
-    pub use crate::reactors::react_to_state;
+    pub use crate::reactors::{react_to_state, react_to_component_change};
 
     #[cfg(feature="bevy_animation")]
-    pub use crate::ext::react_to_animation;
+    pub use crate::ext::anim::react_to_animation;
+    #[cfg(feature="bevy_ui")]
+    pub use crate::ext::picking::react_to_ui;
+    #[cfg(feature="bevy_mod_picking")]
+    pub use crate::ext::picking::react_to_picking;
 }
 
 use std::future::Future;
@@ -72,12 +75,6 @@ pub struct CoreAsyncPlugin;
 
 impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
-        if !app.is_plugin_added::<TimePlugin>() {
-            panic!("Requires `TimePlugin`.")
-        }
-        if !app.is_plugin_added::<FrameCountPlugin>() {
-            panic!("Requires `FrameCountPlugin`.")
-        }
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
             .init_resource::<Reactors>()
@@ -191,7 +188,7 @@ pub trait AsyncExtension {
 
 impl AsyncExtension for World {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult>  + 'static) -> &mut Self {
-        let _ = self.non_send_resource::<AsyncExecutor>().spawn(async move {
+        self.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")
@@ -211,7 +208,7 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self {
-        let _ = self.world.non_send_resource::<AsyncExecutor>().spawn(async move {
+        self.world.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
                 Err(err) => error!("Async Failure: {err}.")

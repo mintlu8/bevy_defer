@@ -4,8 +4,8 @@ use bevy_ecs::{entity::Entity, query::{Changed, With}, system::{Local, Query}};
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
 
-use crate::{access::AsyncComponent, access::deref::AsyncComponentDeref, tween::AsSeconds, AsyncAccess, AsyncResult};
-use crate::signals::{SignalId, SignalSender, Signals};
+use crate::{access::{deref::AsyncComponentDeref, AsyncComponent}, reactors::Change, tween::AsSeconds, AsyncAccess, AsyncResult};
+use crate::signals::{SignalSender, Signals};
 
 /// Async accessor to [`AnimationPlayer`].
 #[derive(RefCast)]
@@ -132,15 +132,8 @@ impl AsyncAnimationPlayer {
 }
 
 /// [`SignalId`] and content for playing [`AnimationClip`] changed.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AnimationChange {
-    pub from: Handle<AnimationClip>,
-    pub to: Handle<AnimationClip>,
-}
+pub type AnimationChange = Change<Handle<AnimationClip>>;
 
-impl SignalId for AnimationChange {
-    type Data = AnimationChange;
-}
 
 /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`]. 
 /// 

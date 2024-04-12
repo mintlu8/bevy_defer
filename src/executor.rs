@@ -16,7 +16,7 @@ scoped_tls::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'stati
 
 pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: &LocalExecutor<'static>, f: impl FnOnce() -> T) -> T{
     ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), ||{
-        SPAWNER.set(&pool, f)
+        SPAWNER.set(pool, f)
     })
 }
 
@@ -48,7 +48,7 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
     }
-    let _ = SPAWNER.with(|s| s.spawn(fut).detach() );
+    SPAWNER.with(|s| s.spawn(fut).detach() );
 }
 
 /// Obtain the [`AsyncWorldMut`] of the currently running `bevy_defer` executor.
@@ -69,7 +69,7 @@ pub fn in_async_context() -> bool {
 }
 
 /// [`NonSend`] resource containing a reference to an async executor, 
-/// this resource can be cloned used to spawn futures.
+/// this resource can be cloned to spawn futures.
 #[derive(Debug, Default, Clone)]
 pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
 

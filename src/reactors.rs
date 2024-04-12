@@ -83,13 +83,13 @@ pub fn react_to_state<T: States + Clone + Default>(
 }
 
 /// [`SignalId`] and data for a change in a component state machine.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Change<T> {
     pub from: T,
     pub to: T
 }
 
-impl<T: Component + Clone + Default> SignalId for Change<T> {
+impl<T: Send + Sync + 'static + Clone + Default> SignalId for Change<T> {
     type Data = Change<T>;
 }
 
