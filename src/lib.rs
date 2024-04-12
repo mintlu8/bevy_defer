@@ -25,6 +25,7 @@ use queue::AsyncQueryQueue;
 use reactors::Reactors;
 pub use access::traits::{AsyncAccess, Captures};
 pub use access::async_query::OwnedQueryState;
+pub use access::async_event::DoubleBufferedEvent;
 
 pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 

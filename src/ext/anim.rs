@@ -131,7 +131,7 @@ impl AsyncAnimationPlayer {
     }
 }
 
-/// [`SignalId`] and content for playing [`AnimationClip`] changed.
+/// `SignalId` and content for playing [`AnimationClip`] changed.
 pub type AnimationChange = Change<Handle<AnimationClip>>;
 
 
