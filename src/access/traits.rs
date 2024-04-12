@@ -3,9 +3,9 @@
 use std::{borrow::BorrowMut, cell::OnceCell};
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter, WorldQuery}, system::Resource, world::World};
-use futures::{future::{ready, Either}, Future, FutureExt};
+use futures::{future::{ready, Either}, Future};
 use ref_cast::RefCast;
-use crate::{cancellation::TaskCancellation, channel, locals::with_world_ref, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::{cancellation::TaskCancellation, locals::with_world_ref, AsyncFailure, AsyncResult};
 use crate::access::{AsyncWorldMut, AsyncEntityQuery, AsyncAsset, AsyncQuery, AsyncQuerySingle, AsyncComponent, AsyncNonSend, AsyncResource};
 use crate::tween::{AsSeconds, Lerp, Playback};
 use crate::OwnedQueryState;
@@ -154,14 +154,9 @@ pub trait AsyncAccess {
         if matches!(with_world_ref(|w| Self::from_ref_world(w, &ctx).is_ok()), Ok(true)) {
             return Either::Right(ready(()))
         };
-        let (sender, receiver) = channel();
-        self.world().queue.repeat(
-            move |world: &mut World| {
-                Self::from_mut_world(world, &ctx).ok().map(|_| ())
-            },
-            sender
-        );
-        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+        Either::Left(self.world().watch(move |world: &mut World| {
+            Self::from_mut_world(world, &ctx).ok().map(|_| ())
+        }))
     }
 
     /// Run a function on a readonly reference to this item and obtain the result.
@@ -187,7 +182,7 @@ pub trait AsyncAccess {
         let ctx = self.as_cx();
         let mut f = Some(f);
         // Wrap a FnOnce in a FnMut.
-        let f = move |world: &World| {
+        let mut f = move |world: &World| {
             let item = Self::from_ref_world(world, &ctx)?;
             if let Some(f) = f.take() {
                 Ok(f(item))
@@ -195,9 +190,11 @@ pub trait AsyncAccess {
                 Err(AsyncFailure::ShouldNotHappen)
             }
         }; 
-        let mut f = match with_world_ref(f) {
-            Ok(result) => return Either::Right(ready(result)),
-            Err(f) => f,
+        match with_world_ref(&mut f) {
+            Ok(Ok(result)) => return Either::Right(ready(Ok(result))),
+            Ok(Err(err)) if Self::should_continue(err) => (),
+            Ok(Err(err)) => return Either::Right(ready(Err(err))),
+            Err(_) => (),
         };
         Either::Left(self.world().watch(move |w| match f(w) {
             Ok(result) => Some(Ok(result)),
@@ -208,17 +205,12 @@ pub trait AsyncAccess {
 
     /// Clone the item.
     fn cloned<'a>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef, Self::Generic: Clone {
-        self.get(move |a| a.clone())
+        self.get(Clone::clone)
     }
 
     /// Clone the item, repeat until the item is loaded.
     fn clone_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef + AsyncLoad, Self::Generic: Clone {
-        let ctx = self.as_cx();
-        self.world().watch(move |w| match Self::from_ref_world(w, &ctx) {
-            Ok(result) => Some(Ok(result.clone())),
-            Err(err) if Self::should_continue(err) => None,
-            Err(err) => Some(Err(err)),
-        })
+        self.get_on_load(Clone::clone)
     }
 
     /// Interpolate to a new value from the previous value.
