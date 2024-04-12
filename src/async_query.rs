@@ -168,14 +168,6 @@ pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static>
     state: Option<QueryState<D, F>>,
 }
 
-/// A [`World`] reference and a cached [`QueryState`].
-/// 
-/// Stores the [`QueryState`] in the [`World`] on drop.
-pub struct OwnedQuerySingle<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
-    world: D::Item<'t>,
-    state: Option<QueryState<D, F>>,
-}
-
 impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D, F> {
     pub fn new(world: &mut World) -> OwnedQueryState<D, F> {
         OwnedQueryState {

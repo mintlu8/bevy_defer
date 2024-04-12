@@ -131,6 +131,7 @@ impl AsyncAnimationPlayer {
     }
 }
 
+/// [`SignalId`] and content for playing [`AnimationClip`] changed.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AnimationChange {
     pub from: Handle<AnimationClip>,

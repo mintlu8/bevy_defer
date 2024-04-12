@@ -150,7 +150,13 @@ Here are the guarantees of signals:
 this ensures no archetype fragmentation.
 
 In systems, you can use `SignalSender` and `SignalReceiver` just like you would in async,
-do keep in mind these parameters do not filter archetypes.
+you can build "reactors" this way by sending message to the async world through signals.
+A common pattern is `react_to_component_change`, where you build a state machine like
+`bevy_ui::Interaction` in bevy code, add `react_to_component_change` as a system,
+then listen to the signal `Change<T>` as a `Stream` in async.
+
+Keep in mind these `SignalSender` and `SignalReceiver` do not filter archetypes,
+if you only care about sending signals, make sure to add `With<Signals>` for better performance.
 
 ## AsyncSystems
 

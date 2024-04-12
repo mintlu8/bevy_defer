@@ -31,6 +31,7 @@ pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
 pub use accessors::{AsyncAccess, Captures};
+pub use async_query::OwnedQueryState;
 
 pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 
@@ -58,6 +59,8 @@ pub mod systems {
     pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
     pub use crate::async_event::react_to_event;
     pub use crate::reactors::react_to_state;
+
+    #[cfg(feature="bevy_animation")]
     pub use crate::ext::react_to_animation;
 }
 
