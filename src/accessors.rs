@@ -57,23 +57,35 @@ pub trait AsyncTake: AsyncAccessRef{
     fn take<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic>;
 }
 
+/// Provides functionalities for async accessors.
 pub trait AsyncAccess {
+    /// Static information, usually `Entity` or `Handle`.
     type Cx: 'static;
+    /// Optional borrow guard for mutable access.
     type RefMutCx<'t>;
+    /// Reference for immutable access.
     type Ref<'t>;
+    /// Reference for mutable access.
     type RefMut<'t>;
 
+    /// Obtain the underlying [`AsyncWorldMut`].
     fn world(&self) -> &AsyncWorldMut;
+
+    /// Obtain `Cx`.
     fn as_cx(&self) -> Self::Cx;
 
+    /// Obtain a borrow guard.
     fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>>;
+    /// Obtain a mutable reference from the borrow guard.
     fn from_mut_cx<'t>(cx: &'t mut Self::RefMutCx<'_>, cx: &Self::Cx) -> AsyncResult<Self::RefMut<'t>>;
 
+    /// Remove and obtain the item from the world.
     fn take<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
         let ctx = self.as_cx();
         self.world().run(move |w| Ok(<Self as AsyncTake>::take(w, &ctx)?))
     }
 
+    /// Remove and obtain the item from the world once loaded.
     fn take_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
         let ctx = self.as_cx();
         self.world().watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
@@ -83,6 +95,7 @@ pub trait AsyncAccess {
         })
     }
 
+    /// Run a function on this item and obtain the result.
     fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static{
         let cx = self.as_cx();
         self.world().run(move |w| {
@@ -92,6 +105,7 @@ pub trait AsyncAccess {
         })
     }
 
+    /// Run a function on this item until it returns `Some`.
     fn watch<T: 'static>(&self, mut f: impl FnMut(Self::RefMut<'_>) -> Option<T> + 'static) -> impl Future<Output = AsyncResult<T>> + 'static{
         let cx = self.as_cx();
         self.world().watch(move |w| match Self::from_mut_world(w, &cx) {
@@ -105,11 +119,13 @@ pub trait AsyncAccess {
         })
     }
 
+    /// Continue `watch` and `on_load` if fetch context failed with these errors.
     #[allow(unused_variables)]
     fn should_continue(err: AsyncFailure) -> bool {
         false
     }
 
+    /// Wait until the item is loaded.
     fn exists(&self) -> impl Future<Output = ()> + 'static where Self: AsyncReadonlyAccess {
         let ctx = self.as_cx();
         if matches!(with_world_ref(|w| Self::from_ref_world(w, &ctx).is_ok()), Ok(true)) {
@@ -125,7 +141,9 @@ pub trait AsyncAccess {
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
     }
 
-
+    /// Run a function on a readonly reference to this item and obtain the result.
+    /// 
+    /// Completes immediately if `&World` access is available.
     fn get<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncReadonlyAccess{
         let ctx = self.as_cx();
         let f = move |world: &World| {
@@ -138,6 +156,8 @@ pub trait AsyncAccess {
         Either::Left(self.world().run(|w| f(w)))
     }
 
+    /// Run a function on a readonly reference to this item and obtain the result,
+    /// repeat until the item is loaded.
     fn get_on_load<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncReadonlyAccess{
         let ctx = self.as_cx();
         let mut f = Some(f);
@@ -161,10 +181,12 @@ pub trait AsyncAccess {
         }))
     }
 
+    /// Clone the item.
     fn cloned<'a>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef, Self::Generic: Clone {
         self.get(move |a| a.clone())
     }
 
+    /// Clone the item, repeat until the item is loaded.
     fn clone_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef, Self::Generic: Clone {
         let ctx = self.as_cx();
         self.world().watch(move |w| match Self::from_ref_world(w, &ctx) {
