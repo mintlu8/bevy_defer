@@ -1,6 +1,7 @@
-//! Tweening for `bevy_defer`.
+//! Tweening support for `bevy_defer`.
 use std::{ops::{Add, Mul}, time::Duration};
 use bevy_math::Quat;
+use ref_cast::RefCast;
 
 /// Looping information for tweening.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -23,7 +24,8 @@ impl<T> Lerp for T where T: Add<T, Output = T> + Mul<f32, Output = T> + Clone + 
 }
 
 /// Performs a spherical linear interpolation on [`Quat`].
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, RefCast)]
+#[repr(transparent)]
 pub struct SLerp(pub Quat);
 
 impl Lerp for SLerp {
