@@ -65,8 +65,9 @@ mod sealed {
     use ref_cast::RefCast;
 
     use crate::access::AsyncEntityQuery;
-    use crate::extensions::AsyncEntityQueryDeref;
+    use crate::access::deref::AsyncEntityQueryDeref;
     use crate::AsyncAccess;
+    
     /// [`QueryData`] for asynchronously accessing a `bevy_mod_picking` pickable's state.
     #[derive(Debug, QueryData)]
     pub struct AsyncPicking {

@@ -1,13 +1,14 @@
-use std::{borrow::BorrowMut, cell::OnceCell};
+//! Access traits for `bevy_defer`.
 
+use std::{borrow::BorrowMut, cell::OnceCell};
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter, WorldQuery}, system::Resource, world::World};
 use futures::{future::{ready, Either}, Future, FutureExt};
 use ref_cast::RefCast;
-
-use crate::{async_asset::AsyncAsset, async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle, OwnedQueryState}, async_world::AsyncWorldMut, cancellation::TaskCancellation, channel, locals::with_world_ref, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::{cancellation::TaskCancellation, channel, locals::with_world_ref, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::access::{AsyncWorldMut, AsyncEntityQuery, AsyncAsset, AsyncQuery, AsyncQuerySingle, AsyncComponent, AsyncNonSend, AsyncResource};
 use crate::tween::{AsSeconds, Lerp, Playback};
-use crate::async_values::{AsyncComponent, AsyncNonSend, AsyncResource};
+use crate::OwnedQueryState;
 
 /// A trait that lets RPIT `'static` futures capture (non-existent) lifetimes.
 /// 

@@ -5,7 +5,7 @@ use std::{any::Any, marker::PhantomData};
 use std::sync::Arc;
 use bevy_ecs::entity::Entity;
 use futures::Stream;
-use crate::async_world::AsyncWorldMut;
+use crate::access::AsyncWorldMut;
 use crate::async_systems::AsyncEntityParam;
 use super::signal_inner::SignalFuture;
 use super::Signal;

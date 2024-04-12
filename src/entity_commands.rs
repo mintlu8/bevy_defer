@@ -3,7 +3,7 @@ use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
 use futures::FutureExt;
 use std::{future::Future, sync::Arc};
-use crate::{async_world::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use crate::{access::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 
 impl AsyncEntityMut {
 

@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::ops::Deref;
 use std::rc::Rc;
 use bevy_ecs::component::Component;
 use bevy_ecs::{entity::Entity, world::World};
@@ -8,12 +7,11 @@ use futures::FutureExt;
 use ref_cast::RefCast;
 use std::future::Future;
 use crate::async_systems::AsyncWorldParam;
-use crate::async_world::AsyncWorldMut;
+use crate::access::AsyncWorldMut;
 use crate::channels::channel;
 use crate::signals::Signals;
 use crate::{async_systems::AsyncEntityParam, CHANNEL_CLOSED};
-
-use super::{AsyncQueryQueue, AsyncFailure, AsyncResult};
+use crate::{AsyncQueryQueue, AsyncFailure, AsyncResult};
 
 /// Async version of [`SystemParam`].
 #[derive(Debug, Clone)]
@@ -137,69 +135,5 @@ impl<R: Resource> AsyncWorldParam for AsyncResource<R> {
             queue: executor.queue.clone(),
             p: PhantomData
         })
-    }
-}
-
-/// Add method to [`AsyncComponent`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncComponentDeref: Component + Sized {
-    type Target;
-    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncComponent<C> where C: AsyncComponentDeref{
-    type Target = <C as AsyncComponentDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncComponentDeref::async_deref(self)
-    }
-}
-
-/// Add method to [`AsyncResource`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncResourceDeref: Resource + Sized {
-    type Target;
-    fn async_deref(this: &AsyncResource<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncResource<C> where C: AsyncResourceDeref{
-    type Target = <C as AsyncResourceDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncResourceDeref::async_deref(self)
-    }
-}
-
-/// Add method to [`AsyncNonSend`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncNonSendDeref: Resource + Sized {
-    type Target;
-    fn async_deref(this: &AsyncNonSend<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncNonSend<C> where C: AsyncNonSendDeref{
-    type Target = <C as AsyncNonSendDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncNonSendDeref::async_deref(self)
-    }
-}
-
-/// Add method to [`AsyncSystemParam`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncSystemParamDeref: SystemParam + Sized {
-    type Target;
-    fn async_deref(this: &AsyncSystemParam<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncSystemParam<C> where C: AsyncSystemParamDeref{
-    type Target = <C as AsyncSystemParamDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncSystemParamDeref::async_deref(self)
     }
 }

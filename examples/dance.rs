@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::{Deref, DerefMut}, pin::pin, time::Duration
 use bevy::MinimalPlugins;
 use bevy_app::{App, First};
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
-use bevy_defer::{access::AsyncComponent, extensions::AsyncComponentDeref, reactors::react_to_state, signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_defer::{access::AsyncComponent, access::deref::AsyncComponentDeref, reactors::react_to_state, signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin};
 use bevy_tasks::futures_lite::StreamExt;
 use futures::FutureExt;
 use ref_cast::RefCast;

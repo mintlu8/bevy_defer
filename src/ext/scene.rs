@@ -6,8 +6,7 @@ use bevy_hierarchy::Children;
 use futures::{Future, FutureExt};
 use ref_cast::RefCast;
 use crate::channels::channel;
-use crate::{access::{AsyncEntityMut, AsyncWorldMut}, async_query::ResQueryCache, CHANNEL_CLOSED};
-
+use crate::{access::{AsyncEntityMut, AsyncWorldMut}, access::async_query::ResQueryCache, CHANNEL_CLOSED};
 
 /// [`AsyncEntityMut`] with extra scene related methods.
 #[derive(RefCast)]

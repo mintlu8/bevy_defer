@@ -4,7 +4,7 @@ use bevy_ecs::{entity::Entity, query::{Changed, With}, system::{Local, Query}};
 use ref_cast::RefCast;
 use rustc_hash::FxHashMap;
 
-use crate::{access::AsyncComponent, extensions::AsyncComponentDeref, tween::AsSeconds, AsyncAccess, AsyncResult};
+use crate::{access::AsyncComponent, access::deref::AsyncComponentDeref, tween::AsSeconds, AsyncAccess, AsyncResult};
 use crate::signals::{SignalId, SignalSender, Signals};
 
 /// Async accessor to [`AnimationPlayer`].

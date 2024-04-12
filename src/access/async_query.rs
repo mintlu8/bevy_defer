@@ -1,4 +1,4 @@
-use crate::{async_systems::AsyncWorldParam, async_world::AsyncWorldMut, signals::Signals, AsyncAccess};
+use crate::{async_systems::AsyncWorldParam, access::AsyncWorldMut, signals::Signals, AsyncAccess};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
@@ -10,7 +10,7 @@ use bevy_ecs::system::Query;
 use std::{
     borrow::Borrow, future::Future, marker::PhantomData, ops::Deref, rc::Rc
 };
-use super::{AsyncQueryQueue, AsyncFailure, async_systems::AsyncEntityParam};
+use crate::{AsyncQueryQueue, AsyncFailure, async_systems::AsyncEntityParam};
 
 /// Async version of [`Query`]
 #[derive(Debug, Clone)]
@@ -119,37 +119,6 @@ impl<C, F> Deref for AsyncQuery<C, F> where C: AsyncQueryDeref, F: QueryFilter{
     }
 }
 
-/// Add method to [`AsyncQuerySingle`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncQuerySingleDeref: QueryData + Sized {
-    type Target<F: QueryFilter>;
-    fn async_deref<F: QueryFilter>(this: &AsyncQuerySingle<Self, F>) -> &Self::Target<F>;
-}
-
-impl<C, F> Deref for AsyncQuerySingle<C, F> where C: AsyncQuerySingleDeref, F: QueryFilter{
-    type Target = <C as AsyncQuerySingleDeref>::Target<F>;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncQuerySingleDeref::async_deref(self)
-    }
-}
-
-/// Add method to [`AsyncEntityQuery`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncEntityQueryDeref: QueryData + Sized {
-    type Target<F: QueryFilter>;
-    fn async_deref<F: QueryFilter>(this: &AsyncEntityQuery<Self, F>) -> &Self::Target<F>;
-}
-
-impl<C, F> Deref for AsyncEntityQuery<C, F> where C: AsyncEntityQueryDeref, F: QueryFilter{
-    type Target = <C as AsyncEntityQueryDeref>::Target<F>;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncEntityQueryDeref::async_deref(self)
-    }
-}
 
 /// A resource that caches a [`QueryState`].
 /// 

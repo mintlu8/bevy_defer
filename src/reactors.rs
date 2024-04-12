@@ -4,7 +4,7 @@ use bevy_ecs::{change_detection::DetectChanges, component::Component, entity::En
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use crate::{async_event::DoubleBufferedEvent, tls_resource};
+use crate::{access::async_event::DoubleBufferedEvent, tls_resource};
 use crate::signals::{Signal, SignalId, SignalSender, Signals, Receiver};
 
 /// Signal sending changed value of a [`States`].

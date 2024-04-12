@@ -10,7 +10,7 @@ use bevy_time::{Fixed, Time};
 use bevy_utils::Duration;
 use std::future::Future;
 use futures::FutureExt;
-use crate::{async_world::AsyncWorldMut, cancellation::TaskCancellation, channel, channels::Sender, QueryQueue};
+use crate::{access::AsyncWorldMut, cancellation::TaskCancellation, channel, channels::Sender, QueryQueue};
 
 #[allow(unused)]
 use bevy_app::FixedUpdate;

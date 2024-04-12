@@ -8,6 +8,7 @@ use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLab
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
 use futures::{FutureExt, future::Either};
+
 impl AsyncWorldMut {
     /// Apply a command, does not wait for it to complete.
     /// 

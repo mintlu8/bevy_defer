@@ -5,19 +5,15 @@ use bevy_core::FrameCountPlugin;
 use bevy_time::TimePlugin;
 use bevy_utils::intern::Interned;
 use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
-mod async_world;
-mod async_entity;
-mod async_values;
-mod async_asset;
+
 pub mod async_systems;
-mod async_query;
-mod async_event;
 pub mod signals;
 mod executor;
 mod commands;
-mod accessors;
+mod entity_commands;
 mod locals;
 mod queue;
+pub mod access;
 pub mod ext;
 pub mod reactors;
 pub mod cancellation;
@@ -30,38 +26,17 @@ use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
-pub use accessors::{AsyncAccess, Captures};
-pub use async_query::OwnedQueryState;
+pub use access::traits::{AsyncAccess, Captures};
+pub use access::async_query::OwnedQueryState;
 
 pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
-
-pub mod access {
-    //! Asynchronous accessors to the `World`.
-    pub mod traits {
-        //! Access traits for `bevy_defer`.
-        pub use crate::accessors::*;
-    }
-    pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut, AsyncChild};
-    pub use crate::async_query::{AsyncQuery, AsyncEntityQuery, AsyncQuerySingle};
-    pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
-    pub use crate::async_event::EventStream;
-    pub use crate::async_asset::AsyncAsset;
-    pub use crate::ext::AsyncScene;
-}
-
-pub mod extensions {
-    //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
-    pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref, AsyncSystemParamDeref};
-    pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref, AsyncQuerySingleDeref};
-    pub use crate::async_asset::AsyncAssetDeref;
-}
 
 pub mod systems {
     //! Systems in `bevy_defer`.
     pub use crate::executor::run_async_executor;
     pub use crate::async_systems::push_async_systems;
     pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
-    pub use crate::async_event::react_to_event;
+    pub use crate::access::async_event::react_to_event;
     pub use crate::reactors::react_to_state;
 
     #[cfg(feature="bevy_animation")]

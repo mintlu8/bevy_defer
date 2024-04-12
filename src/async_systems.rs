@@ -9,7 +9,7 @@ use ref_cast::RefCast;
 use std::fmt::Debug;
 use std::pin::Pin;
 use bevy_ecs::{component::Component, entity::Entity, system::{Local, NonSend, Query}};
-use crate::{async_world::AsyncWorldMut, signals::Signals, AsyncExecutor, AsyncResult, QueryQueue};
+use crate::{access::AsyncWorldMut, signals::Signals, AsyncExecutor, AsyncResult, QueryQueue};
 use super::AsyncFailure;
 #[allow(unused)]
 use crate::{access::AsyncComponent, signals::{Sender, Receiver}};

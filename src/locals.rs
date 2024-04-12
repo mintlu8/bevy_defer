@@ -2,7 +2,7 @@ use bevy_asset::AssetServer;
 use bevy_ecs::{system::SystemParam, world::World};
 use scoped_tls::scoped_thread_local;
 
-use crate::async_world::AsyncWorldMut;
+use crate::access::AsyncWorldMut;
 
 /// Convert a resource into thread local storage accessible within the async runtime.
 pub trait LocalResourceScope: 'static {

@@ -134,7 +134,7 @@ Access functions are defined by the `AsyncAccess` trait,
 be sure to import this trait.
 
 You can add extension methods to these accessors via `Deref` if you own the
-underlying types. See the `extension` module for more detail.
+underlying types. See the `access::deref` module for more detail.
 
 ## Signals
 

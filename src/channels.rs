@@ -1,7 +1,6 @@
 //! `!Send` version of `futures_channels::oneshot`
 use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
 use std::future::Future;
-
 use futures::future::FusedFuture;
 
 /// Sender for a `!Send` oneshot channel.

@@ -7,7 +7,7 @@ use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, 
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{NonSend, Resource, SystemParam}};
 use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
 use ref_cast::RefCast;
-use super::AsyncQueryQueue;
+use crate::AsyncQueryQueue;
 
 /// [`SystemParam`] for obtaining [`AsyncWorldMut`] and spawning futures.
 /// 

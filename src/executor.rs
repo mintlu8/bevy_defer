@@ -6,7 +6,7 @@ use bevy_asset::AssetServer;
 use bevy_ecs::system::{CommandQueue, Commands, NonSend, Res, StaticSystemParam};
 use std::future::Future;
 use ref_cast::RefCast;
-use crate::async_world::AsyncWorldMut;
+use crate::access::AsyncWorldMut;
 use crate::queue::AsyncQueryQueue;
 use crate::reactors::Reactors;
 use crate::LocalResourceScope;

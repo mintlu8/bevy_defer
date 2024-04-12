@@ -1,9 +1,9 @@
-use std::{ops::Deref, rc::Rc};
+use std::rc::Rc;
 use bevy_asset::{Asset, AssetPath, AssetServer, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::{future::Either, Future, FutureExt};
 use std::future::ready;
-use crate::{async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, CHANNEL_CLOSED};
+use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue, CHANNEL_CLOSED};
 use crate::locals::with_asset_server;
 
 
@@ -97,22 +97,5 @@ impl<A: Asset> AsyncAsset<A> {
             sender
         );
         Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
-    }
-}
-
-
-/// Add method to [`AsyncAsset`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncAssetDeref: Asset + Sized {
-    type Target;
-    fn async_deref(this: &AsyncAsset<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncAsset<C> where C: AsyncAssetDeref{
-    type Target = <C as AsyncAssetDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncAssetDeref::async_deref(self)
     }
 }
