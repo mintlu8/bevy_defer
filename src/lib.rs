@@ -37,6 +37,10 @@ pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 
 pub mod access {
     //! Asynchronous accessors to the `World`.
+    pub mod traits {
+        //! Access traits for `bevy_defer`.
+        pub use crate::accessors::*;
+    }
     pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut, AsyncChild};
     pub use crate::async_query::{AsyncQuery, AsyncEntityQuery, AsyncQuerySingle};
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};

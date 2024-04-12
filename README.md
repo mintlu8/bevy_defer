@@ -130,6 +130,9 @@ world().entity(entity).component::<Transform>()
 
 See the `access` module for more detail.
 
+Access functions are defined by the `AsyncAccess` trait,
+be sure to import this trait.
+
 You can add extension methods to these accessors via `Deref` if you own the
 underlying types. See the `extension` module for more detail.
 

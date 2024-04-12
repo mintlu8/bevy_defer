@@ -43,10 +43,12 @@ use crate::async_values::{AsyncComponent, AsyncNonSend, AsyncResource};
 pub trait Captures<T> {}
 impl<'a, T: ?Sized> Captures<&'a ()> for T {}
 
+/// Obtain readonly access from a readonly `&World`.
 pub trait AsyncReadonlyAccess: AsyncAccess {
     fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AsyncResult<Self::Ref<'t>>;
 }
 
+/// Async access that derefs to a concrete type.
 pub trait AsyncAccessRef: 
         for<'t> AsyncAccess<RefMut<'t> = &'t mut Self::Generic> +  
         for<'t> AsyncReadonlyAccess<Ref<'t> = &'t Self::Generic> {
@@ -178,6 +180,8 @@ pub trait AsyncAccess {
 
     /// Run a function on a readonly reference to this item and obtain the result,
     /// repeat until the item is loaded.
+    /// 
+    /// Completes immediately if `&World` access is available and item is loaded.
     fn get_on_load<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncReadonlyAccess + AsyncLoad{
         let ctx = self.as_cx();
         let mut f = Some(f);
