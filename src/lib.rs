@@ -1,6 +1,8 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
+use bevy_core::FrameCountPlugin;
+use bevy_time::TimePlugin;
 use bevy_utils::intern::Interned;
 use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 mod async_world;
@@ -14,9 +16,9 @@ pub mod signals;
 mod executor;
 mod commands;
 mod accessors;
-mod ext;
 mod locals;
 mod queue;
+pub mod ext;
 pub mod reactors;
 pub mod cancellation;
 pub mod tween;
@@ -35,7 +37,7 @@ pub use crate::executor::{world, in_async_context, spawn, spawn_scoped};
 pub mod access {
     //! Asynchronous accessors to the `World`.
     pub use crate::async_world::{AsyncWorld, AsyncWorldMut, AsyncEntityMut, AsyncChild};
-    pub use crate::async_query::{AsyncQuery, AsyncEntityQuery};
+    pub use crate::async_query::{AsyncQuery, AsyncEntityQuery, AsyncQuerySingle};
     pub use crate::async_values::{AsyncComponent, AsyncResource, AsyncNonSend, AsyncSystemParam};
     pub use crate::async_event::EventStream;
     pub use crate::async_asset::AsyncAsset;
@@ -45,7 +47,7 @@ pub mod access {
 pub mod extensions {
     //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
     pub use crate::async_values::{AsyncComponentDeref, AsyncResourceDeref, AsyncNonSendDeref, AsyncSystemParamDeref};
-    pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref};
+    pub use crate::async_query::{AsyncQueryDeref, AsyncEntityQueryDeref, AsyncQuerySingleDeref};
     pub use crate::async_asset::AsyncAssetDeref;
 }
 
@@ -56,6 +58,7 @@ pub mod systems {
     pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
     pub use crate::async_event::react_to_event;
     pub use crate::reactors::react_to_state;
+    pub use crate::ext::react_to_animation;
 }
 
 use std::future::Future;
@@ -87,6 +90,12 @@ pub struct CoreAsyncPlugin;
 
 impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<TimePlugin>() {
+            panic!("Requires `TimePlugin`.")
+        }
+        if !app.is_plugin_added::<FrameCountPlugin>() {
+            panic!("Requires `FrameCountPlugin`.")
+        }
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
             .init_resource::<Reactors>()

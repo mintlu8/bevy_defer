@@ -1,4 +1,4 @@
-use crate::{async_systems::AsyncWorldParam, async_world::AsyncWorldMut, signals::Signals, AsyncAccess, CHANNEL_CLOSED};
+use crate::{async_systems::AsyncWorldParam, async_world::AsyncWorldMut, signals::Signals, AsyncAccess};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
@@ -10,11 +10,7 @@ use bevy_ecs::system::Query;
 use std::{
     borrow::Borrow, future::Future, marker::PhantomData, ops::Deref, rc::Rc
 };
-use crate::channels::channel;
-use super::{AsyncQueryQueue, AsyncFailure, AsyncResult, async_systems::AsyncEntityParam};
-use futures::FutureExt;
-#[derive(Debug, Resource)]
-pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
+use super::{AsyncQueryQueue, AsyncFailure, async_systems::AsyncEntityParam};
 
 /// Async version of [`Query`]
 #[derive(Debug, Clone)]
@@ -31,7 +27,16 @@ pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) p: PhantomData<(T, F)>,
 }
 
+/// Async version of [`Query`]
+#[derive(Debug, Clone)]
+pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()> {
+    pub(crate) queue: Rc<AsyncQueryQueue>,
+    pub(crate) p: PhantomData<(T, F)>,
+}
+
+
 impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
+    /// Obtain an [`AsyncEntityQuery`] on a specific entity.
     pub fn entity(&self, entity: impl Borrow<Entity>) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
             entity: *entity.borrow(),
@@ -39,17 +44,17 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
             p: PhantomData,
         }
     }
+
+    /// Obtain an [`AsyncQuerySingle`] on a single entity.
+    pub fn single(&self) -> AsyncQuerySingle<T, F> {
+        AsyncQuerySingle {
+            queue: self.queue.clone(),
+            p: PhantomData,
+        }
+    }
 }
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
-    /// Try run a function on a singleton query.
-    pub fn single<U: 'static> (
-        &self,
-        f: impl FnOnce(T::Item<'_>) -> U + 'static,
-    ) -> impl Future<Output = AsyncResult<U>> + 'static {
-        self.world().run(|w| Ok(f(OwnedQueryState::<T, F>::new(w).single_mut()?)))
-    }
-    
     /// Run a function on the iterator.
     pub fn for_each (
         &self,
@@ -65,6 +70,15 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
 }
 
 impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuery<T, F> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
+        Some(Self {
+            queue: executor.queue.clone(),
+            p: PhantomData,
+        })
+    }
+}
+
+impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuerySingle<T, F> {
     fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
         Some(Self {
             queue: executor.queue.clone(),
@@ -89,66 +103,6 @@ impl<T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
     }
 }
 
-impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncEntityQuery<T, F> {
-    /// Run a function on the [`Query`] and obtain the result.
-    pub fn run<Out: 'static>(
-        &self,
-        f: impl FnOnce(T::Item<'_>) -> Out + 'static,
-    ) -> impl Future<Output = AsyncResult<Out>> + 'static {
-        let (sender, receiver) = channel();
-        let entity = self.entity;
-        self.queue.once(
-            move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
-                Some(mut state) => {
-                    let result = f(state.0.get_mut(world, entity).ok()?);
-                    world.insert_resource(state);
-                    Some(result)
-                }
-                None => {
-                    let mut state = ResQueryCache(world.query_filtered::<T, F>());
-                    let result = f(state.0.get_mut(world, entity).ok()?);
-                    world.insert_resource(state);
-                    Some(result)
-                }
-            },
-            sender,
-        );
-        receiver.map(|r| {
-            match r {
-                Ok(Some(out)) => Ok(out),
-                Ok(None) => Err(AsyncFailure::ComponentNotFound),
-                Err(_) => Err(AsyncFailure::ChannelClosed),
-            }
-        })
-    }
-
-    /// Run a repeatable function on the [`Query`] and obtain the result once [`Some`] is returned.
-    pub fn watch<U: 'static>(
-        &self,
-        mut f: impl FnMut(<T as WorldQuery>::Item<'_>) -> Option<U> + 'static,
-    ) -> impl Future<Output = U> + 'static {
-        let (sender, receiver) = channel();
-        let entity = self.entity;
-        self.queue.repeat(
-            move |world: &mut World| match world.remove_resource::<ResQueryCache<T, F>>() {
-                Some(mut state) => {
-                    let result = f(state.0.get_mut(world, entity).ok()?);
-                    world.insert_resource(state);
-                    result
-                }
-                None => {
-                    let mut state = ResQueryCache(world.query_filtered::<T, F>());
-                    let result = f(state.0.get_mut(world, entity).ok()?);
-                    world.insert_resource(state);
-                    result
-                }
-            },
-            sender,
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-}
-
 /// Add method to [`AsyncQuery`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
@@ -162,6 +116,22 @@ impl<C, F> Deref for AsyncQuery<C, F> where C: AsyncQueryDeref, F: QueryFilter{
 
     fn deref(&self) -> &Self::Target {
         AsyncQueryDeref::async_deref(self)
+    }
+}
+
+/// Add method to [`AsyncQuerySingle`] through deref.
+///
+/// It is recommended to derive [`RefCast`](ref_cast) for this.
+pub trait AsyncQuerySingleDeref: QueryData + Sized {
+    type Target<F: QueryFilter>;
+    fn async_deref<F: QueryFilter>(this: &AsyncQuerySingle<Self, F>) -> &Self::Target<F>;
+}
+
+impl<C, F> Deref for AsyncQuerySingle<C, F> where C: AsyncQuerySingleDeref, F: QueryFilter{
+    type Target = <C as AsyncQuerySingleDeref>::Target<F>;
+
+    fn deref(&self) -> &Self::Target {
+        AsyncQuerySingleDeref::async_deref(self)
     }
 }
 
@@ -181,9 +151,18 @@ impl<C, F> Deref for AsyncEntityQuery<C, F> where C: AsyncEntityQueryDeref, F: Q
     }
 }
 
-/// A [`World`] reference and a cached [`QueryState`].
+/// A resource that caches a [`QueryState`].
 /// 
-/// Stores the [`QueryState`] in the [`World`] on drop.
+/// Since [`QueryState`] cannot be constructed from `&World`, readonly access is not supported.
+#[derive(Debug, Resource)]
+pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
+
+/// A [`World`] reference with a cached [`QueryState`].
+/// 
+/// Tries to obtain the [`QueryState`] from the [`World`] on create 
+/// and stores the [`QueryState`] in the [`World`] on drop.
+/// 
+/// Since [`QueryState`] cannot be constructed from `&World`, readonly access is not supported.
 pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
     world: &'t mut World,
     state: Option<QueryState<D, F>>,
@@ -210,12 +189,18 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
 
     pub fn single(&mut self) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
         self.state.as_mut().unwrap()
-            .get_single(self.world).map_err(|_|AsyncFailure::EntityNotFound)
+            .get_single(self.world).map_err(|e| match e {
+                bevy_ecs::query::QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
+                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
+            })
     }
 
     pub fn single_mut(&mut self) -> Result<D::Item<'_>, AsyncFailure> {
         self.state.as_mut().unwrap()
-            .get_single_mut(self.world).map_err(|_|AsyncFailure::EntityNotFound)
+            .get_single_mut(self.world).map_err(|e| match e {
+                bevy_ecs::query::QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
+                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
+            })
     }
 
     pub fn get(&mut self, entity: Entity) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {

@@ -66,6 +66,7 @@ mod sealed {
 
     use crate::access::AsyncEntityQuery;
     use crate::extensions::AsyncEntityQueryDeref;
+    use crate::AsyncAccess;
     /// [`QueryData`] for asynchronously accessing a `bevy_mod_picking` pickable's state.
     #[derive(Debug, QueryData)]
     pub struct AsyncPicking {
@@ -91,7 +92,7 @@ mod sealed {
                 let result = ui.interaction == &PickingInteraction::Hovered && last == PickingInteraction::Pressed;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `pressed` -> `none`.
@@ -101,7 +102,7 @@ mod sealed {
                 let result = ui.interaction == &PickingInteraction::None && last == PickingInteraction::Pressed;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `!pressed` -> `pressed`.
@@ -111,7 +112,7 @@ mod sealed {
                 let result = ui.interaction == &PickingInteraction::Pressed && last != PickingInteraction::Pressed;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `!none`.
@@ -121,7 +122,7 @@ mod sealed {
                 let result = ui.interaction != &PickingInteraction::None && last == PickingInteraction::None;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `none`.
@@ -131,7 +132,7 @@ mod sealed {
                 let result = ui.interaction == &PickingInteraction::None && last != PickingInteraction::None;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
     }
 

@@ -52,6 +52,7 @@ mod sealed {
 
     use crate::access::AsyncEntityQuery;
     use crate::extensions::AsyncEntityQueryDeref;
+    use crate::AsyncAccess;
     /// [`QueryData`] for asynchronously accessing a UI button's state.
     #[derive(Debug, QueryData)]
     pub struct AsyncUIButton {
@@ -77,7 +78,7 @@ mod sealed {
                 let result = ui.interaction == &Interaction::Hovered && last == Interaction::Pressed;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `pressed` -> `none`.
@@ -87,7 +88,7 @@ mod sealed {
                 let result = ui.interaction == &Interaction::None && last == Interaction::Pressed;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `!pressed` -> `pressed`.
@@ -97,7 +98,7 @@ mod sealed {
                 let result = ui.interaction == &Interaction::Pressed && last != Interaction::Pressed;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `!none`.
@@ -107,7 +108,7 @@ mod sealed {
                 let result = ui.interaction != &Interaction::None && last == Interaction::None;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
 
         /// returns when `none`.
@@ -117,7 +118,7 @@ mod sealed {
                 let result = ui.interaction == &Interaction::None && last != Interaction::None;
                 last = *ui.interaction;
                 result.then_some(ui.get_cursor())
-            }).await
+            }).await.unwrap_or_default()
         }
     }
 

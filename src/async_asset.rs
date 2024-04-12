@@ -3,7 +3,7 @@ use bevy_asset::{Asset, AssetPath, AssetServer, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::{future::Either, Future, FutureExt};
 use std::future::ready;
-use crate::{accessors::Captures, async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, CHANNEL_CLOSED};
+use crate::{async_world::AsyncWorldMut, channel, queue::AsyncQueryQueue, CHANNEL_CLOSED};
 use crate::locals::with_asset_server;
 
 
@@ -74,9 +74,9 @@ impl<A: Asset> AsyncAsset<A> {
     }
 
     /// Repeat until the asset is loaded, returns false if loading failed.
-    pub fn loaded<T: 'static> (
+    pub fn loaded (
         &self, 
-    ) -> impl Future<Output = bool> + 'static + Captures<&'_ ()> {
+    ) -> impl Future<Output = bool> + 'static {
         match with_asset_server(|server| {
             server.load_state(&self.handle)
         }) {

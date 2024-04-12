@@ -229,8 +229,8 @@ pub fn run_time_series(
 impl AsyncWorldMut {
     /// Run a repeatable routine on [`FixedUpdate`], with access to delta time.
     pub fn fixed_routine<T: 'static>(
-        &self, 
-        mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static, 
+        &self,
+        mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
         cancellation: impl Into<TaskCancellation>
     ) -> impl Future<Output = Option<T>> {
         let (sender, receiver) = channel();
