@@ -3,7 +3,7 @@ use std::task::Waker;
 use std::{cell::RefCell, collections::BinaryHeap};
 
 use bevy_core::FrameCount;
-use bevy_ecs::system::NonSend;
+use bevy_ecs::system::{CommandQueue, NonSend};
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
@@ -59,6 +59,7 @@ impl<T: Ord, V> Ord for TimeIndex<T, V> {
 pub struct AsyncQueryQueue {
     pub(crate) once_queue: RefCell<Vec<QueryOnce>>,
     pub(crate) repeat_queue: RefCell<Vec<QueryCallback>>,
+    pub(crate) command_queue: RefCell<CommandQueue>,
     pub(crate) fixed_queue: RefCell<Vec<FixedTask>>,
     pub(crate) time_series: RefCell<BinaryHeap<TimeIndex<Duration, Sender<()>>>>,
     pub(crate) frame_series: RefCell<BinaryHeap<TimeIndex<u32, Sender<()>>>>,
@@ -72,6 +73,7 @@ impl std::fmt::Debug for AsyncQueryQueue {
         f.debug_struct("AsyncQueryQueue")
             .field("once_queue", &self.once_queue.borrow().len())
             .field("repeat_queue", &self.repeat_queue.borrow().len())
+            .field("command_queue", &self.command_queue)
             .field("fixed_queue", &self.fixed_queue.borrow().len())
             .field("time_series", &self.time_series.borrow().len())
             .field("frames_series", &self.frame_series.borrow().len())

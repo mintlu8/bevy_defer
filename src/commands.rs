@@ -3,7 +3,7 @@ use bevy_app::AppExit;
 use bevy_utils::Duration;
 use futures::{future::ready, Stream};
 use rustc_hash::FxHashMap;
-use crate::{access::async_world::AsyncEntityMutFuture, channels::{channel, ChannelOut, MaybeChannelOut}, executor::COMMAND_QUEUE, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
+use crate::{access::async_world::AsyncEntityMutFuture, channels::{channel, ChannelOut, MaybeChannelOut}, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::AsyncWorldMut, AsyncFailure, AsyncResult};
@@ -14,10 +14,6 @@ impl AsyncWorldMut {
     /// 
     /// Use [`AsyncWorldMut::run`] to wait and obtain a result.
     /// 
-    /// # Panics
-    ///
-    /// If used outside a `bevy_defer` future.
-    /// 
     /// # Example
     /// 
     /// ```
@@ -26,10 +22,7 @@ impl AsyncWorldMut {
     /// # );
     /// ```
     pub fn apply_command(&self, command: impl Command) {
-        if !COMMAND_QUEUE.is_set() {
-            panic!("Cannot use `apply_command` in non_async context, use `run` instead.")
-        }
-        COMMAND_QUEUE.with(|q| q.borrow_mut().push(command))
+        self.queue.command_queue.borrow_mut().push(command)
     }
 
     /// Apply a [`CommandQueue`], does not wait for it to complete.
@@ -48,10 +41,7 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     pub fn apply_command_queue(&self, mut commands: CommandQueue) {
-        if !COMMAND_QUEUE.is_set() {
-            panic!("Cannot use `apply_command_queue` in non_async context, use `run` instead.")
-        }
-        COMMAND_QUEUE.with(|q| q.borrow_mut().append(&mut commands))
+        self.queue.command_queue.borrow_mut().append(&mut commands)
     }
 
     /// Apply a function on the [`World`] and obtain the result.

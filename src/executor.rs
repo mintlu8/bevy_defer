@@ -1,9 +1,8 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::ops::Deref;
 use async_executor::{LocalExecutor, Task};
 use bevy_asset::AssetServer;
-use bevy_ecs::system::{CommandQueue, Commands, NonSend, Res, StaticSystemParam};
+use bevy_ecs::system::{Commands, NonSend, Res, StaticSystemParam};
 use std::future::Future;
 use ref_cast::RefCast;
 use crate::access::AsyncWorldMut;
@@ -95,8 +94,6 @@ impl Deref for QueryQueue {
     }
 }
 
-scoped_tls::scoped_thread_local! {pub(crate) static COMMAND_QUEUE: RefCell<CommandQueue>}
-
 /// System for running [`AsyncExecutor`].
 pub fn run_async_executor<R: LocalResourceScope>(
     mut commands: Commands,
@@ -107,15 +104,12 @@ pub fn run_async_executor<R: LocalResourceScope>(
     state_reactors: Res<Reactors>,
     executor: NonSend<AsyncExecutor>
 ) {
-    let mut cmd_queue = RefCell::new(CommandQueue::default());
-    COMMAND_QUEUE.set(&cmd_queue, || {
-        AssetServer::maybe_scoped(asset_server.as_ref(), ||{
-            Reactors::scoped(&state_reactors, || {
-                R::scoped(&*scoped, || world_scope(&queue.0, &executor.0, || {
-                    while executor.0.try_tick() {}
-                }))
-            })
+    AssetServer::maybe_scoped(asset_server.as_ref(), ||{
+        Reactors::scoped(&state_reactors, || {
+            R::scoped(&*scoped, || world_scope(&queue.0, &executor.0, || {
+                while executor.0.try_tick() {}
+            }))
         })
     });
-    commands.append(cmd_queue.get_mut())
+    commands.append(&mut *queue.command_queue.borrow_mut())
 }

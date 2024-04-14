@@ -8,6 +8,8 @@ use crate::channels::MaybeChannelOut;
 use crate::AsyncResult;
 use crate::access::{AsyncEntityMut, AsyncWorldMut};
 
+/// A component that sends a signal and removes itself
+/// if a paired `Scene` is loaded.
 #[derive(Debug, Component)]
 pub struct SceneSignal(async_oneshot::Sender<()>);
 
