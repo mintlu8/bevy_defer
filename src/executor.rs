@@ -111,5 +111,5 @@ pub fn run_async_executor<R: LocalResourceScope>(
             }))
         })
     });
-    commands.append(&mut *queue.command_queue.borrow_mut())
+    commands.append(&mut queue.command_queue.borrow_mut())
 }

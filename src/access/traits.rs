@@ -170,12 +170,12 @@ pub trait AsyncAccess {
     }
 
     /// Clone the item.
-    fn cloned<'a>(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef, Self::Generic: Clone {
+    fn cloned(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef, Self::Generic: Clone {
         self.get(Clone::clone)
     }
 
     /// Clone the item, repeat until the item is loaded.
-    fn clone_on_load<'t>(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef + AsyncLoad, Self::Generic: Clone {
+    fn clone_on_load(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef + AsyncLoad, Self::Generic: Clone {
         self.get_on_load(Clone::clone)
     }
 
