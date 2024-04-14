@@ -1,7 +1,9 @@
 //! `!Send` version of `futures_channels::oneshot`
 use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
 use std::future::Future;
-use futures::future::FusedFuture;
+use futures::future::{Either, FusedFuture, Ready};
+
+use crate::{AsyncResult, CHANNEL_CLOSED};
 
 /// Sender for a `!Send` oneshot channel.
 #[derive(Debug)]
@@ -148,6 +150,16 @@ impl<T> Receiver<T> {
             waker.wake()
         }
     }
+    
+    /// Asset channel will not be closed.
+    pub fn into_out(self) -> ChannelOut<T> {
+        ChannelOut(self)
+    }
+
+    /// Map cancel as option.
+    pub fn into_option(self) -> ChannelOutOrCancel<T> {
+        ChannelOutOrCancel(self)
+    }
 }
 
 impl<T> Drop for Sender<T> {
@@ -166,8 +178,8 @@ impl<T> Drop for Receiver<T> {
 }
 
 /// Future for a `!Send` oneshot channel being closed.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ChannelCancel<'a, T>(&'a mut Sender<T>);
 
 impl<T> Future for ChannelCancel<'_, T> {
@@ -201,5 +213,79 @@ impl<T> Future for Receiver<T> {
 impl<T> FusedFuture for Receiver<T> {
     fn is_terminated(&self) -> bool {
         self.0.complete.get()
+    }
+}
+
+/// Channel output with cancellation asserted to be impossible.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct ChannelOut<T>(pub(crate) Receiver<T>);
+
+impl<T> Unpin for ChannelOut<T> {}
+
+impl<T> Future for ChannelOut<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.0.0.recv(cx).map(|x| x.expect(CHANNEL_CLOSED))
+    }
+}
+
+impl<T> FusedFuture for ChannelOut<T> {
+    fn is_terminated(&self) -> bool {
+        self.0.0.complete.get()
+    }
+}
+
+/// Channel output with cancellation as `None`.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct ChannelOutOrCancel<T>(pub(crate) Receiver<T>);
+
+impl<T> Unpin for ChannelOutOrCancel<T> {}
+
+impl<T> Future for ChannelOutOrCancel<T> {
+    type Output = Option<T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.0.0.recv(cx).map(|x| x.ok())
+    }
+}
+
+impl<T> FusedFuture for ChannelOutOrCancel<T> {
+    fn is_terminated(&self) -> bool {
+        self.0.0.complete.get()
+    }
+}
+
+/// Channel output or ready immediately.
+pub type MaybeChannelOut<T> = Either<ChannelOut<T>, Ready<T>>;
+
+
+/// Channel output with cancellation as `None`.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct InterpolateOut(pub(crate) Receiver<AsyncResult<()>>);
+
+impl Future for InterpolateOut {
+    type Output = AsyncResult<()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.0.0.recv(cx).map(|x| match x {
+            Ok(x) => x,
+            Err(_) => Ok(()),
+        })
+    }
+}
+
+impl FusedFuture for InterpolateOut {
+    fn is_terminated(&self) -> bool {
+        self.0.0.complete.get()
+    }
+}
+
+impl ChannelOutOrCancel<AsyncResult<()>> {
+    pub(crate) fn into_interpolate_out(self) -> InterpolateOut {
+        InterpolateOut(self.0)
     }
 }

@@ -3,46 +3,12 @@
 use std::{borrow::BorrowMut, cell::OnceCell};
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter, WorldQuery}, system::Resource, world::World};
-use futures::{future::{ready, Either}, Future};
+use futures::future::{ready, Either};
 use ref_cast::RefCast;
-use crate::{cancellation::TaskCancellation, locals::with_world_ref, AsyncFailure, AsyncResult};
+use crate::{cancellation::TaskCancellation, channels::{ChannelOut, InterpolateOut, MaybeChannelOut}, locals::with_world_ref, AsyncFailure, AsyncResult};
 use crate::access::{AsyncWorldMut, AsyncEntityQuery, AsyncAsset, AsyncQuery, AsyncQuerySingle, AsyncComponent, AsyncNonSend, AsyncResource};
 use crate::tween::{AsSeconds, Lerp, Playback};
 use crate::OwnedQueryState;
-
-/// A trait that lets RPIT `'static` futures capture (non-existent) lifetimes.
-/// 
-/// See <https://github.com/rust-lang/rust/issues/82171>
-/// 
-/// This fixes the issue that `impl Future<Output = i32> + 'static` in trait can potentially capture additional lifetimes.
-/// 
-/// ```compile_fail
-/// # use core::future::Future;
-/// # use bevy_defer::Captures;
-/// trait A {
-///     fn get(&self) -> impl Future<Output = i32> + 'static;
-/// }
-///
-/// fn get(a: &impl A) -> impl Future<Output = i32> + 'static {
-///     a.get()
-/// }
-/// ```
-/// 
-/// The fix is this, note `get` doesn't actually capture lifetimes due to the static bound.
-/// 
-/// ```
-/// # use core::future::Future;
-/// # use bevy_defer::Captures;
-/// trait A {
-///     fn get(&self) -> impl Future<Output = i32> + 'static;
-/// }
-///
-/// fn get(a: &impl A) -> impl Future<Output = i32> + 'static + Captures<&'_ ()> {
-///     a.get()
-/// }
-/// ```
-pub trait Captures<T> {}
-impl<'a, T: ?Sized> Captures<&'a ()> for T {}
 
 /// Obtain readonly access from a readonly `&World`.
 pub trait AsyncReadonlyAccess: AsyncAccess {
@@ -89,13 +55,13 @@ pub trait AsyncAccess {
     fn from_mut_cx<'t>(cx: &'t mut Self::RefMutCx<'_>, cx: &Self::Cx) -> AsyncResult<Self::RefMut<'t>>;
 
     /// Remove and obtain the item from the world.
-    fn take(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake {
+    fn take(&self) -> ChannelOut<AsyncResult<Self::Generic>> where Self: AsyncTake {
         let cx = self.as_cx();
         self.world().run(move |w| <Self as AsyncTake>::take(w, &cx))
     }
 
     /// Remove and obtain the item from the world once loaded.
-    fn take_on_load(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncTake + AsyncLoad {
+    fn take_on_load(&self) -> ChannelOut<AsyncResult<Self::Generic>> where Self: AsyncTake + AsyncLoad {
         let ctx = self.as_cx();
         self.world().watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
             Ok(result) => Some(Ok(result)),
@@ -105,7 +71,7 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result.
-    fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static{
+    fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> ChannelOut<AsyncResult<T>> {
         let cx = self.as_cx();
         self.world().run(move |w| {
             let mut mut_cx = Self::from_mut_world(w, &cx)?;
@@ -115,7 +81,7 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result once loaded.
-    fn set_on_load<T: 'static>(&self, mut f: impl FnMut(Self::RefMut<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncLoad{
+    fn set_on_load<T: 'static>(&self, mut f: impl FnMut(Self::RefMut<'_>) -> T + 'static) -> ChannelOut<AsyncResult<T>> where Self: AsyncLoad{
         let cx = self.as_cx();
         self.world().watch(move |w| match Self::from_mut_world(w, &cx) {
             Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
@@ -129,7 +95,7 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item until it returns `Some`.
-    fn watch<T: 'static>(&self, mut f: impl FnMut(Self::RefMut<'_>) -> Option<T> + 'static) -> impl Future<Output = AsyncResult<T>> + 'static{
+    fn watch<T: 'static>(&self, mut f: impl FnMut(Self::RefMut<'_>) -> Option<T> + 'static) -> ChannelOut<AsyncResult<T>>{
         let cx = self.as_cx();
         self.world().watch(move |w| match Self::from_mut_world(w, &cx) {
             Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
@@ -149,7 +115,7 @@ pub trait AsyncAccess {
     }
 
     /// Wait until the item is loaded.
-    fn exists(&self) -> impl Future<Output = ()> + 'static where Self: AsyncReadonlyAccess {
+    fn exists(&self) -> MaybeChannelOut<()> where Self: AsyncReadonlyAccess {
         let ctx = self.as_cx();
         if matches!(with_world_ref(|w| Self::from_ref_world(w, &ctx).is_ok()), Ok(true)) {
             return Either::Right(ready(()))
@@ -162,7 +128,7 @@ pub trait AsyncAccess {
     /// Run a function on a readonly reference to this item and obtain the result.
     /// 
     /// Completes immediately if `&World` access is available.
-    fn get<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncReadonlyAccess{
+    fn get<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> MaybeChannelOut<AsyncResult<T>> where Self: AsyncReadonlyAccess{
         let ctx = self.as_cx();
         let f = move |world: &World| {
             Ok(f(Self::from_ref_world(world, &ctx)?))
@@ -178,7 +144,7 @@ pub trait AsyncAccess {
     /// repeat until the item is loaded.
     /// 
     /// Completes immediately if `&World` access is available and item is loaded.
-    fn get_on_load<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> impl Future<Output = AsyncResult<T>> + 'static where Self: AsyncReadonlyAccess + AsyncLoad{
+    fn get_on_load<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> MaybeChannelOut<AsyncResult<T>> where Self: AsyncReadonlyAccess + AsyncLoad{
         let ctx = self.as_cx();
         let mut f = Some(f);
         // Wrap a FnOnce in a FnMut.
@@ -204,12 +170,12 @@ pub trait AsyncAccess {
     }
 
     /// Clone the item.
-    fn cloned<'a>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef, Self::Generic: Clone {
+    fn cloned<'a>(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef, Self::Generic: Clone {
         self.get(Clone::clone)
     }
 
     /// Clone the item, repeat until the item is loaded.
-    fn clone_on_load<'t>(&self) -> impl Future<Output = AsyncResult<Self::Generic>> + 'static where Self: AsyncAccessRef + AsyncLoad, Self::Generic: Clone {
+    fn clone_on_load<'t>(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef + AsyncLoad, Self::Generic: Clone {
         self.get_on_load(Clone::clone)
     }
 
@@ -222,29 +188,27 @@ pub trait AsyncAccess {
         mut curve: impl FnMut(f32) -> f32 + Send + 'static,
         duration: impl AsSeconds,
         cancel: impl Into<TaskCancellation>,
-    ) -> impl Future<Output = AsyncResult<()>> + 'static where Self: AsyncAccessRef {
+    ) -> InterpolateOut where Self: AsyncAccessRef {
         let world = self.world().clone();
         let mut t = 0.0;
         let duration = duration.as_secs();
         let source = OnceCell::new();
         let cancel = cancel.into();
         let cx = self.as_cx();
-        async move {
-            world.fixed_routine(move |world, dt| {
-                let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else { return None };
-                let Ok(item) = Self::from_mut_cx(&mut mut_cx, &cx) else { return None };
-                let source = source.get_or_init(||get(item)).clone();
-                t += dt.as_secs_f32();
-                if t > duration {
-                    set(item.borrow_mut(), to.clone());
-                    Some(Ok(()))
-                } else {
-                    let fac = curve(t / duration);
-                    set(item.borrow_mut(), V::lerp(source, to.clone(), fac));
-                    None
-                }
-            }, cancel).await.unwrap_or(Ok(()))
-        }
+        world.fixed_routine(move |world, dt| {
+            let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else { return None };
+            let Ok(item) = Self::from_mut_cx(&mut mut_cx, &cx) else { return None };
+            let source = source.get_or_init(||get(item)).clone();
+            t += dt.as_secs_f32();
+            if t > duration {
+                set(item.borrow_mut(), to.clone());
+                Some(Ok(()))
+            } else {
+                let fac = curve(t / duration);
+                set(item.borrow_mut(), V::lerp(source, to.clone(), fac));
+                None
+            }
+        }, cancel).into_interpolate_out()
     }
 
 
@@ -267,39 +231,37 @@ pub trait AsyncAccess {
         duration: impl AsSeconds,
         playback: Playback,
         cancel: impl Into<TaskCancellation>,
-    ) -> impl Future<Output = AsyncResult<()>> + 'static {
+    ) -> InterpolateOut {
         let world = self.world().clone();
         let cx = self.as_cx();
         let duration = duration.as_secs();
         let mut t = 0.0;
         let cancel = cancel.into();
-        async move {
-            world.fixed_routine(move |world, dt| {
-                let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else { return None };
-                let Ok(item) = Self::from_mut_cx(&mut mut_cx, &cx) else { return None };
-                t += dt.as_secs_f32() / duration;
-                let fac = if t > 1.0 {
-                    match playback {
-                        Playback::Once => {
-                            write(item, span(1.0));
-                            return Some(Ok(()))
-                        },
-                        Playback::Loop => {
-                            t = t.fract();
-                            t
-                        },
-                        Playback::Bounce => {
-                            t %= 2.0;
-                            1.0 - (1.0 - t % 2.0).abs()
-                        }
-                    } 
-                } else {
-                    t
-                };
-                write(item, span(curve(fac)));
-                None
-            }, cancel).await.unwrap_or(Ok(()))
-        }
+        world.fixed_routine(move |world, dt| {
+            let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else { return None };
+            let Ok(item) = Self::from_mut_cx(&mut mut_cx, &cx) else { return None };
+            t += dt.as_secs_f32() / duration;
+            let fac = if t > 1.0 {
+                match playback {
+                    Playback::Once => {
+                        write(item, span(1.0));
+                        return Some(Ok(()))
+                    },
+                    Playback::Loop => {
+                        t = t.fract();
+                        t
+                    },
+                    Playback::Bounce => {
+                        t %= 2.0;
+                        1.0 - (1.0 - t % 2.0).abs()
+                    }
+                } 
+            } else {
+                t
+            };
+            write(item, span(curve(fac)));
+            None
+        }, cancel).into_interpolate_out()
     }
 
 }

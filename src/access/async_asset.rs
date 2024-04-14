@@ -1,11 +1,11 @@
 use std::rc::Rc;
-use bevy_asset::{Asset, AssetPath, AssetServer, Handle, LoadState};
+use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
-use futures::{future::Either, Future, FutureExt};
-use std::future::ready;
-use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue, CHANNEL_CLOSED};
+use futures::future::{Either, ready};
+use crate::channels::{ChannelOut, MaybeChannelOut};
+use crate::{AsyncFailure, AsyncResult};
+use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue};
 use crate::locals::with_asset_server;
-
 
 /// Async version of [`Handle`].
 #[derive(Debug, Clone)]
@@ -60,6 +60,18 @@ impl AsyncWorldMut {
         }
     }
 
+    /// Add an asset and obtain its handle.
+    pub fn add_asset<A: Asset + 'static>(
+        &self,
+        item: A,
+    ) -> ChannelOut<AsyncResult<Handle<A>>>{
+        self.run(|w| 
+            Ok(w.get_resource_mut::<Assets<A>>()
+                .ok_or(AsyncFailure::ResourceNotFound)?
+                .add(item))
+        )
+    }
+
 }
 
 impl<A: Asset> AsyncAsset<A> {
@@ -76,7 +88,7 @@ impl<A: Asset> AsyncAsset<A> {
     /// Repeat until the asset is loaded, returns false if loading failed.
     pub fn loaded (
         &self, 
-    ) -> impl Future<Output = bool> + 'static {
+    ) -> MaybeChannelOut<bool> {
         match with_asset_server(|server| {
             server.load_state(&self.handle)
         }) {
@@ -96,6 +108,6 @@ impl<A: Asset> AsyncAsset<A> {
             },
             sender
         );
-        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+        Either::Left(receiver.into_out())
     }
 }

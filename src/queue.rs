@@ -8,8 +8,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
 use bevy_utils::Duration;
-use std::future::Future;
-use futures::FutureExt;
+use crate::channels::ChannelOutOrCancel;
 use crate::{access::AsyncWorldMut, cancellation::TaskCancellation, channel, channels::Sender, QueryQueue};
 
 #[allow(unused)]
@@ -232,7 +231,7 @@ impl AsyncWorldMut {
         &self,
         mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
         cancellation: impl Into<TaskCancellation>
-    ) -> impl Future<Output = Option<T>> {
+    ) -> ChannelOutOrCancel<T> {
         let (sender, receiver) = channel();
         let mut sender = sender.by_ref();
         let cancel = cancellation.into();
@@ -249,6 +248,6 @@ impl AsyncWorldMut {
                 cancel,
             }
         );
-        receiver.map(|f| f.ok())
+        receiver.into_option()
     }
 }

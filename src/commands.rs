@@ -1,13 +1,13 @@
 use std::{any::{Any, TypeId}, future::{poll_fn, Future}, task::Poll};
 use bevy_app::AppExit;
 use bevy_utils::Duration;
-use futures::{future::{ready, FusedFuture}, Stream};
+use futures::{future::ready, Stream};
 use rustc_hash::FxHashMap;
-use crate::{channels::channel, executor::COMMAND_QUEUE, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
+use crate::{access::async_world::AsyncEntityMutFuture, channels::{channel, ChannelOut, MaybeChannelOut}, executor::COMMAND_QUEUE, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
-use crate::{access::{AsyncWorldMut, AsyncEntityMut}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
-use futures::{FutureExt, future::Either};
+use crate::{access::AsyncWorldMut, AsyncFailure, AsyncResult};
+use futures::future::Either;
 
 impl AsyncWorldMut {
     /// Apply a command, does not wait for it to complete.
@@ -67,10 +67,10 @@ impl AsyncWorldMut {
     /// world().run(|w: &mut World| w.resource::<Int>().0).await
     /// # );
     /// ```
-    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> impl Future<Output = T> + 'static {
+    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> ChannelOut<T> {
         let (sender, receiver) = channel();
         self.queue.once(f, sender);
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Apply a function on the [`World`], repeat until it returns `Some`.
@@ -86,10 +86,10 @@ impl AsyncWorldMut {
     /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
     /// # );
     /// ```
-    pub fn watch<T: 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> impl Future<Output = T> + 'static {
+    pub fn watch<T: 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> ChannelOut<T> {
         let (sender, receiver) = channel();
         self.queue.repeat(f, sender);
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Runs a schedule a single time.
@@ -101,7 +101,7 @@ impl AsyncWorldMut {
     /// world().run_schedule(Update).await
     /// # );
     /// ```
-    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> impl Future<Output = AsyncResult> + 'static {
+    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> ChannelOut<AsyncResult> {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
                 world.try_run_schedule(schedule)
@@ -109,7 +109,7 @@ impl AsyncWorldMut {
             }, 
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Register a system and return a [`SystemId`] so it can later be called by `run_system`.
@@ -121,14 +121,14 @@ impl AsyncWorldMut {
     /// world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await
     /// # );
     /// ```
-    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> impl Future<Output = SystemId<I, O>> + 'static {
+    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> ChannelOut<SystemId<I, O>> {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
                 world.register_system(system)
             }, 
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Run a stored system by their [`SystemId`].
@@ -141,7 +141,7 @@ impl AsyncWorldMut {
     /// world().run_system(id).await.unwrap();
     /// # });
     /// ```
-    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> impl Future<Output = AsyncResult<O>> + 'static {
+    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> ChannelOut<AsyncResult<O>> {
         self.run_system_with_input(system, ())
     }
 
@@ -155,7 +155,7 @@ impl AsyncWorldMut {
     /// world().run_system_with_input(id, 4.0).await.unwrap();
     /// # });
     /// ```
-    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> impl Future<Output = AsyncResult<O>> + 'static {
+    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> ChannelOut<AsyncResult<O>> {
         let (sender, receiver) = channel();
         self.queue.once(move |world: &mut World| {
                 world.run_system_with_input(system, input)
@@ -163,7 +163,7 @@ impl AsyncWorldMut {
             }, 
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Run a system that will be stored and reused upon repeated usage.
@@ -179,7 +179,7 @@ impl AsyncWorldMut {
     /// world().run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await.unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> impl Future<Output = AsyncResult<O>> + 'static {
+    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> ChannelOut<AsyncResult<O>> {
         self.run_cached_system_with_input(system, ())
     }
 
@@ -196,7 +196,7 @@ impl AsyncWorldMut {
     /// world().run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).await.unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> impl Future<Output = AsyncResult<O>> + 'static {
+    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> ChannelOut<AsyncResult<O>> {
         #[derive(Debug, Resource, Default)]
         struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
 
@@ -216,7 +216,7 @@ impl AsyncWorldMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Spawns a new [`Entity`] with no components.
@@ -228,7 +228,7 @@ impl AsyncWorldMut {
     /// world().spawn_empty().await
     /// # );
     /// ```
-    pub fn spawn_empty(&self) -> impl Future<Output = AsyncEntityMut> + 'static {
+    pub fn spawn_empty(&self) -> AsyncEntityMutFuture {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
             move |world: &mut World| {
@@ -236,11 +236,7 @@ impl AsyncWorldMut {
             },
             sender
         );
-        let queue = self.queue.clone();
-        receiver.map(|entity| AsyncEntityMut {
-            entity: entity.expect(CHANNEL_CLOSED),
-            queue
-        })
+        receiver.into_out().into_entity_mut_future(self.queue.clone())
     }
 
     /// Spawn a new [`Entity`] with a given Bundle of components.
@@ -252,19 +248,15 @@ impl AsyncWorldMut {
     /// world().spawn_bundle(SpriteBundle::default()).await
     /// # );
     /// ```
-    pub fn spawn_bundle(&self, bundle: impl Bundle) -> impl Future<Output = AsyncEntityMut> + 'static {
+    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMutFuture {
         let (sender, receiver) = channel::<Entity>();
         self.queue.once(
             move |world: &mut World| {
                 world.spawn(bundle).id()
             },
             sender
-        );
-        let queue = self.queue.clone();
-        receiver.map(|entity| AsyncEntityMut {
-            entity: entity.expect(CHANNEL_CLOSED),
-            queue
-        })
+        );        
+        receiver.into_out().into_entity_mut_future(self.queue.clone())
     }
 
     /// Transition to a new [`States`].
@@ -276,7 +268,7 @@ impl AsyncWorldMut {
     /// world().set_state(MyState::A).await
     /// # });
     /// ```
-    pub fn set_state<S: States>(&self, state: S) -> impl Future<Output = AsyncResult<()>> + 'static {
+    pub fn set_state<S: States>(&self, state: S) -> ChannelOut<AsyncResult<()>> {
         let (sender, receiver) = channel();
         self.queue.once(
             move |world: &mut World| {
@@ -286,7 +278,7 @@ impl AsyncWorldMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Obtain a [`States`].
@@ -298,7 +290,7 @@ impl AsyncWorldMut {
     /// world().get_state::<MyState>().await
     /// # });
     /// ```
-    pub fn get_state<S: States>(&self) -> impl Future<Output = AsyncResult<S>> + 'static {
+    pub fn get_state<S: States>(&self) -> MaybeChannelOut<AsyncResult<S>> {
         let f = move |world: &World| {
             world.get_resource::<State<S>>().map(|s| s.get().clone())
                     .ok_or(AsyncFailure::ResourceNotFound)
@@ -309,7 +301,7 @@ impl AsyncWorldMut {
         };
         let (sender, receiver) = channel();
         self.queue.once(move |w|f(w), sender);
-        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+        Either::Left(receiver.into_out())
     }
 
     /// Wait until a [`States`] is entered.
@@ -322,7 +314,7 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     #[deprecated = "Use `state_stream` instead."]
-    pub fn in_state<S: States>(&self, state: S) -> impl Future<Output = ()> + 'static {
+    pub fn in_state<S: States>(&self, state: S) -> ChannelOut<()> {
         let (sender, receiver) = channel::<()>();
         self.queue.repeat(
             move |world: &mut World| {
@@ -331,7 +323,7 @@ impl AsyncWorldMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Obtain a [`Stream`] that reacts to changes of a [`States`].
@@ -352,14 +344,14 @@ impl AsyncWorldMut {
     /// world().sleep(5.4).await
     /// # });
     /// ```
-    pub fn sleep(&self, duration: impl AsSeconds) -> impl FusedFuture<Output = ()> + 'static {
+    pub fn sleep(&self, duration: impl AsSeconds) -> MaybeChannelOut<()> {
         let duration = duration.as_duration();
         if duration <= Duration::ZERO {
             return Either::Right(ready(()));
         }
         let (sender, receiver) = channel();
         self.queue.timed(duration.as_duration(), sender);
-        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+        Either::Left(receiver.into_out())
     }
 
     /// Pause the future for some frames, according to the `FrameCount` resource.
@@ -371,20 +363,20 @@ impl AsyncWorldMut {
     /// world().sleep_frames(12).await
     /// # });
     /// ```
-    pub fn sleep_frames(&self, frames: u32) -> impl FusedFuture<Output = ()> + 'static {
+    pub fn sleep_frames(&self, frames: u32) -> MaybeChannelOut<()> {
         let (sender, receiver) = channel();
         if frames == 0{
             return Either::Right(ready(()));
         }
         self.queue.timed_frames(frames, sender);
-        Either::Left(receiver.map(|x| x.expect(CHANNEL_CLOSED)))
+        Either::Left(receiver.into_out())
     }
 
     /// Yield control back to the `bevy_defer` executor.
     /// 
     /// Unlike `yield_now` from `futures_lite`,
     /// the future will be resumed on the next execution point.
-    pub fn yield_now(&self) -> impl Future<Output = ()> {
+    pub fn yield_now(&self) -> impl Future<Output = ()> + 'static {
         let mut yielded = false;
         let queue = self.queue.clone();
         poll_fn(move |cx| {
@@ -404,7 +396,7 @@ impl AsyncWorldMut {
     /// world().quit().await
     /// # });
     /// ```
-    pub fn quit(&self) -> impl Future<Output = ()> {
+    pub fn quit(&self) -> ChannelOut<()> {
         let (sender, receiver) = channel();
         self.queue.once(
             move |world: &mut World| {
@@ -412,7 +404,7 @@ impl AsyncWorldMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Obtain or init a signal by [`SignalId`].

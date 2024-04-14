@@ -3,14 +3,12 @@ use std::rc::Rc;
 use bevy_ecs::component::Component;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
-use futures::FutureExt;
 use ref_cast::RefCast;
-use std::future::Future;
 use crate::async_systems::AsyncWorldParam;
 use crate::access::AsyncWorldMut;
-use crate::channels::channel;
+use crate::channels::ChannelOut;
 use crate::signals::Signals;
-use crate::{async_systems::AsyncEntityParam, CHANNEL_CLOSED};
+use crate::async_systems::AsyncEntityParam;
 use crate::{AsyncQueryQueue, AsyncFailure, AsyncResult};
 
 /// Async version of [`SystemParam`].
@@ -45,28 +43,23 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
-    ) -> impl Future<Output = AsyncResult<T>> + 'static{
-        let (sender, receiver) = channel();
-        self.queue.once(
-            move |world: &mut World| {
-                let id = match world.get_resource::<ResSysParamId<Q, T>>(){
-                    Some(res) => res.0,
-                    None => {
-                        let id = world.register_system(
-                            |input: In<Box<SysParamFn<Q, T>>>, query: StaticSystemParam<Q>| -> T{
-                                (input.0)(query)
-                            }
-                        );
-                        world.insert_resource(ResSysParamId(id));
-                        id
-                    },
-                };
-                world.run_system_with_input(id, Box::new(f))
-                    .map_err(|_| AsyncFailure::SystemParamError)
-            },
-            sender,
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+    ) -> ChannelOut<AsyncResult<T>> {
+        self.world().run(move |world: &mut World| {
+            let id = match world.get_resource::<ResSysParamId<Q, T>>(){
+                Some(res) => res.0,
+                None => {
+                    let id = world.register_system(
+                        |input: In<Box<SysParamFn<Q, T>>>, query: StaticSystemParam<Q>| -> T{
+                            (input.0)(query)
+                        }
+                    );
+                    world.insert_resource(ResSysParamId(id));
+                    id
+                },
+            };
+            world.run_system_with_input(id, Box::new(f))
+                .map_err(|_| AsyncFailure::SystemParamError)
+        })
     }
 }
 

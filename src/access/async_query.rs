@@ -1,14 +1,14 @@
-use crate::{async_systems::AsyncWorldParam, access::AsyncWorldMut, signals::Signals, AsyncAccess};
+use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, channels::ChannelOut, signals::Signals, AsyncAccess};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
-    system::Resource,
+    system::{CommandQueue, Resource},
     world::World,
 };
 #[allow(unused)]
 use bevy_ecs::system::Query;
 use std::{
-    borrow::Borrow, future::Future, marker::PhantomData, ops::Deref, rc::Rc
+    borrow::Borrow, marker::PhantomData, ops::Deref, rc::Rc
 };
 use crate::{AsyncQueryQueue, AsyncFailure, async_systems::AsyncEntityParam};
 
@@ -59,7 +59,7 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     pub fn for_each (
         &self,
         mut f: impl FnMut(T::Item<'_>) + 'static,
-    ) -> impl Future<Output = ()> + 'static {
+    ) -> ChannelOut<()> {
         self.world().run(move |w| {
             let mut state = OwnedQueryState::<T, F>::new(w);
             for item in state.iter_mut(){
@@ -135,6 +135,12 @@ pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, 
 pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
     world: &'t mut World,
     state: Option<QueryState<D, F>>,
+}
+
+impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
+    pub fn apply_commands(&mut self, commands: &mut CommandQueue)  {
+        commands.apply(self.world)
+    }
 }
 
 impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D, F> {

@@ -1,12 +1,31 @@
 use std::ops::Deref;
 
+use bevy_ecs::component::Component;
+use bevy_ecs::query::With;
+use bevy_ecs::system::{Commands, Query};
+use bevy_scene::SceneInstance;
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, query::QueryState, world::World};
 use bevy_hierarchy::Children;
 use futures::{Future, FutureExt};
 use ref_cast::RefCast;
 use crate::channels::channel;
+use crate::{AsyncFailure, AsyncResult};
 use crate::{access::{AsyncEntityMut, AsyncWorldMut}, access::async_query::ResQueryCache, CHANNEL_CLOSED};
+
+#[derive(Debug, Component)]
+pub struct SceneSignal(async_oneshot::Sender<()>);
+
+/// Send [`SceneSignal`] once scene is loaded.
+pub fn react_to_scene_load(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut SceneSignal), With<SceneInstance>>
+) {
+    for (entity, mut signal) in query.iter_mut() {
+        let _ = signal.0.send(());
+        commands.entity(entity).remove::<SceneSignal>();
+    }
+}
 
 /// [`AsyncEntityMut`] with extra scene related methods.
 #[derive(RefCast)]
@@ -20,10 +39,12 @@ impl From<AsyncEntityMut> for AsyncScene {
 }
 
 impl AsyncWorldMut {
-    /// Spawn a bundle but returns a specialize version of `AsyncEntityMut`, [`AsyncScene`], with additional methods.
-    pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncScene{
-        let entity = self.spawn_bundle(bun).await.id();
-        AsyncScene(self.entity(entity))
+    /// Requires [`react_to_scene_load`] to function.
+    pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncEntityMut{
+        let (send, recv) = async_oneshot::oneshot();
+        let entity = self.spawn_bundle((bun, SceneSignal(send))).await.id();
+        let _ = recv.await;
+        AsyncEntityMut { entity, queue: self.queue.clone() }
     }
 }
 
@@ -53,36 +74,36 @@ fn find_name(world: &mut World, parent: Entity, name: &str, query: &mut QuerySta
 
 impl AsyncScene {
     /// Obtain a spawned entity by [`Name`].
-    /// 
-    /// Due to having to wait and not being able to prove a negative,
-    /// this method cannot fail. The user is responsible for cancelling this future.
-    pub fn spawned(&self, name: impl Into<String>) -> impl Future<Output = AsyncEntityMut>{
+    pub fn spawned(&self, name: impl Into<String>) -> impl Future<Output = AsyncResult<AsyncEntityMut>>{
         let (sender, receiver) = channel();
         let name = name.into();
         let entity = self.entity;
         self.queue.repeat(
             move |world: &mut World| {
+                if !world.entity(entity).contains::<SceneInstance>() {
+                    return None;
+                }
                 match world.remove_resource::<ResQueryCache<Q, ()>>() {
                     Some(mut state) => {
                         let result = find_name(world, entity, &name, &mut state.0);
                         world.insert_resource(state);
-                        result
+                        Some(result.ok_or(AsyncFailure::NameNotFound))
                     }
                     None => {
                         let mut state = ResQueryCache(world.query::<Q>());
                         let result = find_name(world, entity, &name, &mut state.0);
                         world.insert_resource(state);
-                        result
+                        Some(result.ok_or(AsyncFailure::NameNotFound))
                     }
                 }
             },
             sender,
         );
         let queue = self.queue.clone();
-        receiver.map(|entity| AsyncEntityMut{
-            entity: entity.expect(CHANNEL_CLOSED),
+        receiver.map(|entity| Ok(AsyncEntityMut{
+            entity: entity.expect(CHANNEL_CLOSED)?,
             queue,
-        })
+        }))
     }
 }
 

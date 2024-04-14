@@ -19,7 +19,7 @@ A simple asynchronous runtime for executing async coroutines.
 keywords = ["bevy", "async", "defer"]
 
 [features]
-default = ["bevy_ui", "bevy_animation", "bevy_mod_picking"]
+default = ["bevy_ui", "bevy_animation", "bevy_mod_picking", "bevy_scene"]
 bevy_mod_picking = ["dep:bevy_mod_picking"]
 
 [dependencies]
@@ -47,6 +47,8 @@ scoped-tls = "1.0.1"
 bevy_animation = { version = "0.13.1", optional = true }
 bevy_ui = { version = "0.13.1", optional = true }
 bevy_mod_picking = { version = "0.18.2", optional = true, default-features = false, features = ["selection"] }
+bevy_scene = { version = "0.13.1", optional = true }
+async-oneshot = "0.5.9"
 
 [dev-dependencies]
 bevy = { version = "0.13.0" }

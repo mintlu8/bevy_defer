@@ -1,9 +1,8 @@
-use crate::{channels::channel, signals::SignalInner};
+use crate::{channels::{channel, ChannelOut}, signals::SignalInner};
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
-use futures::FutureExt;
-use std::{future::Future, sync::Arc};
-use crate::{access::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult, CHANNEL_CLOSED};
+use std::sync::Arc;
+use crate::{access::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult};
 
 impl AsyncEntityMut {
 
@@ -17,7 +16,7 @@ impl AsyncEntityMut {
     /// entity.insert(Str("bevy")).await;
     /// # });
     /// ```
-    pub fn insert(&self, bundle: impl Bundle) -> impl Future<Output = Result<(), AsyncFailure>> {
+    pub fn insert(&self, bundle: impl Bundle) -> ChannelOut<Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -28,7 +27,7 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Removes any components in the [`Bundle`] from the entity.
@@ -41,7 +40,7 @@ impl AsyncEntityMut {
     /// entity.remove::<Int>().await;
     /// # });
     /// ```
-    pub fn remove<T: Bundle>(&self) -> impl Future<Output = Result<(), AsyncFailure>> {
+    pub fn remove<T: Bundle>(&self) -> ChannelOut<Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -52,7 +51,7 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Removes any components except those in the [`Bundle`] from the entity.
@@ -65,7 +64,7 @@ impl AsyncEntityMut {
     /// entity.retain::<Int>().await;
     /// # });
     /// ```
-    pub fn retain<T: Bundle>(&self) -> impl Future<Output = Result<(), AsyncFailure>> {
+    pub fn retain<T: Bundle>(&self) -> ChannelOut<Result<(), AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -76,7 +75,7 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Removes all components in the [`Bundle`] from the entity and returns their previous values.
@@ -91,7 +90,7 @@ impl AsyncEntityMut {
     /// entity.take::<Int>().await;
     /// # });
     /// ```
-    pub fn take<T: Bundle>(&self) -> impl Future<Output = Result<Option<T>, AsyncFailure>> {
+    pub fn take<T: Bundle>(&self) -> ChannelOut<Result<Option<T>, AsyncFailure>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -102,7 +101,7 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Spawns an entity with the given bundle and inserts it into the parent entity's Children.
@@ -115,8 +114,8 @@ impl AsyncEntityMut {
     /// let child = entity.spawn_child(Str("bevy")).await;
     /// # });
     /// ```
-    pub fn spawn_child(&self, bundle: impl Bundle) -> impl Future<Output = AsyncResult<Entity>> {
-        let (sender, receiver) = channel::<Option<Entity>>();
+    pub fn spawn_child(&self, bundle: impl Bundle) -> ChannelOut<AsyncResult<Entity>> {
+        let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
             move |world: &mut World| {
@@ -124,12 +123,11 @@ impl AsyncEntityMut {
                     let mut id = Entity::PLACEHOLDER;
                     entity.with_children(|spawn| {id = spawn.spawn(bundle).id()});
                     id
-                })
+                }).ok_or(AsyncFailure::EntityNotFound)
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED)
-            .ok_or(AsyncFailure::EntityNotFound))
+        receiver.into_out()
     }
 
     /// Adds a single child.
@@ -143,7 +141,7 @@ impl AsyncEntityMut {
     /// entity.add_child(child).await;
     /// # });
     /// ```
-    pub fn add_child(&self, child: Entity) -> impl Future<Output = AsyncResult<()>> {
+    pub fn add_child(&self, child: Entity) -> ChannelOut<AsyncResult<()>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -154,7 +152,7 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Despawns the given entity and all its children recursively.
@@ -167,7 +165,7 @@ impl AsyncEntityMut {
     /// entity.despawn().await;
     /// # });
     /// ```
-    pub fn despawn(&self) -> impl Future<Output = ()> {
+    pub fn despawn(&self) -> ChannelOut<()> {
         let (sender, receiver) = channel::<()>();
         let entity = self.entity;
         self.queue.once(
@@ -178,7 +176,7 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Despawns the given entity's children recursively.
@@ -191,7 +189,7 @@ impl AsyncEntityMut {
     /// entity.despawn_descendants().await;
     /// # });
     /// ```
-    pub fn despawn_descendants(&self) -> impl Future<Output = ()> {
+    pub fn despawn_descendants(&self) -> ChannelOut<()> {
         let (sender, receiver) = channel::<()>();
         let entity = self.entity;
         self.queue.once(
@@ -202,13 +200,13 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 
     /// Send data through a signal on this entity.
     /// 
     /// Returns `true` if the signal exists.
-    pub fn send<S: SignalId>(&self, data: S::Data) -> impl Future<Output = AsyncResult<bool>> {
+    pub fn send<S: SignalId>(&self, data: S::Data) -> ChannelOut<AsyncResult<bool>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -223,38 +221,11 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
-    }
-
-    /// Receive data from a signal on this entity.
-    pub fn recv<S: SignalId>(&self) -> impl Future<Output = AsyncResult<S::Data>> {
-        let (sender, receiver) = channel();
-        let entity = self.entity;
-        self.queue.once(
-            move |world: &mut World| {
-                let Some(mut entity) = world.get_entity_mut(entity) else {
-                    return Err(AsyncFailure::EntityNotFound)
-                };
-                let Some(signals) = entity.get_mut::<Signals>() else {
-                    return Err(AsyncFailure::ComponentNotFound)
-                };
-                let Some(receiver) = signals.borrow_receiver::<S>() else {
-                    return Err(AsyncFailure::SignalNotFound)
-                };
-                Ok(receiver)
-            },
-            sender
-        );
-        async {
-            match receiver.await.expect(CHANNEL_CLOSED) {
-                Ok(fut) => Ok(fut.poll().await),
-                Err(e) => Err(e),
-            }
-        }
+        receiver.into_out()
     }
     
     /// Borrow a sender from an entity with shared read tick.
-    pub fn sender<S: SignalId>(&self) -> impl Future<Output = AsyncResult<Arc<SignalInner<S::Data>>>> {
+    pub fn sender<S: SignalId>(&self) -> ChannelOut<AsyncResult<Arc<SignalInner<S::Data>>>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -269,11 +240,11 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
     
     /// Borrow a receiver from an entity with shared read tick.
-    pub fn receiver<S: SignalId>(&self) -> impl Future<Output = AsyncResult<Arc<SignalInner<S::Data>>>> {
+    pub fn receiver<S: SignalId>(&self) -> ChannelOut<AsyncResult<Arc<SignalInner<S::Data>>>> {
         let (sender, receiver) = channel();
         let entity = self.entity;
         self.queue.once(
@@ -288,6 +259,6 @@ impl AsyncEntityMut {
             },
             sender
         );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+        receiver.into_out()
     }
 }

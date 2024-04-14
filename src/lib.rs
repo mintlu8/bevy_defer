@@ -23,7 +23,7 @@ use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
-pub use access::traits::{AsyncAccess, Captures};
+pub use access::traits::AsyncAccess;
 pub use access::async_query::OwnedQueryState;
 pub use access::async_event::DoubleBufferedEvent;
 
@@ -45,6 +45,8 @@ pub mod systems {
     pub use crate::ext::picking::react_to_ui;
     #[cfg(feature="bevy_mod_picking")]
     pub use crate::ext::picking::react_to_picking;
+    #[cfg(feature="bevy_scene")]
+    pub use crate::ext::scene::react_to_scene_load;
 }
 
 use std::future::Future;
@@ -289,6 +291,8 @@ pub enum AsyncFailure {
     WorldParamNotFound,
     #[error("SystemId not found")]
     SystemIdNotFound,
+    #[error("name not found")]
+    NameNotFound,
     /// Return `Err(ManuallyKilled)` to terminate a `system_future!` future.
     #[error("manually killed a `system_future!` future")]
     ManuallyKilled,

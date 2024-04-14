@@ -1,9 +1,11 @@
 use std::usize;
 use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 use bevy_log::error;
+use bevy_tasks::futures_lite::FutureExt;
 use bevy_utils::Duration;
 use crate::async_systems::AsyncWorldParam;
 use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam};
+use crate::channels::ChannelOut;
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{NonSend, Resource, SystemParam}};
 use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
 use ref_cast::RefCast;
@@ -132,6 +134,32 @@ impl Deref for AsyncEntityMut {
 
     fn deref(&self) -> &Self::Target {
         AsyncWorldMut::ref_cast(&self.queue)
+    }
+}
+
+#[derive(Debug)]
+pub struct AsyncEntityMutFuture {
+    queue: Rc<AsyncQueryQueue>,
+    future: ChannelOut<Entity>
+}
+
+impl ChannelOut<Entity> {
+    pub fn into_entity_mut_future(self, queue: Rc<AsyncQueryQueue>) -> AsyncEntityMutFuture{
+        AsyncEntityMutFuture {
+            queue,
+            future: self,
+        }
+    }
+}
+
+impl Future for AsyncEntityMutFuture {
+    type Output = AsyncEntityMut;
+
+    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        self.future.poll(cx).map(|entity| AsyncEntityMut {
+            entity,
+            queue: self.queue.clone(),
+        })
     }
 }
 
