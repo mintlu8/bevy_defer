@@ -98,11 +98,11 @@ impl Deref for QueryQueue {
 pub fn run_async_executor<R: LocalResourceScope>(
     mut commands: Commands,
     queue: NonSend<QueryQueue>,
+    executor: NonSend<AsyncExecutor>,
+    state_reactors: Res<Reactors>,
     scoped: StaticSystemParam<R::Resource>,
     // Since nobody needs mutable access to `AssetServer` this is enabled by default.
     asset_server: Option<Res<AssetServer>>,
-    state_reactors: Res<Reactors>,
-    executor: NonSend<AsyncExecutor>
 ) {
     AssetServer::maybe_scoped(asset_server.as_ref(), ||{
         Reactors::scoped(&state_reactors, || {

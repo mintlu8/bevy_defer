@@ -1,7 +1,7 @@
 use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, channels::ChannelOut, signals::Signals, AsyncAccess};
 use bevy_ecs::{
     entity::Entity,
-    query::{QueryData, QueryFilter, QueryIter, QueryState, WorldQuery},
+    query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState, WorldQuery},
     system::{CommandQueue, Resource},
     world::World,
 };
@@ -173,6 +173,14 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
     pub fn get(&mut self, entity: Entity) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
         self.state.as_mut().unwrap()
             .get(self.world, entity).map_err(|_|AsyncFailure::EntityNotFound)
+    }
+
+    pub fn iter_many<E: IntoIterator>(&mut self, entities: E) -> QueryManyIter<'_, '_, D::ReadOnly, F, E::IntoIter> where E::Item: Borrow<Entity> {
+        self.state.as_mut().unwrap().iter_many(self.world, entities)
+    }
+
+    pub fn iter_many_mut<E: IntoIterator>(&mut self, entities: E) -> QueryManyIter<'_, '_, D, F, E::IntoIter> where E::Item: Borrow<Entity> {
+        self.state.as_mut().unwrap().iter_many_mut(self.world, entities)
     }
 
     pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_>, AsyncFailure> {

@@ -303,6 +303,41 @@ impl AsyncEntityMut {
         );
         Either::Left(receiver.into_out())
     }
+
+    /// Obtain all descendent entities in the hierarchy.
+    /// 
+    /// # Guarantee
+    /// 
+    /// The first item is always this entity, 
+    /// use `[1..]` to exclude it.
+    pub fn descendants(&self) -> MaybeChannelOut<Vec<Entity>> {
+        fn get_children(world: &World, parent: Entity, result: &mut Vec<Entity>) {
+            let Some(entity) = world.get_entity(parent) else {return};
+            if let Some(children) = entity.get::<Children>() {
+                result.extend(children.iter().cloned());
+                for child in children {
+                    get_children(world, *child, result);
+                }
+            }
+        }
+        let entity = self.entity;
+
+        let mut result = vec![entity];
+
+        if self.with_world_ref(|world|get_children(world, entity, &mut result)).is_ok() {
+            return Either::Right(ready(result))
+        }
+
+        let (sender, receiver) = channel();
+        self.queue.once(
+            move |world: &mut World| {
+                get_children(world, entity, &mut result);
+                result
+            },
+            sender,
+        );
+        Either::Left(receiver.into_out())
+    }
 }
 
 

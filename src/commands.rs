@@ -27,10 +27,6 @@ impl AsyncWorldMut {
 
     /// Apply a [`CommandQueue`], does not wait for it to complete.
     /// 
-    /// # Panics
-    ///
-    /// If used outside a `bevy_defer` future.
-    /// 
     /// # Example
     /// 
     /// ```
