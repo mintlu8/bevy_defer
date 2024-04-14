@@ -1,7 +1,9 @@
-use crate::{channels::{channel, ChannelOut}, signals::SignalInner};
+use crate::{channels::{channel, ChannelOut, MaybeChannelOut}, signals::SignalInner};
+use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
-use bevy_hierarchy::{BuildWorldChildren, DespawnChildrenRecursive, DespawnRecursive};
-use std::sync::Arc;
+use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};
+use futures::future::{ready, Either};
+use std::{borrow::Borrow, sync::Arc};
 use crate::{access::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult};
 
 impl AsyncEntityMut {
@@ -260,5 +262,47 @@ impl AsyncEntityMut {
             sender
         );
         receiver.into_out()
+    } 
+
+    /// Obtain a child entity by [`Name`].
+    pub fn child_by_name(&self, name: impl Into<String> + Borrow<str>) -> MaybeChannelOut<AsyncResult<AsyncEntityMut>> {
+        fn find_name(world: &World, parent: Entity, name: &str) -> Option<Entity> {
+            let entity = world.get_entity(parent)?;
+            if entity.get::<Name>().map(|x| x.as_str() == name) == Some(true) {
+                return Some(parent);
+            }
+            if let Some(children) = entity.get::<Children>() {
+                let children: Vec<_> = children.iter().cloned().collect();
+                children.into_iter().find_map(|e| find_name(world, e, name))
+            } else {
+                None
+            }
+        }
+        let entity = self.entity;
+
+        match self.with_world_ref(|world|find_name(world, entity, name.borrow())) {
+            Ok(Some(entity)) => return Either::Right(ready(Ok(AsyncEntityMut {
+                entity,
+                queue: self.queue.clone(),
+            }))),
+            Ok(None) => return Either::Right(ready(Err(AsyncFailure::EntityNotFound))),
+            Err(_) => (),
+        }
+
+        let (sender, receiver) = channel();
+        let name = name.into();
+        let queue = self.queue.clone();
+        self.queue.once(
+            move |world: &mut World| {
+                find_name(world, entity, &name).map(|entity| AsyncEntityMut {
+                    entity, 
+                    queue,
+                }).ok_or(AsyncFailure::EntityNotFound)
+            },
+            sender,
+        );
+        Either::Left(receiver.into_out())
     }
 }
+
+

@@ -258,7 +258,7 @@ impl<T> FusedFuture for ChannelOutOrCancel<T> {
     }
 }
 
-/// Channel output or ready immediately.
+/// Channel output or ready immediately with world access.
 pub type MaybeChannelOut<T> = Either<ChannelOut<T>, Ready<T>>;
 
 
