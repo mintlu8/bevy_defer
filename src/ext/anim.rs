@@ -62,7 +62,7 @@ impl AsyncAnimationPlayer {
         let duration = duration.as_duration();
         self.0.set(move |player| {
             player.play_with_transition(clip, duration);
-            //player.repeat();
+            player.repeat();
         }).await
     }
 
