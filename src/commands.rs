@@ -3,7 +3,7 @@ use bevy_app::AppExit;
 use bevy_utils::Duration;
 use futures::{future::ready, Stream};
 use rustc_hash::FxHashMap;
-use crate::{access::async_world::AsyncEntityMutFuture, channels::{channel, ChannelOut, MaybeChannelOut}, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
+use crate::{access::async_world::AsyncEntityMutFuture, sync::oneshot::{channel, ChannelOut, MaybeChannelOut}, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
 use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::AsyncWorldMut, AsyncFailure, AsyncResult};

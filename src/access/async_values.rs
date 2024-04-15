@@ -6,7 +6,7 @@ use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use ref_cast::RefCast;
 use crate::async_systems::AsyncWorldParam;
 use crate::access::AsyncWorldMut;
-use crate::channels::ChannelOut;
+use crate::sync::oneshot::ChannelOut;
 use crate::signals::Signals;
 use crate::async_systems::AsyncEntityParam;
 use crate::{AsyncQueryQueue, AsyncFailure, AsyncResult};

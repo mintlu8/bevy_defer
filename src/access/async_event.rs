@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use crate::async_systems::AsyncWorldParam;
-use crate::channels::channel;
+use crate::sync::oneshot::channel;
 use crate::reactors::{Reactors, REACTORS};
 use crate::{AsyncFailure, AsyncResult};
 use crate::{access::AsyncWorldMut, CHANNEL_CLOSED};

@@ -4,7 +4,7 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::{Commands, Query};
 use bevy_scene::SceneInstance;
 use bevy_ecs::{bundle::Bundle, entity::Entity};
-use crate::channels::MaybeChannelOut;
+use crate::sync::oneshot::MaybeChannelOut;
 use crate::AsyncResult;
 use crate::access::{AsyncEntityMut, AsyncWorldMut};
 

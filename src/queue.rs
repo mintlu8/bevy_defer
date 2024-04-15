@@ -8,8 +8,8 @@ use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
 use bevy_utils::Duration;
-use crate::channels::ChannelOutOrCancel;
-use crate::{access::AsyncWorldMut, cancellation::TaskCancellation, channel, channels::Sender, QueryQueue};
+use crate::sync::oneshot::ChannelOutOrCancel;
+use crate::{access::AsyncWorldMut, cancellation::TaskCancellation, channel, sync::oneshot::Sender, QueryQueue};
 
 #[allow(unused)]
 use bevy_app::FixedUpdate;

@@ -1,4 +1,4 @@
-use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, channels::ChannelOut, signals::Signals, AsyncAccess};
+use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, sync::oneshot::ChannelOut, signals::Signals, AsyncAccess};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState, WorldQuery},

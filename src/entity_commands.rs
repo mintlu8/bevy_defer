@@ -1,4 +1,4 @@
-use crate::{channels::{channel, ChannelOut, MaybeChannelOut}, signals::SignalInner};
+use crate::{sync::oneshot::{channel, ChannelOut, MaybeChannelOut}, signals::SignalInner};
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};

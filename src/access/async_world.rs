@@ -5,7 +5,7 @@ use bevy_tasks::futures_lite::FutureExt;
 use bevy_utils::Duration;
 use crate::async_systems::AsyncWorldParam;
 use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam};
-use crate::channels::ChannelOut;
+use crate::sync::oneshot::ChannelOut;
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{NonSend, Resource, SystemParam}};
 use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
 use ref_cast::RefCast;

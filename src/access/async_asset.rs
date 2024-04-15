@@ -2,7 +2,7 @@ use std::rc::Rc;
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::future::{Either, ready};
-use crate::channels::{ChannelOut, MaybeChannelOut};
+use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
 use crate::{AsyncFailure, AsyncResult};
 use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue};
 use crate::locals::with_asset_server;

@@ -5,7 +5,7 @@ use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter, WorldQuery}, system::Resource, world::World};
 use futures::future::{ready, Either};
 use ref_cast::RefCast;
-use crate::{cancellation::TaskCancellation, channels::{ChannelOut, InterpolateOut, MaybeChannelOut}, locals::with_world_ref, AsyncFailure, AsyncResult};
+use crate::{cancellation::TaskCancellation, sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut}, locals::with_world_ref, AsyncFailure, AsyncResult};
 use crate::access::{AsyncWorldMut, AsyncEntityQuery, AsyncAsset, AsyncQuery, AsyncQuerySingle, AsyncComponent, AsyncNonSend, AsyncResource};
 use crate::tween::{AsSeconds, Lerp, Playback};
 use crate::OwnedQueryState;

@@ -16,7 +16,7 @@ pub mod ext;
 pub mod reactors;
 pub mod cancellation;
 pub mod tween;
-pub mod channels;
+pub mod sync;
 use bevy_ecs::{schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet}, system::{Command, Commands}, world::World};
 use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
@@ -50,8 +50,7 @@ pub mod systems {
 }
 
 use std::future::Future;
-//pub use object::{Object, AsObject};
-pub use crate::channels::channel;
+pub use crate::sync::oneshot::channel;
 pub use crate::locals::LocalResourceScope;
 
 pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
