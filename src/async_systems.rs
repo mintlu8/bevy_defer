@@ -277,24 +277,32 @@ impl<T> AsyncEntityParam for T where T: AsyncWorldParam {
         T::from_async_context(executor)
     }
 }
-/// System that pushes inactive [`AsyncSystems`] to the executor.
+
+/// System that pushes inactive [`AsyncSystems`] onto the executor.
 pub fn push_async_systems(
     dummy: Local<Signals>,
-    executor: NonSend<QueryQueue>,
+    queue: NonSend<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
     mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems, Option<&Children>)>
 ) {
     for (entity, signals, mut systems, children) in query.iter_mut() {
         let signals = signals.unwrap_or(&dummy);
         for system in systems.systems.iter_mut(){
-            if !system.marker.other_alive() {
-                let alive = system.marker.clone_child();
-                let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
-                let Some(fut) = (system.function)(entity, AsyncWorldMut::ref_cast(&executor.0), signals, children) else {continue};
-                exec.spawn(
-                    futures::future::select(alive, fut.map(|_| ()))
-                );
-            }
+            system.spawn(entity, &queue, &exec, signals, children);
+        }
+    }
+}
+
+impl AsyncSystem {
+    /// Spawn an [`AsyncSystem`] onto the executor.
+    pub fn spawn(&mut self, entity: Entity, queue: &QueryQueue, executor: &AsyncExecutor, signals: &Signals, children: Option<&Children>) {
+        if !self.marker.other_alive() {
+            let alive = self.marker.clone_child();
+            let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
+            let Some(fut) = (self.function)(entity, AsyncWorldMut::ref_cast(&queue.0), signals, children) else {return};
+            executor.spawn(
+                futures::future::select(alive, fut.map(|_| ()))
+            );
         }
     }
 }
