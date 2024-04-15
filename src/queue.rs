@@ -1,7 +1,4 @@
-use std::cell::Cell;
-use std::task::Waker;
-use std::{cell::RefCell, collections::BinaryHeap};
-
+use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
 use bevy_core::FrameCount;
 use bevy_ecs::system::{CommandQueue, NonSend};
 use bevy_ecs::system::Res;
@@ -9,6 +6,7 @@ use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
 use bevy_utils::Duration;
 use crate::sync::oneshot::ChannelOutOrCancel;
+use crate::sync::waitlist::WaitList;
 use crate::{access::AsyncWorldMut, cancellation::TaskCancellation, channel, sync::oneshot::Sender, QueryQueue};
 
 #[allow(unused)]
@@ -63,7 +61,7 @@ pub struct AsyncQueryQueue {
     pub(crate) fixed_queue: RefCell<Vec<FixedTask>>,
     pub(crate) time_series: RefCell<BinaryHeap<TimeIndex<Duration, Sender<()>>>>,
     pub(crate) frame_series: RefCell<BinaryHeap<TimeIndex<u32, Sender<()>>>>,
-    pub(crate) yielded: RefCell<Vec<Waker>>,
+    pub(crate) yielded: WaitList,
     pub(crate) now: Cell<Duration>,
     pub(crate) frame: Cell<u32>,
 }
@@ -77,7 +75,7 @@ impl std::fmt::Debug for AsyncQueryQueue {
             .field("fixed_queue", &self.fixed_queue.borrow().len())
             .field("time_series", &self.time_series.borrow().len())
             .field("frames_series", &self.frame_series.borrow().len())
-            .field("yielded", &self.yielded.borrow().len())
+            .field("yielded", &self.yielded.len())
             .field("now", &self.now.get())
             .field("frame", &self.frame.get())
             .finish_non_exhaustive()
@@ -191,7 +189,7 @@ pub fn run_async_queries(
     let queue = w.non_send_resource::<QueryQueue>().0.clone();
     queue.once_queue.borrow_mut().drain(..).for_each(|query| (query.command)(w));
     queue.repeat_queue.borrow_mut().retain_mut(|f| (f.command)(w));
-    queue.yielded.borrow_mut().drain(..).for_each(|w| w.wake());
+    queue.yielded.wake();
 }
 
 /// Run `fixed_queue` on [`FixedUpdate`].

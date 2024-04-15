@@ -368,7 +368,7 @@ impl AsyncWorldMut {
         poll_fn(move |cx| {
             if yielded { return Poll::Ready(()); }
             yielded = true;
-            queue.yielded.borrow_mut().push(cx.waker().clone());
+            queue.yielded.push_cx(cx);
             Poll::Pending
         })
     }

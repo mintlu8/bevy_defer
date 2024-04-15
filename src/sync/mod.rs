@@ -2,3 +2,5 @@
 
 pub mod oneshot;
 pub mod semaphore;
+pub mod waitlist;
+pub mod barrier;

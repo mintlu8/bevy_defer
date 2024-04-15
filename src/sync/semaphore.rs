@@ -1,7 +1,8 @@
 //! Counting semaphore performing asynchronous permit acquisition.
 
-use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
+use std::{cell::Cell, pin::Pin, rc::Rc, task::{Context, Poll}};
 use futures::Future;
+use super::waitlist::WaitList;
 
 /// Counting semaphore performing asynchronous permit acquisition.
 #[derive(Debug, Clone)]
@@ -13,7 +14,7 @@ pub struct Semaphore{
 #[derive(Debug)]
 struct SemaphoreInner {
     permits: Cell<u64>,
-    waiters: Rc<RefCell<Vec<Waker>>>,
+    wait_list: WaitList,
 }
 
 /// [`Future`] for obtaining a [`SemaphorePermit`].
@@ -34,7 +35,7 @@ impl Future for SemaphoreFuture {
                 permits: self.permits
             })
         } else {
-            self.semaphore.waiters.borrow_mut().push(cx.waker().clone());
+            self.semaphore.wait_list.push_cx(cx);
             Poll::Pending
         }
     }
@@ -50,7 +51,7 @@ pub struct SemaphorePermit {
 impl Drop for SemaphorePermit {
     fn drop(&mut self) {
         self.semaphore.permits.set(self.semaphore.permits.get() + self.permits);
-        self.semaphore.waiters.borrow_mut().drain(..).for_each(|w| w.wake())
+        self.semaphore.wait_list.wake()
     }
 }
 
@@ -59,7 +60,7 @@ impl Semaphore {
         Semaphore { 
             inner: Rc::new(SemaphoreInner {
                 permits: Cell::new(permits),
-                waiters: Default::default(),
+                wait_list: Default::default(),
             }),
             total: permits
         }
