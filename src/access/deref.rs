@@ -41,7 +41,7 @@ impl<C> Deref for AsyncResource<C> where C: AsyncResourceDeref{
 /// Add method to [`AsyncNonSend`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncNonSendDeref: Resource + Sized {
+pub trait AsyncNonSendDeref: 'static + Sized {
     type Target;
     fn async_deref(this: &AsyncNonSend<Self>) -> &Self::Target;
 }
