@@ -1,4 +1,4 @@
-use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, sync::oneshot::ChannelOut, signals::Signals, AsyncAccess};
+use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, executor::with_world_mut, signals::Signals};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState, WorldQuery},
@@ -59,8 +59,8 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     pub fn for_each (
         &self,
         mut f: impl FnMut(T::Item<'_>) + 'static,
-    ) -> ChannelOut<()> {
-        self.world().run(move |w| {
+    ) {
+        with_world_mut(move |w| {
             let mut state = OwnedQueryState::<T, F>::new(w);
             for item in state.iter_mut(){
                 f(item);

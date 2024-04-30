@@ -25,18 +25,16 @@ use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
 #[macro_export]
 macro_rules! system_future {
     (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
-        {
-            async move {
-                use $crate::access::*;
-                let __world = $crate::world();
-                loop {
-                    $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::from_async_context(&__world).ok_or($crate::AsyncFailure::WorldParamNotFound)?;)*
-                    if let Err(AsyncFailure::ManuallyKilled) = async {
-                        let _ = $body;
-                        Result::<(), $crate::AsyncFailure>::Ok(())
-                    }.await {
-                        return Result::<(), $crate::AsyncFailure>::Ok(())
-                    }
+        async move {
+            use $crate::access::*;
+            let __world = $crate::world();
+            loop {
+                $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::from_async_context(&__world).ok_or($crate::AsyncFailure::WorldParamNotFound)?;)*
+                if let Err(AsyncFailure::ManuallyKilled) = async {
+                    let _ = $body;
+                    Result::<(), $crate::AsyncFailure>::Ok(())
+                }.await {
+                    return Result::<(), $crate::AsyncFailure>::Ok(())
                 }
             }
         }

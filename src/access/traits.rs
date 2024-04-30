@@ -5,7 +5,7 @@ use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter, WorldQuery}, system::Resource, world::World};
 use futures::future::{ready, Either};
 use ref_cast::RefCast;
-use crate::{cancellation::TaskCancellation, sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut}, locals::with_world_ref, AsyncFailure, AsyncResult};
+use crate::{cancellation::TaskCancellation, executor::{with_world_mut, with_world_ref}, sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut}, AsyncFailure, AsyncResult};
 use crate::access::{AsyncWorldMut, AsyncEntityQuery, AsyncAsset, AsyncQuery, AsyncQuerySingle, AsyncComponent, AsyncNonSend, AsyncResource};
 use crate::tween::{AsSeconds, Lerp, Playback};
 use crate::OwnedQueryState;
@@ -55,9 +55,9 @@ pub trait AsyncAccess {
     fn from_mut_cx<'t>(cx: &'t mut Self::RefMutCx<'_>, cx: &Self::Cx) -> AsyncResult<Self::RefMut<'t>>;
 
     /// Remove and obtain the item from the world.
-    fn take(&self) -> ChannelOut<AsyncResult<Self::Generic>> where Self: AsyncTake {
+    fn take(&self) -> AsyncResult<Self::Generic> where Self: AsyncTake {
         let cx = self.as_cx();
-        self.world().run(move |w| <Self as AsyncTake>::take(w, &cx))
+        with_world_mut(move |w| <Self as AsyncTake>::take(w, &cx))
     }
 
     /// Remove and obtain the item from the world once loaded.
@@ -71,9 +71,9 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result.
-    fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> ChannelOut<AsyncResult<T>> {
+    fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> AsyncResult<T> {
         let cx = self.as_cx();
-        self.world().run(move |w| {
+        with_world_mut(|w| {
             let mut mut_cx = Self::from_mut_world(w, &cx)?;
             let cx = Self::from_mut_cx(&mut mut_cx, &cx)?;
             Ok(f(cx))
@@ -114,12 +114,20 @@ pub trait AsyncAccess {
         false
     }
 
-    /// Wait until the item is loaded.
-    fn exists(&self) -> MaybeChannelOut<()> where Self: AsyncReadonlyAccess {
+    /// Check if item exists.
+    fn exists(&self) -> bool where Self: AsyncReadonlyAccess {
         let ctx = self.as_cx();
-        if matches!(with_world_ref(|w| Self::from_ref_world(w, &ctx).is_ok()), Ok(true)) {
+        with_world_ref(|w| {
+            Self::from_ref_world(w, &ctx).is_ok()
+        })
+    }
+
+    /// Wait until the item is loaded.
+    fn on_load(&self) -> MaybeChannelOut<()> where Self: AsyncReadonlyAccess + AsyncLoad {
+        let ctx = self.as_cx();
+        if with_world_ref(|w| {Self::from_ref_world(w, &ctx).is_ok()}) {
             return Either::Right(ready(()))
-        };
+        }
         Either::Left(self.world().watch(move |world: &mut World| {
             Self::from_mut_world(world, &ctx).ok().map(|_| ())
         }))
@@ -128,16 +136,9 @@ pub trait AsyncAccess {
     /// Run a function on a readonly reference to this item and obtain the result.
     /// 
     /// Completes immediately if `&World` access is available.
-    fn get<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> MaybeChannelOut<AsyncResult<T>> where Self: AsyncReadonlyAccess{
+    fn get<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> AsyncResult<T> where Self: AsyncReadonlyAccess{
         let ctx = self.as_cx();
-        let f = move |world: &World| {
-            Ok(f(Self::from_ref_world(world, &ctx)?))
-        }; 
-        let f = match with_world_ref(f) {
-            Ok(result) => return Either::Right(ready(result)),
-            Err(f) => f,
-        };
-        Either::Left(self.world().run(|w| f(w)))
+        with_world_ref(|w| Ok(f(Self::from_ref_world(w, &ctx)?)))
     }
 
     /// Run a function on a readonly reference to this item and obtain the result,
@@ -157,10 +158,9 @@ pub trait AsyncAccess {
             }
         }; 
         match with_world_ref(&mut f) {
-            Ok(Ok(result)) => return Either::Right(ready(Ok(result))),
-            Ok(Err(err)) if Self::should_continue(err) => (),
-            Ok(Err(err)) => return Either::Right(ready(Err(err))),
-            Err(_) => (),
+            Ok(result) => return Either::Right(ready(Ok(result))),
+            Err(err) if Self::should_continue(err) => (),
+            Err(err) => return Either::Right(ready(Err(err))),
         };
         Either::Left(self.world().watch(move |w| match f(w) {
             Ok(result) => Some(Ok(result)),
@@ -170,7 +170,7 @@ pub trait AsyncAccess {
     }
 
     /// Clone the item.
-    fn cloned(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>> where Self: AsyncAccessRef, Self::Generic: Clone {
+    fn cloned(&self) -> AsyncResult<Self::Generic> where Self: AsyncAccessRef, Self::Generic: Clone {
         self.get(Clone::clone)
     }
 

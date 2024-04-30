@@ -21,8 +21,6 @@ damage_vfx().await;
 swing_animation().await;
 show_damage_number().await;
 damage_vfx().await;
-
-...
 ```
 
 At each `await` point we wait for something to complete, without wasting resources
@@ -39,6 +37,19 @@ futures::join! {
 
 swing_animation().await;
 ```
+
+* Why not `bevy_tasks`?
+
+`bevy_defer` provides mutable world access. The user
+can schedule tasks and mutate the world at the same time.
+
+* For library authors
+
+Avoid depending on `bevy_defer` as much as possible, as it is
+preferable to be runtime agnostic. If you need to spawn
+a task and do not need to mutate the world,
+try spawn it on `bevy_tasks` and let the user `await` it
+in `bevy_defer`.
 
 ## Bridging Sync and Async
 
@@ -73,14 +84,15 @@ commands.spawn_task(|| async move {
     let world = world();
     // Wait for state to be `GameState::Animating`.
     world.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await;
-    // This function is async because we don't own the world,
-    // we send a query request and wait for the response.
+    // Obtain info from a resource.
+    // Since the `World` stored as a thread local, 
+    // a closure is the preferable syntax to access it.
     let richard_entity = world.resource::<NamedEntities>()
-        .get(|res| *res.get("Richard").unwrap()).await?;
+        .get(|res| *res.get("Richard").unwrap())?;
     // Move to an entity's scope, does not verify the entity exists.
     let richard = world.entity(richard_entity);
-    // We can also mutate the world asynchronously.
-    richard.component::<HP>().set(|hp| hp.set(500)).await?;
+    // We can also mutate the world directly.
+    richard.component::<HP>().set(|hp| hp.set(500))?;
     // Move to a component's scope, does not verify the entity or component exists.
     let animator = richard.component::<Animator>();
     // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
@@ -90,22 +102,21 @@ commands.spawn_task(|| async move {
     // Dance for 5 seconds with `select`.
     futures::select!(
         _ = animator.animate("Dance").fuse() => (),
-        _ = world.sleep(Duration::from_secs(5)).fuse() => println!("Dance cancelled"),
+        _ = world.sleep(Duration::from_secs(5)) => println!("Dance cancelled"),
     );
     // animate back to idle
     richard.component::<Animator>().animate("Idle").await?;
     // Wait for spawned future to complete
     audio.await?;
     // Tell the bevy App to quit.
-    world.quit().await;
+    world.quit();
     Ok(())
 });
 ```
 
-In fact a single function can drive the entire game!
-
 ## World Accessors
 
+`bevy_defer` holds the world as a thread local reference.
 We provide types mimicking bevy's types:
 
 | Query Type | Corresponding Bevy/Sync Type |
@@ -128,10 +139,7 @@ for example a `Component` can be accessed by
 world().entity(entity).component::<Transform>()
 ```
 
-See the `access` module for more detail.
-
-Access functions are defined by the `AsyncAccess` trait,
-be sure to import this trait.
+See the `access` module and the `AsyncAccess` trait for more detail.
 
 You can add extension methods to these accessors via `Deref` if you own the
 underlying types. See the `access::deref` module for more detail.
@@ -217,53 +225,20 @@ let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventRead
 })
 ```
 
-## Thread Locals
-
-We can push resources, `!Send` resources and even `&World` (readonly) onto
-thread local storage during execution by adding them to the plugin:
-
-```rust, ignore
-AsyncPlugin::empty().with(MyResource).with(World);
-```
-
-This allows some access to be immediate without deferring.
-If `&world` is available, all `get` access is immediate.
-This would block parallelization, however.
-
 ## Implementation Details
 
 `bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
-this is ideal for wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
+this is ideal for simple game logic, wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
 The `AsyncComputeTaskPool` in `bevy_tasks` is ideal for this use case.
-We can use `AsyncComputeTaskPool::get().spawn()` to spawn a future on task pool and call `await`.
+We can use `AsyncComputeTaskPool::get().spawn()` to spawn a future on task pool and call `await` in `bevy_defer`.
 
-At each execution point, we will poll our futures until no progress can be made.
-Imagine `AsyncPlugin::default_settings()` is used, which means we have 3 execution points per frame, this code:
+## Usage Tips
 
-```rust, ignore
-let a = query1().await;
-let b = query2().await;
-let c = query3().await;
-let d = query4().await;
-let e = query5().await;
-let f = query6().await;
-```
+The `futures` and/or `futures_lite` crate has excellent tools to for us to uses.
 
-takes at least 2 frames to complete, since queries are deferred and cannot resolve immediately.
-
-To complete the task faster, try use `futures::join!` or `futures_lite::future::zip` to
-run these queries concurrently.
-
-```rust, ignore
-let (a, b, c, d, e, f) = futures::join! {
-    query1, 
-    query2,
-    query3,
-    query4,
-    query5,
-    query6,
-}.await;
-```
+For example `futures::join!` can be used to run tasks concurrently, and
+`futures_select!` can be used to cancel tasks, for example despawning a task
+if a level has finished.
 
 ## Versions
 

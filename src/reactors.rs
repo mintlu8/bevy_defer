@@ -1,10 +1,10 @@
 //! Signals and synchronization primitives for reacting to standard bevy events.
-use std::{any::{Any, TypeId}, borrow::Borrow, cell::OnceCell, convert::Infallible, marker::PhantomData, sync::Arc};
+use std::{any::{Any, TypeId}, borrow::Borrow, cell::OnceCell, convert::Infallible, marker::PhantomData, ops::Deref, sync::Arc};
 use bevy_ecs::{change_detection::DetectChanges, component::Component, entity::Entity, event::Event, query::{Changed, With}, schedule::{State, States}, system::{Local, Query, Res, Resource}};
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use crate::{access::async_event::DoubleBufferedEvent, tls_resource};
+use crate::access::async_event::DoubleBufferedEvent;
 use crate::signals::{Signal, SignalId, SignalSender, Signals, Receiver};
 
 /// Signal sending changed value of a [`States`].
@@ -16,14 +16,24 @@ impl<T: States + Clone + Default> SignalId for StateSignal<T> {
 }
 
 /// Named or typed synchronization primitives of `bevy_defer`.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone)]
+pub struct ArcReactors(Arc<Reactors>);
+
+impl Deref for ArcReactors {
+    type Target = Reactors;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Named or typed synchronization primitives of `bevy_defer`.
+#[derive(Default)]
 pub struct Reactors {
     typed: Mutex<FxHashMap<TypeId, Box<dyn Any + Send + Sync>>>,
     named: Mutex<FxHashMap<(String, TypeId), Box<dyn Any + Send + Sync>>>,
     event_buffers: Mutex<FxHashMap<TypeId, Box<dyn Any + Send + Sync>>>
 }
-
-tls_resource!(pub(crate) REACTORS: Reactors);
 
 impl std::fmt::Debug for Reactors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -73,7 +83,7 @@ impl Reactors {
 /// React to a [`States`] changing, signals can be subscribed from [`Reactors`] with [`StateSignal`].
 pub fn react_to_state<T: States + Clone + Default>(
     signal: Local<OnceCell<Signal<T>>>,
-    reactors: Res<Reactors>,
+    reactors: Res<ArcReactors>,
     state: Res<State<T>>
 ) {
     if !state.is_changed() { return; }

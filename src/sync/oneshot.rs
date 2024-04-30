@@ -1,7 +1,7 @@
 //! `!Send` version of `futures_channels::oneshot`
 use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
 use std::future::Future;
-use futures::future::{Either, FusedFuture, Ready};
+use futures::{future::{Either, Fuse, FusedFuture, Ready}, FutureExt};
 
 use crate::{AsyncResult, CHANNEL_CLOSED};
 
@@ -151,9 +151,9 @@ impl<T> Receiver<T> {
         }
     }
     
-    /// Asset channel will not be closed.
+    /// Assert channel will not be closed.
     pub fn into_out(self) -> ChannelOut<T> {
-        ChannelOut(self)
+        ChannelOut(self.fuse())
     }
 
     /// Map cancel as option.
@@ -210,30 +210,28 @@ impl<T> Future for Receiver<T> {
     }
 }
 
-impl<T> FusedFuture for Receiver<T> {
-    fn is_terminated(&self) -> bool {
-        self.0.complete.get()
-    }
-}
-
-/// Channel output with cancellation asserted to be impossible.
+/// A [`FusedFuture`] channel output with cancellation asserted to be impossible.
+/// 
+/// # Panics
+/// 
+/// If trying to await a cancelled channel.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ChannelOut<T>(pub(crate) Receiver<T>);
+pub struct ChannelOut<T>(pub(crate) Fuse<Receiver<T>>);
 
 impl<T> Unpin for ChannelOut<T> {}
 
 impl<T> Future for ChannelOut<T> {
     type Output = T;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.0.0.recv(cx).map(|x| x.expect(CHANNEL_CLOSED))
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.0.poll_unpin(cx).map(|x| x.expect(CHANNEL_CLOSED))
     }
 }
 
 impl<T> FusedFuture for ChannelOut<T> {
     fn is_terminated(&self) -> bool {
-        self.0.0.complete.get()
+        self.0.is_terminated()
     }
 }
 
@@ -249,12 +247,6 @@ impl<T> Future for ChannelOutOrCancel<T> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.0.0.recv(cx).map(|x| x.ok())
-    }
-}
-
-impl<T> FusedFuture for ChannelOutOrCancel<T> {
-    fn is_terminated(&self) -> bool {
-        self.0.0.complete.get()
     }
 }
 

@@ -65,7 +65,7 @@ impl AsyncAnimator {
         self.0.set(move |comp| { 
             println!("Animating from {} to {}", &comp.0, name);
             comp.0 = name.to_owned();
-        }).await?;
+        })?;
         world().sleep(Duration::from_secs(len as u64)).await;
         println!("Animation {name} done!");
         Ok(())
@@ -113,10 +113,10 @@ pub fn main() {
         let mut one = pin!(&mut world.sleep(1.0));
         loop {
             futures::select!(
-                _ = three => { println!("1"); break; },
-                _ = two => println!("2"),
-                _ = one => println!("3"),
-            )
+                () = one => println!("3"),
+                () = two => println!("2"),
+                () = three => { println!("1"); break; },
+            );
         }
         
         // Wait for state to be `MyState::Combat`.
@@ -124,10 +124,10 @@ pub fn main() {
         // This function is async because we don't own the world,
         // we send a query request and wait for the response.
         let richard_entity = world.resource::<NamedEntities>()
-            .get(|res| *res.get("Richard").unwrap()).await?;
+            .get(|res| *res.get("Richard").unwrap())?;
         let richard = world.entity(richard_entity);
         // We can also mutate the world asynchronously.
-        richard.component::<HP>().set(|hp| hp.set(500)).await?;
+        richard.component::<HP>().set(|hp| hp.set(500))?;
         // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
         let animator = richard.component::<Animator>();
         animator.animate("Wave").await?;
@@ -145,7 +145,7 @@ pub fn main() {
         // Spawn another future on the executor and wait for it to complete
         // Returns `Result<(), AsyncFailure>`
         audio.await?;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.insert_state(GameState::Animating);

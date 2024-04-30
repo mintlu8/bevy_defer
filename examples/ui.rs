@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use bevy::prelude::*;
 use bevy_defer::signals::Signal;
 use bevy_defer::AsyncAccess;
@@ -123,7 +124,7 @@ fn setup(mut commands: Commands) {
                         AsyncSystems::from_single(async_system!(
                             |click: Receiver<UIInteractionChange>, this: AsyncComponent<Text>| {
                                 let variant = format!("{:?}", click.await.to);
-                                this.set(move |text| text.sections[0].value = variant).await.unwrap();
+                                this.set(move |text| text.sections[0].value = variant).unwrap();
                             } 
                         ))
                     ));
@@ -148,23 +149,23 @@ fn setup(mut commands: Commands) {
                         futures::select_biased! {
                             pos = click.recv() => {
                                 let s = format!("Clicked at {pos}");
-                                this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).unwrap();
                             },
                             pos = press.recv() => {
                                 let s = format!("Pressed at {pos}");
-                                this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).unwrap();
                             },
                             pos = focus.recv() => {
                                 let s = format!("Obtained focus at {pos}");
-                                this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).unwrap();
                             },
                             pos = lose.recv() => {
                                 let s = format!("Lose focus at {pos}");
-                                this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).unwrap();
                             },
                             pos = cancel.recv() => {
                                 let s = format!("Click cancelled at {pos}");
-                                this.set(move |text| text.sections[0].value = s).await.unwrap();
+                                this.set(move |text| text.sections[0].value = s).unwrap();
                             },
                         }
                     } 

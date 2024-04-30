@@ -42,6 +42,17 @@ pub trait AsSeconds {
     fn as_duration(&self) -> Duration;
 }
 
+impl AsSeconds for u64 {
+    fn as_secs(&self) -> f32 {
+        *self as f32
+    }
+
+    fn as_duration(&self) -> Duration {
+        Duration::from_secs(*self)
+    }
+}
+
+
 impl AsSeconds for f32 {
     fn as_secs(&self) -> f32 {
         *self

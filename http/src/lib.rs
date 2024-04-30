@@ -62,11 +62,12 @@ impl HyperHttpClientExt for AsyncWorldMut {
         let stream = Async::<TcpStream>::new(TcpStream::connect(address)?)?;
             let auth = uri.authority().cloned();
             let (mut sender, conn) = handshake::<_, String>(FuturesIo::new(stream)).await.unwrap();
-            let _conn = spawn(async move {
+            spawn(async move {
                 if let Err(err) = conn.await {
                     println!("Connection failed: {:?}", err);
                 }
-        });
+            }
+        );
         let req = if let Some(auth) = auth {
             Request::builder()
                 .uri(uri)
@@ -97,7 +98,7 @@ impl HyperHttpClientExt for AsyncWorldMut {
         let address = format!("{}:{}", host, port);
         let stream = Async::<TcpStream>::new(TcpStream::connect(address)?)?;
         let (mut sender, conn) = handshake::<_, T>(FuturesIo::new(stream)).await?;
-        let _conn = spawn(async move {
+        spawn(async move {
             if let Err(err) = conn.await {
                 println!("Connection failed: {:?}", err);
             }
@@ -132,7 +133,7 @@ mod test {
         app.spawn_task(async {
             world().http_get("http://httpbin.org/ip").await.unwrap();
             LOCK.store(true, std::sync::atomic::Ordering::Relaxed);
-            world().quit().await;
+            world().quit();
             Ok(())
         });
         app.run();
