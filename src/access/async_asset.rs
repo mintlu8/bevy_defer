@@ -2,10 +2,10 @@ use std::rc::Rc;
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::future::{Either, ready};
-use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
+use crate::executor::{with_world_mut, ASSET_SERVER};
+use crate::sync::oneshot::MaybeChannelOut;
 use crate::{AsyncFailure, AsyncResult};
 use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue};
-use crate::locals::with_asset_server;
 
 /// Async version of [`Handle`].
 #[derive(Debug, Clone)]
@@ -54,9 +54,12 @@ impl AsyncWorldMut {
         &self, 
         path: impl Into<AssetPath<'static>> + Send + 'static, 
     ) -> AsyncAsset<A> {
+        if !ASSET_SERVER.is_set() {
+            panic!("AssetServer does not exist.")
+        }
         AsyncAsset {
             queue: self.queue.clone(),
-            handle: self.with_asset_server(|s| s.load::<A>(path)),
+            handle: ASSET_SERVER.with(|s| s.load::<A>(path)),
         }
     }
 
@@ -64,8 +67,8 @@ impl AsyncWorldMut {
     pub fn add_asset<A: Asset + 'static>(
         &self,
         item: A,
-    ) -> ChannelOut<AsyncResult<Handle<A>>>{
-        self.run(|w| 
+    ) -> AsyncResult<Handle<A>>{
+        with_world_mut(|w| 
             Ok(w.get_resource_mut::<Assets<A>>()
                 .ok_or(AsyncFailure::ResourceNotFound)?
                 .add(item))
@@ -89,7 +92,10 @@ impl<A: Asset> AsyncAsset<A> {
     pub fn loaded (
         &self, 
     ) -> MaybeChannelOut<bool> {
-        match with_asset_server(|server| {
+        if !ASSET_SERVER.is_set() {
+            panic!("AssetServer does not exist.")
+        }
+        match ASSET_SERVER.with(|server| {
             server.load_state(&self.handle)
         }) {
             LoadState::Loaded => return Either::Right(ready(true)),

@@ -95,7 +95,7 @@ pub fn chat() {
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(100)).await;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.run();
@@ -125,14 +125,14 @@ pub fn events() {
         let world = world();
         assert_eq!(world.event_stream::<AliceChat>().next().await.unwrap().0, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
-        world.send_event(BobChat("Hello, Bob.".to_owned())).await?;
+        world.send_event(BobChat("Hello, Bob.".to_owned()))?;
         ALICE.store(true, Ordering::Relaxed);
         Ok(())
     });
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
-        world.send_event(AliceChat("Hello, Alice.".to_owned())).await?;
+        world.send_event(AliceChat("Hello, Alice.".to_owned()))?;
         assert_eq!(world.event_stream::<BobChat>().next().await.unwrap().0, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
@@ -140,7 +140,7 @@ pub fn events() {
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(100)).await;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.run();
@@ -174,7 +174,7 @@ pub fn stream() {
         assert_eq!(stream.next().await, Some(Chat('v')));
         assert_eq!(stream.next().await, Some(Chat('y')));
         if DONE.swap(true, Ordering::Relaxed){
-            world.quit().await;
+            world.quit();
         }
         Ok(())
     });
@@ -193,7 +193,7 @@ pub fn stream() {
         assert_eq!(stream.next().await, Some('V'));
         assert_eq!(stream.next().await, Some('Y'));
         if DONE.swap(true, Ordering::Relaxed){
-            world.quit().await;
+            world.quit();
         }
         Ok(())
     });

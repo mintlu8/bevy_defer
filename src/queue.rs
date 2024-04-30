@@ -1,6 +1,6 @@
 use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
 use bevy_core::FrameCount;
-use bevy_ecs::system::{CommandQueue, NonSend};
+use bevy_ecs::system::NonSend;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
@@ -55,9 +55,7 @@ impl<T: Ord, V> Ord for TimeIndex<T, V> {
 /// Queue for deferred `!Send` queries applied on the [`World`].
 #[derive(Default)]
 pub struct AsyncQueryQueue {
-    pub(crate) once_queue: RefCell<Vec<QueryOnce>>,
     pub(crate) repeat_queue: RefCell<Vec<QueryCallback>>,
-    pub(crate) command_queue: RefCell<CommandQueue>,
     pub(crate) fixed_queue: RefCell<Vec<FixedTask>>,
     pub(crate) time_series: RefCell<BinaryHeap<TimeIndex<Duration, Sender<()>>>>,
     pub(crate) frame_series: RefCell<BinaryHeap<TimeIndex<u32, Sender<()>>>>,
@@ -69,9 +67,7 @@ pub struct AsyncQueryQueue {
 impl std::fmt::Debug for AsyncQueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AsyncQueryQueue")
-            .field("once_queue", &self.once_queue.borrow().len())
             .field("repeat_queue", &self.repeat_queue.borrow().len())
-            .field("command_queue", &self.command_queue)
             .field("fixed_queue", &self.fixed_queue.borrow().len())
             .field("time_series", &self.time_series.borrow().len())
             .field("frames_series", &self.frame_series.borrow().len())
@@ -130,32 +126,6 @@ impl QueryCallback {
 
 
 impl AsyncQueryQueue {
-    
-    /// Spawn a `!Send` command that runs once.
-    /// 
-    /// Use `AsyncWorldMut::add_command` if possible since the bevy `CommandQueue` is more optimized.
-    pub fn fire_and_forget(
-        &self,
-        query: impl (FnOnce(&mut World)) + 'static,
-    ) {
-        self.once_queue.borrow_mut().push(
-            QueryOnce::fire_and_forget(query)
-        )
-    }
-
-    /// Spawn a `!Send` command that runs once and returns a result through a channel.
-    /// 
-    /// If receiver is dropped, the command will be cancelled.
-    pub fn once<Out: 'static>(
-        &self,
-        query: impl (FnOnce(&mut World) -> Out) + 'static,
-        channel: Sender<Out>
-    ) {
-        self.once_queue.borrow_mut().push(
-            QueryOnce::once(query, channel)
-        )
-    }
-
     /// Spawn a `!Send` command and wait until it returns `Some`.
     /// 
     /// If receiver is dropped, the command will be cancelled.
@@ -187,7 +157,6 @@ pub fn run_async_queries(
     w: &mut World,
 ) {
     let queue = w.non_send_resource::<QueryQueue>().0.clone();
-    queue.once_queue.borrow_mut().drain(..).for_each(|query| (query.command)(w));
     queue.repeat_queue.borrow_mut().retain_mut(|f| (f.command)(w));
     queue.yielded.wake();
 }

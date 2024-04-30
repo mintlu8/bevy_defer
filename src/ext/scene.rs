@@ -4,7 +4,6 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::{Commands, Query};
 use bevy_scene::SceneInstance;
 use bevy_ecs::{bundle::Bundle, entity::Entity};
-use crate::sync::oneshot::MaybeChannelOut;
 use crate::AsyncResult;
 use crate::access::{AsyncEntityMut, AsyncWorldMut};
 
@@ -30,7 +29,7 @@ impl AsyncWorldMut {
     /// Requires [`react_to_scene_load`] to function.
     pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncEntityMut{
         let (send, recv) = async_oneshot::oneshot();
-        let entity = self.spawn_bundle((bun, SceneSignal(send))).await.id();
+        let entity = self.spawn_bundle((bun, SceneSignal(send))).id();
         let _ = recv.await;
         AsyncEntityMut { entity, queue: self.queue.clone() }
     }
@@ -38,7 +37,7 @@ impl AsyncWorldMut {
 
 impl AsyncEntityMut {
     /// Obtain a child by name, alias for `child_by_name`.
-    pub fn spawned(&self, name: impl Into<String> + Borrow<str>) -> MaybeChannelOut<AsyncResult<AsyncEntityMut>> {
+    pub fn spawned(&self, name: impl Into<String> + Borrow<str>) -> AsyncResult<AsyncEntityMut> {
         self.child_by_name(name)
     }
 }

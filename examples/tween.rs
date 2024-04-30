@@ -17,7 +17,7 @@ fn main() {
                     ..Default::default()
                 },
                 ..Default::default()
-            }).await;
+            });
             entity.component::<Transform>().interpolate_to(
                 Vec3::new(-100.0, -100.0, 0.0),
                 |t| t.translation, 
@@ -62,10 +62,10 @@ fn main() {
                 },
                 transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
                 ..Default::default()
-            }).await;
+            });
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
-            let _fut = spawn(comp.interpolate(
+            spawn(comp.interpolate(
                 |x| Vec3::new(0.0, 200.0, 0.0).lerp(Vec3::new(0.0, -200.0, 0.0), x),
                 |t, v| t.translation = v, 
                 |x| x * x, 
@@ -86,7 +86,7 @@ fn main() {
             
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
-            let _fut = spawn(comp.interpolate(
+            spawn(comp.interpolate(
                 |x| Vec3::new(0.0, 0.0, 0.0).lerp(Vec3::new(200.0, 0.0, 0.0), x),
                 |t, v| t.translation = v, 
                 |x| x, 
@@ -96,7 +96,7 @@ fn main() {
             ));
             world.sleep(Duration::from_secs(6)).await;
             cancel.cancel();
-            world.quit().await;
+            world.quit();
             Ok(())
         })
         .run();

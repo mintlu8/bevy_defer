@@ -3,8 +3,9 @@ use bevy_app::AppExit;
 use bevy_utils::Duration;
 use futures::{future::ready, Stream};
 use rustc_hash::FxHashMap;
-use crate::{access::async_world::AsyncEntityMutFuture, sync::oneshot::{channel, ChannelOut, MaybeChannelOut}, reactors::{StateSignal, REACTORS}, signals::{Signal, SignalId}, tween::AsSeconds};
-use bevy_ecs::{bundle::Bundle, entity::Entity, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
+use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::{Signal, SignalId}, sync::oneshot::{channel, ChannelOut, MaybeChannelOut}, tween::AsSeconds};
+use crate::executor::{with_world_mut, with_world_ref, REACTORS};
+use bevy_ecs::{bundle::Bundle, schedule::{NextState, ScheduleLabel, State, States}, system::Resource, world::World};
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::AsyncWorldMut, AsyncFailure, AsyncResult};
 use futures::future::Either;
@@ -22,7 +23,7 @@ impl AsyncWorldMut {
     /// # );
     /// ```
     pub fn apply_command(&self, command: impl Command) {
-        self.queue.command_queue.borrow_mut().push(command)
+        with_world_mut(|w| command.apply(w))
     }
 
     /// Apply a [`CommandQueue`], does not wait for it to complete.
@@ -37,7 +38,7 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     pub fn apply_command_queue(&self, mut commands: CommandQueue) {
-        self.queue.command_queue.borrow_mut().append(&mut commands)
+        with_world_mut(|w| commands.apply(w))
     }
 
     /// Apply a function on the [`World`] and obtain the result.
@@ -50,13 +51,11 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().run(|w: &mut World| w.resource::<Int>().0).await
+    /// world().run(|w: &mut World| w.resource::<Int>().0)
     /// # );
     /// ```
-    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> ChannelOut<T> {
-        let (sender, receiver) = channel();
-        self.queue.once(f, sender);
-        receiver.into_out()
+    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> T {
+        with_world_mut(f)
     }
 
     /// Apply a function on the [`World`], repeat until it returns `Some`.
@@ -69,7 +68,7 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
+    /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0))
     /// # );
     /// ```
     pub fn watch<T: 'static>(&self, f: impl FnMut(&mut World) -> Option<T> + 'static) -> ChannelOut<T> {
@@ -84,18 +83,16 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().run_schedule(Update).await
+    /// world().run_schedule(Update)
     /// # );
     /// ```
-    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> ChannelOut<AsyncResult> {
-        let (sender, receiver) = channel();
-        self.queue.once(move |world: &mut World| {
+    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> AsyncResult {
+        with_world_mut(
+            move |world: &mut World| {
                 world.try_run_schedule(schedule)
                     .map_err(|_| AsyncFailure::ScheduleNotFound)
-            }, 
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Register a system and return a [`SystemId`] so it can later be called by `run_system`.
@@ -104,17 +101,15 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await
+    /// world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds()))
     /// # );
     /// ```
-    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> ChannelOut<SystemId<I, O>> {
-        let (sender, receiver) = channel();
-        self.queue.once(move |world: &mut World| {
+    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S) -> SystemId<I, O> {
+        with_world_mut(
+            move |world: &mut World| {
                 world.register_system(system)
-            }, 
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Run a stored system by their [`SystemId`].
@@ -123,11 +118,11 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let id = world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await;
-    /// world().run_system(id).await.unwrap();
+    /// let id = world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds()));
+    /// world().run_system(id).unwrap();
     /// # });
     /// ```
-    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> ChannelOut<AsyncResult<O>> {
+    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> AsyncResult<O> {
         self.run_system_with_input(system, ())
     }
 
@@ -137,19 +132,16 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let id = world().register_system(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input).await;
-    /// world().run_system_with_input(id, 4.0).await.unwrap();
+    /// let id = world().register_system(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input);
+    /// world().run_system_with_input(id, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> ChannelOut<AsyncResult<O>> {
-        let (sender, receiver) = channel();
-        self.queue.once(move |world: &mut World| {
+    pub fn run_system_with_input<I: 'static, O: 'static>(&self, system: SystemId<I, O>, input: I) -> AsyncResult<O> {
+        with_world_mut(move |world: &mut World| {
                 world.run_system_with_input(system, input)
                     .map_err(|_| AsyncFailure::SystemIdNotFound)
-            }, 
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Run a system that will be stored and reused upon repeated usage.
@@ -162,10 +154,10 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).await.unwrap();
+    /// world().run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> ChannelOut<AsyncResult<O>> {
+    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(&self, system: S) -> AsyncResult<O> {
         self.run_cached_system_with_input(system, ())
     }
 
@@ -173,21 +165,20 @@ impl AsyncWorldMut {
     /// 
     /// # Note
     /// 
-    /// The system is disambiguated by [`IntoSystem::system_type_id`].
+    /// The system is disambiguated by [`IntoSystem::system_type_id`]s.
     /// 
     /// # Example
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).await.unwrap();
+    /// world().run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> ChannelOut<AsyncResult<O>> {
+    pub fn run_cached_system_with_input<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(&self, system: S, input: I) -> AsyncResult<O> {
         #[derive(Debug, Resource, Default)]
         struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
 
-        let (sender, receiver) = channel();
-        self.queue.once(move |world: &mut World| {
+        with_world_mut(move |world: &mut World| {
                 let res = world.get_resource_or_insert_with::<SystemCache>(Default::default);
                 let type_id = IntoSystem::system_type_id(&system);
                 if let Some(id) = res.0.get(&type_id).and_then(|x| x.downcast_ref::<SystemId<I, O>>()).copied() {
@@ -199,10 +190,8 @@ impl AsyncWorldMut {
                     world.run_system_with_input(id, input)
                         .map_err(|_| AsyncFailure::SystemIdNotFound)
                 }
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Spawns a new [`Entity`] with no components.
@@ -211,18 +200,15 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().spawn_empty().await
+    /// world().spawn_empty()
     /// # );
     /// ```
-    pub fn spawn_empty(&self) -> AsyncEntityMutFuture {
-        let (sender, receiver) = channel::<Entity>();
-        self.queue.once(
+    pub fn spawn_empty(&self) -> AsyncEntityMut {
+        self.entity(with_world_mut(
             move |world: &mut World| {
                 world.spawn_empty().id()
-            },
-            sender
-        );
-        receiver.into_out().into_entity_mut_future(self.queue.clone())
+            }
+        ))
     }
 
     /// Spawn a new [`Entity`] with a given Bundle of components.
@@ -231,18 +217,15 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().spawn_bundle(SpriteBundle::default()).await
+    /// world().spawn_bundle(SpriteBundle::default())
     /// # );
     /// ```
-    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMutFuture {
-        let (sender, receiver) = channel::<Entity>();
-        self.queue.once(
+    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMut {
+        self.entity(with_world_mut(
             move |world: &mut World| {
                 world.spawn(bundle).id()
-            },
-            sender
-        );        
-        receiver.into_out().into_entity_mut_future(self.queue.clone())
+            }
+        ))
     }
 
     /// Transition to a new [`States`].
@@ -251,20 +234,17 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().set_state(MyState::A).await
+    /// world().set_state(MyState::A)
     /// # });
     /// ```
-    pub fn set_state<S: States>(&self, state: S) -> ChannelOut<AsyncResult<()>> {
-        let (sender, receiver) = channel();
-        self.queue.once(
+    pub fn set_state<S: States>(&self, state: S) -> AsyncResult<()> {
+        with_world_mut(
             move |world: &mut World| {
                 world.get_resource_mut::<NextState<S>>()
                     .map(|mut s| s.set(state))
                     .ok_or(AsyncFailure::ResourceNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Obtain a [`States`].
@@ -273,21 +253,14 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().get_state::<MyState>().await
+    /// world().get_state::<MyState>()
     /// # });
     /// ```
-    pub fn get_state<S: States>(&self) -> MaybeChannelOut<AsyncResult<S>> {
-        let f = move |world: &World| {
+    pub fn get_state<S: States>(&self) -> AsyncResult<S> {
+        with_world_ref(|world| {
             world.get_resource::<State<S>>().map(|s| s.get().clone())
-                    .ok_or(AsyncFailure::ResourceNotFound)
-        };
-        let f = match self.with_world_ref(f) {
-            Ok(result) => return Either::Right(ready(result)),
-            Err(f) => f,
-        };
-        let (sender, receiver) = channel();
-        self.queue.once(move |w|f(w), sender);
-        Either::Left(receiver.into_out())
+                .ok_or(AsyncFailure::ResourceNotFound)
+        })
     }
 
     /// Wait until a [`States`] is entered.
@@ -296,7 +269,7 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().in_state(MyState::A).await
+    /// world().in_state(MyState::A)
     /// # });
     /// ```
     #[deprecated = "Use `state_stream` instead."]
@@ -379,18 +352,15 @@ impl AsyncWorldMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().quit().await
+    /// world().quit()
     /// # });
     /// ```
-    pub fn quit(&self) -> ChannelOut<()> {
-        let (sender, receiver) = channel();
-        self.queue.once(
+    pub fn quit(&self) {
+        with_world_mut(
             move |world: &mut World| {
                 world.send_event(AppExit);
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Obtain or init a signal by [`SignalId`].

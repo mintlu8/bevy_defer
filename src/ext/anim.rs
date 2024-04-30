@@ -22,95 +22,91 @@ impl AsyncComponentDeref for AnimationPlayer {
 
 impl AsyncAnimationPlayer {
     /// Start playing an animation, resetting state of the player, unless the requested animation is already playing.
-    pub async fn play(&self, clip: Handle<AnimationClip>) -> AsyncResult {
-        self.0.set(move |player| {player.play(clip);}).await
+    pub fn play(&self, clip: Handle<AnimationClip>) -> AsyncResult {
+        self.0.set(move |player| {player.play(clip);})
     }
 
     /// Start playing an animation, and set repeat mode to [`RepeatAnimation::Never`].
-    pub async fn play_once(&self, clip: Handle<AnimationClip>) -> AsyncResult {
+    pub fn play_once(&self, clip: Handle<AnimationClip>) -> AsyncResult {
         self.0.set(move |player| {
             player.play(clip);
             player.set_repeat(RepeatAnimation::Never);
-        }).await
+        })
     }
 
     /// Start playing an animation, and set repeat mode to [`RepeatAnimation::Forever`].
-    pub async fn play_repeat(&self, clip: Handle<AnimationClip>) -> AsyncResult {
+    pub fn play_repeat(&self, clip: Handle<AnimationClip>) -> AsyncResult {
         self.0.set(move |player| {
             player.play(clip);
             player.repeat();
-        }).await
+        })
     }
 
     /// Start playing an animation with smooth linear transition.
-    pub async fn play_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
+    pub fn play_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
         let duration = duration.as_duration();
-        self.0.set(move |player| {player.play_with_transition(clip, duration);}).await
+        self.0.set(move |player| {player.play_with_transition(clip, duration);})
     }
 
     /// Start playing an animation with smooth linear transition and set repeat mode to [`RepeatAnimation::Never`].
-    pub async fn play_once_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
+    pub fn play_once_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
         let duration = duration.as_duration();
         self.0.set(move |player| {
             player.play_with_transition(clip, duration);
             player.set_repeat(RepeatAnimation::Never);
-        }).await
+        })
     }
 
     /// Start playing an animation with smooth linear transition and set repeat mode to [`RepeatAnimation::Forever`].
-    pub async fn play_repeat_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
+    pub fn play_repeat_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
         let duration = duration.as_duration();
         self.0.set(move |player| {
             player.play_with_transition(clip, duration);
             player.repeat();
-        }).await
+        })
     }
 
     /// Start playing an animation once and wait for it to complete.
     pub async fn animate(&self, clip: Handle<AnimationClip>) -> AsyncResult {
-        futures::future::try_join(
-            self.play_once(clip.clone()),
-            self.when_exit(clip)
-        ).await.map(|_| ())
+        self.play_once(clip.clone())?;
+        self.when_exit(clip).await.map(|_| ())
     }
 
     /// Start playing an animation once with smooth linear transition and wait for it to complete.
     pub async fn animate_with_transition(&self, clip: Handle<AnimationClip>, duration: impl AsSeconds) -> AsyncResult {
-        futures::future::try_join(
-            self.play_once_with_transition(clip.clone(), duration),
-            self.when_exit(clip)
-        ).await.map(|_| ())
+        self.play_once_with_transition(clip.clone(), duration)?;
+        self.when_exit(clip).await
     }
 
     /// Set the repetition behaviour of the animation.
     pub async fn set_repeat(&self, f: impl FnOnce(RepeatAnimation) -> RepeatAnimation + Send + 'static) -> AsyncResult {
         self.0.set(move |player| {
             player.set_repeat(f(player.repeat_mode()));
-        }).await
+        })
     }
 
     /// Set the speed of the animation playback
     pub async fn set_speed(&self, f: impl FnOnce(f32) -> f32 + Send + 'static) -> AsyncResult {
         self.0.set(move |player| {
             player.set_speed(f(player.speed()));
-        }).await
+        })
     }
 
     /// Seek to a specific time in the animation.
     pub async fn seek_to(&self, f: impl FnOnce(f32) -> f32 + Send + 'static) -> AsyncResult {
         self.0.set(move |player| {
             player.seek_to(f(player.seek_time()));
-        }).await
+        })
     }
 
     /// Pause the animation
     pub async fn pause(&self) -> AsyncResult {
-        self.0.set(move |player| {player.pause();}).await
+        self.0.set(move |player| {player.pause();})
     }
 
     /// Unpause the animation
     pub async fn resume(&self) -> AsyncResult {
-        self.0.set(move |player| {player.resume();}).await
+        self.0.set(move |player| {player.resume();})
     }
 
     /// Wait for an [`AnimationClip`] to exit.

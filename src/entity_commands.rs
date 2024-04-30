@@ -1,8 +1,7 @@
-use crate::{sync::oneshot::{channel, ChannelOut, MaybeChannelOut}, signals::SignalInner};
+use crate::{executor::{with_world_mut, with_world_ref}, signals::SignalInner};
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};
-use futures::future::{ready, Either};
 use std::{borrow::Borrow, sync::Arc};
 use crate::{access::AsyncEntityMut, signals::{SignalId, Signals}, AsyncFailure, AsyncResult};
 
@@ -14,22 +13,19 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// entity.insert(Str("bevy")).await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// entity.insert(Str("bevy"));
     /// # });
     /// ```
-    pub fn insert(&self, bundle: impl Bundle) -> ChannelOut<Result<(), AsyncFailure>> {
-        let (sender, receiver) = channel();
+    pub fn insert(&self, bundle: impl Bundle) -> Result<(), AsyncFailure> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| {e.insert(bundle);})
                     .ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }        
+        )
     }
 
     /// Removes any components in the [`Bundle`] from the entity.
@@ -38,22 +34,19 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// entity.remove::<Int>().await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// entity.remove::<Int>();
     /// # });
     /// ```
-    pub fn remove<T: Bundle>(&self) -> ChannelOut<Result<(), AsyncFailure>> {
-        let (sender, receiver) = channel();
+    pub fn remove<T: Bundle>(&self) -> Result<(), AsyncFailure> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| {e.remove::<T>();})
                     .ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Removes any components except those in the [`Bundle`] from the entity.
@@ -62,22 +55,19 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// entity.retain::<Int>().await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// entity.retain::<Int>();
     /// # });
     /// ```
-    pub fn retain<T: Bundle>(&self) -> ChannelOut<Result<(), AsyncFailure>> {
-        let (sender, receiver) = channel();
+    pub fn retain<T: Bundle>(&self) -> Result<(), AsyncFailure> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| {e.retain::<T>();})
                     .ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Removes all components in the [`Bundle`] from the entity and returns their previous values.
@@ -88,22 +78,19 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// entity.take::<Int>().await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// entity.take::<Int>();
     /// # });
     /// ```
-    pub fn take<T: Bundle>(&self) -> ChannelOut<Result<Option<T>, AsyncFailure>> {
-        let (sender, receiver) = channel();
+    pub fn take<T: Bundle>(&self) -> Result<Option<T>, AsyncFailure> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut e| e.take::<T>())
                     .ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Spawns an entity with the given bundle and inserts it into the parent entity's Children.
@@ -112,24 +99,21 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// let child = entity.spawn_child(Str("bevy")).await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// let child = entity.spawn_child(Str("bevy"));
     /// # });
     /// ```
-    pub fn spawn_child(&self, bundle: impl Bundle) -> ChannelOut<AsyncResult<Entity>> {
-        let (sender, receiver) = channel();
+    pub fn spawn_child(&self, bundle: impl Bundle) -> AsyncResult<Entity> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 world.get_entity_mut(entity).map(|mut entity| {
                     let mut id = Entity::PLACEHOLDER;
                     entity.with_children(|spawn| {id = spawn.spawn(bundle).id()});
                     id
                 }).ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Adds a single child.
@@ -138,23 +122,20 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// # let child = world().spawn_bundle(Int(1)).await.id();
-    /// entity.add_child(child).await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let child = world().spawn_bundle(Int(1)).id();
+    /// entity.add_child(child);
     /// # });
     /// ```
-    pub fn add_child(&self, child: Entity) -> ChannelOut<AsyncResult<()>> {
-        let (sender, receiver) = channel();
+    pub fn add_child(&self, child: Entity) -> AsyncResult<()> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 world.get_entity_mut(entity)
                     .map(|mut entity| {entity.add_child(child);})
                     .ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Despawns the given entity and all its children recursively.
@@ -163,22 +144,19 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// entity.despawn().await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// entity.despawn();
     /// # });
     /// ```
-    pub fn despawn(&self) -> ChannelOut<()> {
-        let (sender, receiver) = channel::<()>();
+    pub fn despawn(&self) {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 DespawnRecursive {
                     entity
                 }.apply(world);
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Despawns the given entity's children recursively.
@@ -187,31 +165,27 @@ impl AsyncEntityMut {
     /// 
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1)).await;
-    /// entity.despawn_descendants().await;
+    /// # let entity = world().spawn_bundle(Int(1));
+    /// entity.despawn_descendants();
     /// # });
     /// ```
-    pub fn despawn_descendants(&self) -> ChannelOut<()> {
-        let (sender, receiver) = channel::<()>();
+    pub fn despawn_descendants(&self) {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 DespawnChildrenRecursive {
                     entity
                 }.apply(world)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
 
     /// Send data through a signal on this entity.
     /// 
     /// Returns `true` if the signal exists.
-    pub fn send<S: SignalId>(&self, data: S::Data) -> ChannelOut<AsyncResult<bool>> {
-        let (sender, receiver) = channel();
+    pub fn send<S: SignalId>(&self, data: S::Data) -> AsyncResult<bool> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
                     return Err(AsyncFailure::EntityNotFound)
@@ -220,17 +194,14 @@ impl AsyncEntityMut {
                     return Err(AsyncFailure::ComponentNotFound)
                 };
                 Ok(signals.send::<S>(data))
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
     
     /// Borrow a sender from an entity with shared read tick.
-    pub fn sender<S: SignalId>(&self) -> ChannelOut<AsyncResult<Arc<SignalInner<S::Data>>>> {
-        let (sender, receiver) = channel();
+    pub fn sender<S: SignalId>(&self) -> AsyncResult<Arc<SignalInner<S::Data>>> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
                     return Err(AsyncFailure::EntityNotFound)
@@ -239,17 +210,14 @@ impl AsyncEntityMut {
                     return Err(AsyncFailure::ComponentNotFound)
                 };
                 signals.borrow_sender::<S>().ok_or(AsyncFailure::SignalNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     }
     
     /// Borrow a receiver from an entity with shared read tick.
-    pub fn receiver<S: SignalId>(&self) -> ChannelOut<AsyncResult<Arc<SignalInner<S::Data>>>> {
-        let (sender, receiver) = channel();
+    pub fn receiver<S: SignalId>(&self) -> AsyncResult<Arc<SignalInner<S::Data>>> {
         let entity = self.entity;
-        self.queue.once(
+        with_world_mut(
             move |world: &mut World| {
                 let Some(mut entity) = world.get_entity_mut(entity) else {
                     return Err(AsyncFailure::EntityNotFound)
@@ -258,14 +226,12 @@ impl AsyncEntityMut {
                     return Err(AsyncFailure::ComponentNotFound)
                 };
                 signals.borrow_receiver::<S>().ok_or(AsyncFailure::SignalNotFound)
-            },
-            sender
-        );
-        receiver.into_out()
+            }
+        )
     } 
 
     /// Obtain a child entity by [`Name`].
-    pub fn child_by_name(&self, name: impl Into<String> + Borrow<str>) -> MaybeChannelOut<AsyncResult<AsyncEntityMut>> {
+    pub fn child_by_name(&self, name: impl Into<String> + Borrow<str>) -> AsyncResult<AsyncEntityMut> {
         fn find_name(world: &World, parent: Entity, name: &str) -> Option<Entity> {
             let entity = world.get_entity(parent)?;
             if entity.get::<Name>().map(|x| x.as_str() == name) == Some(true) {
@@ -280,28 +246,13 @@ impl AsyncEntityMut {
         }
         let entity = self.entity;
 
-        match self.with_world_ref(|world|find_name(world, entity, name.borrow())) {
-            Ok(Some(entity)) => return Either::Right(ready(Ok(AsyncEntityMut {
+        match with_world_ref(|world|find_name(world, entity, name.borrow())) {
+            Some(entity) => Ok(AsyncEntityMut {
                 entity,
                 queue: self.queue.clone(),
-            }))),
-            Ok(None) => return Either::Right(ready(Err(AsyncFailure::EntityNotFound))),
-            Err(_) => (),
+            }),
+            None => Err(AsyncFailure::EntityNotFound),
         }
-
-        let (sender, receiver) = channel();
-        let name = name.into();
-        let queue = self.queue.clone();
-        self.queue.once(
-            move |world: &mut World| {
-                find_name(world, entity, &name).map(|entity| AsyncEntityMut {
-                    entity, 
-                    queue,
-                }).ok_or(AsyncFailure::EntityNotFound)
-            },
-            sender,
-        );
-        Either::Left(receiver.into_out())
     }
 
     /// Obtain all descendent entities in the hierarchy.
@@ -310,7 +261,7 @@ impl AsyncEntityMut {
     /// 
     /// The first item is always this entity, 
     /// use `[1..]` to exclude it.
-    pub fn descendants(&self) -> MaybeChannelOut<Vec<Entity>> {
+    pub fn descendants(&self) -> Vec<Entity> {
         fn get_children(world: &World, parent: Entity, result: &mut Vec<Entity>) {
             let Some(entity) = world.get_entity(parent) else {return};
             if let Some(children) = entity.get::<Children>() {
@@ -324,19 +275,8 @@ impl AsyncEntityMut {
 
         let mut result = vec![entity];
 
-        if self.with_world_ref(|world|get_children(world, entity, &mut result)).is_ok() {
-            return Either::Right(ready(result))
-        }
-
-        let (sender, receiver) = channel();
-        self.queue.once(
-            move |world: &mut World| {
-                get_children(world, entity, &mut result);
-                result
-            },
-            sender,
-        );
-        Either::Left(receiver.into_out())
+        with_world_ref(|world| get_children(world, entity, &mut result));
+        result
     }
 }
 

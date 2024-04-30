@@ -6,7 +6,7 @@ use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use ref_cast::RefCast;
 use crate::async_systems::AsyncWorldParam;
 use crate::access::AsyncWorldMut;
-use crate::sync::oneshot::ChannelOut;
+use crate::executor::with_world_mut;
 use crate::signals::Signals;
 use crate::async_systems::AsyncEntityParam;
 use crate::{AsyncQueryQueue, AsyncFailure, AsyncResult};
@@ -43,8 +43,8 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(&self,
         f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
-    ) -> ChannelOut<AsyncResult<T>> {
-        self.world().run(move |world: &mut World| {
+    ) -> AsyncResult<T> {
+        with_world_mut(move |world: &mut World| {
             let id = match world.get_resource::<ResSysParamId<Q, T>>(){
                 Some(res) => res.0,
                 None => {

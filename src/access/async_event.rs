@@ -2,7 +2,7 @@ use bevy_core::FrameCount;
 use bevy_ecs::event::{Event, EventId, EventReader};
 use bevy_ecs::system::{Local, Res};
 use bevy_ecs::world::World;
-use futures::{Future, FutureExt, Stream};
+use futures::Stream;
 use parking_lot::{Mutex, RwLock};
 use std::cell::OnceCell;
 use std::pin::Pin;
@@ -10,22 +10,19 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use crate::async_systems::AsyncWorldParam;
-use crate::sync::oneshot::channel;
-use crate::reactors::{Reactors, REACTORS};
+use crate::executor::{with_world_mut, REACTORS};
+use crate::reactors::ArcReactors;
 use crate::{AsyncFailure, AsyncResult};
-use crate::{access::AsyncWorldMut, CHANNEL_CLOSED};
+use crate::access::AsyncWorldMut;
 
 impl AsyncWorldMut {
     /// Send an [`Event`].
-    pub fn send_event<E: Event>(&self, event: E) -> impl Future<Output = AsyncResult<EventId<E>>> {
-        let (sender, receiver) = channel();
-        self.queue.once(
+    pub fn send_event<E: Event>(&self, event: E) -> AsyncResult<EventId<E>> {
+        with_world_mut(
             move |world: &mut World| {
                 world.send_event(event).ok_or(AsyncFailure::EventNotRegistered)
-            },
-            sender
-        );
-        receiver.map(|x| x.expect(CHANNEL_CLOSED))
+            }
+        )
     }
 
     /// Create a stream to an [`Event`], requires the corresponding [`react_to_event`] system.
@@ -114,7 +111,7 @@ impl<E: Event> Default for DoubleBufferedEvent<E> {
 pub fn react_to_event<E: Event + Clone>(
     cached: Local<OnceCell<Arc<DoubleBufferedEvent<E>>>>,
     frame: Res<FrameCount>,
-    reactors: Res<Reactors>,
+    reactors: Res<ArcReactors>,
     mut reader: EventReader<E>,
 ) {
     let buffers = cached.get_or_init(||reactors.get_event::<E>());

@@ -57,7 +57,7 @@ pub fn procedural(){
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(500)).await;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.run();
@@ -96,7 +96,7 @@ pub fn concurrent(){
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(500)).await;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.run();
@@ -134,7 +134,7 @@ pub fn cloned(){
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(500)).await;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.run();
@@ -172,7 +172,7 @@ pub fn take(){
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(500)).await;
-        world.quit().await;
+        world.quit();
         Ok(())
     });
     app.run();

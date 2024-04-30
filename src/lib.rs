@@ -9,7 +9,6 @@ pub mod signals;
 mod executor;
 mod commands;
 mod entity_commands;
-mod locals;
 mod queue;
 pub mod access;
 pub mod ext;
@@ -22,7 +21,7 @@ use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
-use reactors::Reactors;
+use reactors::ArcReactors;
 pub use access::traits::AsyncAccess;
 pub use access::async_query::OwnedQueryState;
 pub use access::async_event::DoubleBufferedEvent;
@@ -51,7 +50,6 @@ pub mod systems {
 
 use std::future::Future;
 pub use crate::sync::oneshot::channel;
-pub use crate::locals::LocalResourceScope;
 
 pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
 
@@ -79,7 +77,7 @@ impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
-            .init_resource::<Reactors>()
+            .init_resource::<ArcReactors>()
             .register_type::<async_systems::AsyncSystems>()
             .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
@@ -95,9 +93,9 @@ impl Plugin for CoreAsyncPlugin {
 /// This plugin is not unique, if you need different locals in different schedules,
 /// add multiple of this components.
 #[derive(Debug)]
-pub struct AsyncPlugin<S: LocalResourceScope=()> {
+pub struct AsyncPlugin {
     schedules: Vec<(Interned<dyn ScheduleLabel>, Option<Interned<dyn SystemSet>>)>,
-    p: PhantomData<S>
+    p: PhantomData<()>
 }
 
 impl AsyncPlugin {
@@ -116,27 +114,15 @@ impl AsyncPlugin {
     }
 }
 
-impl<S: LocalResourceScope> AsyncPlugin<S> {
-
-    /// Push a `Resource` or `NonSend` to thread local storage.
-    pub fn with<A: LocalResourceScope>(self) -> AsyncPlugin<(S, A)> {
-        AsyncPlugin { schedules: self.schedules, p: PhantomData}
-    }
-
-    /// Push `&World` to thread local storage, this blocks all write access
-    /// during execution but allows `get` to resolve immediately.
-    pub fn with_world_access(self) -> AsyncPlugin<(S, World)> {
-        AsyncPlugin { schedules: self.schedules, p: PhantomData}
-    }
-
+impl AsyncPlugin {
     /// Run the executor in a specific `Schedule`.
-    pub fn run_in<A: LocalResourceScope>(mut self, schedule: impl ScheduleLabel) -> Self {
+    pub fn run_in(mut self, schedule: impl ScheduleLabel) -> Self {
         self.schedules.push((Interned(Box::leak(Box::new(schedule))), None));
         self
     }
 
     /// Run the executor in a specific `Schedule` and `SystemSet`.
-    pub fn run_in_set<A: LocalResourceScope>(mut self, schedule: impl ScheduleLabel, set: impl SystemSet) -> Self {
+    pub fn run_in_set(mut self, schedule: impl ScheduleLabel, set: impl SystemSet) -> Self {
         self.schedules.push(
             (
                 Interned(Box::leak(Box::new(schedule))), 
@@ -147,12 +133,7 @@ impl<S: LocalResourceScope> AsyncPlugin<S> {
     }
 }
 
-/// Safety: Safe since S is a marker.
-unsafe impl<S: LocalResourceScope> Send for AsyncPlugin<S> {}
-/// Safety: Safe since S is a marker.
-unsafe impl<S: LocalResourceScope> Sync for AsyncPlugin<S> {}
-
-impl<S: LocalResourceScope> Plugin for AsyncPlugin<S> {
+impl Plugin for AsyncPlugin {
     fn build(&self, app: &mut App) {
         use crate::systems::*;
         if !app.is_plugin_added::<CoreAsyncPlugin>() {
@@ -161,11 +142,11 @@ impl<S: LocalResourceScope> Plugin for AsyncPlugin<S> {
         for (schedule, set) in &self.schedules {
             if let Some(set) = set {
                 app.add_systems(*schedule, 
-                    (run_async_queries.before(run_async_executor::<S>), run_async_executor::<S>).in_set(*set)
+                    (run_async_queries.before(run_async_executor), run_async_executor).in_set(*set)
                 );
             } else {
                 app.add_systems(*schedule, 
-                    (run_async_queries.before(run_async_executor::<S>), run_async_executor::<S>)
+                    (run_async_queries.before(run_async_executor), run_async_executor)
                 );
             }
         }
@@ -200,11 +181,11 @@ impl AsyncExtension for World {
     }
 
     fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
-        self.get_resource_or_insert_with::<Reactors>(Default::default).get_typed::<T>()
+        self.get_resource_or_insert_with::<ArcReactors>(Default::default).get_typed::<T>()
     }
     
     fn named_signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        self.get_resource_or_insert_with::<Reactors>(Default::default).get_named::<T>(name)
+        self.get_resource_or_insert_with::<ArcReactors>(Default::default).get_named::<T>(name)
     }
 }
 
@@ -220,11 +201,11 @@ impl AsyncExtension for App {
     }
 
     fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
-        self.world.get_resource_or_insert_with::<Reactors>(Default::default).get_typed::<T>()
+        self.world.get_resource_or_insert_with::<ArcReactors>(Default::default).get_typed::<T>()
     }
 
     fn named_signal<T: SignalId>(&mut self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        self.world.get_resource_or_insert_with::<Reactors>(Default::default).get_named::<T>(name)
+        self.world.get_resource_or_insert_with::<ArcReactors>(Default::default).get_named::<T>(name)
     }
 }
 
@@ -255,7 +236,6 @@ impl Command for SpawnFn {
         world.spawn_task(self.0());
     }
 }
-
 
 /// Standard errors for the async runtime.
 /// 
@@ -334,7 +314,7 @@ macro_rules! test_spawn {
             app.insert_state(MyState::A);
             app.spawn_task(async move {
                 $expr;
-                world().quit().await;
+                world().quit();
                 Ok(())
             });
             app.run();

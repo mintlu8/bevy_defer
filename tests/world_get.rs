@@ -18,31 +18,31 @@ pub fn main() {
     let mut app = App::new();
     app.add_plugins(TimePlugin);
     app.add_plugins(FrameCountPlugin);
-    app.add_plugins(AsyncPlugin::default_settings().with_world_access());
+    app.add_plugins(AsyncPlugin::default_settings());
     let a = app.world.spawn(Int(69)).id();
     let b = app.world.spawn(String("ferris")).id();
 
     static LOCK: AtomicBool = AtomicBool::new(false);
     app.spawn_task(async move {
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
 
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
+        assert_eq!(world().entity(b).component::<String>().get(|x| x.0)?, "ferris");
         LOCK.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -50,48 +50,6 @@ pub fn main() {
     app.update();
     assert!(LOCK.load(Ordering::SeqCst))
 }
-
-#[test]
-pub fn control_group() {
-    let mut app = App::new();
-    app.add_plugins(TimePlugin);
-    app.add_plugins(FrameCountPlugin);
-    // Without world access cannot resolve in one frame.
-    app.add_plugins(AsyncPlugin::default_settings());//.with_world_access());
-    let a = app.world.spawn(Int(69)).id();
-    let b = app.world.spawn(String("ferris")).id();
-
-    static LOCK: AtomicBool = AtomicBool::new(false);
-    app.spawn_task(async move {
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0).await?, 69);
-
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        assert_eq!(world().entity(b).component::<String>().get(|x| x.0).await?, "ferris");
-        LOCK.store(true, Ordering::Relaxed);
-        Ok(())
-    });
-    // Without world access cannot resolve in one frame.
-    app.update();
-    assert!(!LOCK.load(Ordering::SeqCst));
-    app.update();
-    assert!(!LOCK.load(Ordering::SeqCst));
-}
-
 
 #[test]
 pub fn system_future() {
@@ -102,14 +60,15 @@ pub fn system_future() {
     let lock2 = lock.clone();
     app.spawn_task(system_future!(
         |w: AsyncWorldMut, q: AsyncQuery<(&mut Transform, &Sprite), With<GlobalTransform>>| {
-            w.spawn_bundle(SpriteBundle::default()).await;
             let cloned = lock.clone();
+            w.spawn_bundle(SpriteBundle::default());
             q.for_each(move |_| {
                 cloned.fetch_add(1, Ordering::Relaxed);
-            }).await;
+            });
             if lock.load(Ordering::Relaxed) > 10 {
-                w.quit().await;
+                w.quit();
             }
+            w.yield_now().await;
             // Uses AsyncSystem semantics so failure does not cancel the system.
             Err(AsyncFailure::ComponentNotFound)?;
         }

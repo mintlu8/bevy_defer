@@ -34,15 +34,15 @@ fn setup(
         AsyncSystems::from_iter([
             async_system!(|sender: Sender<PickingInteractionChange>, sp: AsyncComponent<Sprite>| {
                 match sender.recv().await.to {
-                    PickingInteraction::Pressed => sp.set(|x| x.color = Color::BLUE).await?,
-                    _ => sp.set(|x| x.color = Color::RED).await?,
+                    PickingInteraction::Pressed => sp.set(|x| x.color = Color::BLUE)?,
+                    _ => sp.set(|x| x.color = Color::RED)?,
                 };
             }),
             async_system!(|sender: Sender<PickingSelected>, sp: AsyncComponent<Sprite>| {
                 if sender.recv().await{
-                    sp.set(|s| s.custom_size.as_mut().unwrap().x = 400.0).await?;
+                    sp.set(|s| s.custom_size.as_mut().unwrap().x = 400.0)?;
                 } else {
-                    sp.set(|s| s.custom_size.as_mut().unwrap().x = 200.0).await?;
+                    sp.set(|s| s.custom_size.as_mut().unwrap().x = 200.0)?;
                 }
             }),
         ])
