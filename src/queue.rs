@@ -19,11 +19,6 @@ pub(crate) struct FixedTask {
 }
 
 /// A deferred query on a `World`.
-pub(crate) struct QueryOnce {
-    command: Box<dyn FnOnce(&mut World) + 'static>
-}
-
-/// A deferred query on a `World`.
 pub(crate) struct QueryCallback {
     command: Box<dyn FnMut(&mut World) -> bool + 'static>
 }
@@ -75,31 +70,6 @@ impl std::fmt::Debug for AsyncQueryQueue {
             .field("now", &self.now.get())
             .field("frame", &self.frame.get())
             .finish_non_exhaustive()
-    }
-}
-
-impl QueryOnce {
-    fn fire_and_forget(
-        query: impl (FnOnce(&mut World)) + 'static,
-    ) -> Self {
-        Self {
-            command: Box::new(move |w| {
-                query(w);
-            })
-        }
-    }
-
-    fn once<Out: 'static>(
-        query: impl (FnOnce(&mut World) -> Out) + 'static,
-        channel: Sender<Out>
-    ) -> Self {
-        Self {
-            command: Box::new(move |w| {
-                if channel.is_closed() { return } 
-                let result = query(w);
-                let _ = channel.send(result);
-            })
-        }
     }
 }
 

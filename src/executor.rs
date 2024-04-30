@@ -28,12 +28,6 @@ scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASYNC_WORLD: AsyncWorldMu
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'static>);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
 
-pub(crate) fn world_scope<T>(executor: &Rc<AsyncQueryQueue>, pool: &LocalExecutor<'static>, f: impl FnOnce() -> T) -> T{
-    ASYNC_WORLD.set(AsyncWorldMut::ref_cast(executor), ||{
-        SPAWNER.set(pool, f)
-    })
-}
-
 /// Spawn a `bevy_defer` compatible future with a handle.
 /// 
 /// # Handle
