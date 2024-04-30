@@ -10,6 +10,9 @@ use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use crate::{access::AsyncWorldMut, AsyncFailure, AsyncResult};
 use futures::future::Either;
 
+#[allow(unused)]
+use bevy_ecs::entity::Entity;
+
 impl AsyncWorldMut {
     /// Apply a command, does not wait for it to complete.
     /// 

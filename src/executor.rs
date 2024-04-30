@@ -82,7 +82,7 @@ pub fn in_async_context() -> bool {
     ASYNC_WORLD.is_set()
 }
 
-/// [`NonSend`] resource containing a reference to an async executor, 
+/// `!Send` resource containing a reference to an async executor, 
 /// this resource can be cloned to spawn futures.
 #[derive(Debug, Default, Clone)]
 pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);

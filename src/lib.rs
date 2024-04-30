@@ -104,12 +104,19 @@ impl AsyncPlugin {
         AsyncPlugin { schedules: Vec::new(), p: PhantomData }
     }
 
-    /// Run on `PreUpdate`, `Update` and `PostUpdate`.
+    /// Run on `Update` only.
     pub fn default_settings() -> Self {
+        AsyncPlugin { schedules: vec![
+            (Interned(Box::leak(Box::new(Update))), None),
+        ], p: PhantomData }
+    }
+
+    /// Run on `PreUpdate`, `Update` and `PostUpdate`.
+    pub fn busy_schedule() -> Self {
         AsyncPlugin { schedules: vec![
             (Interned(Box::leak(Box::new(PreUpdate))), None),
             (Interned(Box::leak(Box::new(Update))), None),
-            (Interned(Box::leak(Box::new(PostUpdate))), None),
+            (Interned(Box::leak(Box::new(PostUpdate))), None),        
         ], p: PhantomData }
     }
 }
