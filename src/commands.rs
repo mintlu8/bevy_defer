@@ -57,7 +57,7 @@ impl AsyncWorldMut {
     /// world().run(|w: &mut World| w.resource::<Int>().0)
     /// # );
     /// ```
-    pub fn run<T: 'static>(&self, f: impl FnOnce(&mut World) -> T + 'static) -> T {
+    pub fn run<T>(&self, f: impl FnOnce(&mut World) -> T) -> T {
         with_world_mut(f)
     }
 

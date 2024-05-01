@@ -71,7 +71,7 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result.
-    fn set<T: 'static>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T + 'static) -> AsyncResult<T> {
+    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AsyncResult<T> {
         let cx = self.as_cx();
         with_world_mut(|w| {
             let mut mut_cx = Self::from_mut_world(w, &cx)?;
@@ -136,7 +136,7 @@ pub trait AsyncAccess {
     /// Run a function on a readonly reference to this item and obtain the result.
     /// 
     /// Completes immediately if `&World` access is available.
-    fn get<T: 'static>(&self, f: impl FnOnce(Self::Ref<'_>) -> T + 'static) -> AsyncResult<T> where Self: AsyncReadonlyAccess{
+    fn get<T>(&self, f: impl FnOnce(Self::Ref<'_>) -> T) -> AsyncResult<T> where Self: AsyncReadonlyAccess{
         let ctx = self.as_cx();
         with_world_ref(|w| Ok(f(Self::from_ref_world(w, &ctx)?)))
     }
