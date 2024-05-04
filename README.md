@@ -40,16 +40,10 @@ swing_animation().await;
 
 * Why not `bevy_tasks`?
 
-`bevy_defer` provides mutable world access. The user
-can schedule tasks and mutate the world at the same time.
-
-* For library authors
-
-Avoid depending on `bevy_defer` as much as possible, as it is
-preferable to be runtime agnostic. If you need to spawn
-a task and do not need to mutate the world,
-try spawn it on `bevy_tasks` and let the user `await` it
-in `bevy_defer`.
+`bevy_defer` provides mutable world access.
+All `bevy_defer` futures can access the currently
+running bevy `World` as a in memory database.
+The user can schedule tasks and mutate the world at the same time.
 
 ## Bridging Sync and Async
 
@@ -63,11 +57,10 @@ Communicating from sync to async is simple, async code can hand out channels
 and `await` on them, pausing the task.
 Once sync code sends data through the channel, it will
 wake and resume the corresponding task.
-`bevy_defer` heavily utilizes one-shot channels to perform its operations.
 
 Communicating from async to sync usually requires mutating the world in an async
 function, then a system can listen for that particular change in sync code.
-This is pretty seamless with regular bevy workflow.
+This is seamless with regular bevy workflow.
 
 ## Spawning
 
@@ -146,11 +139,13 @@ underlying types. See the `access::deref` module for more detail.
 
 ## Signals
 
-Signals are the cornerstone of reactive programming that bridges the sync and async world.
-The `Signals` component can be added to an entity, and the `NamedSignals` resource can be used to
+Signals are the cornerstone of reactive programming in `bevy_defer`
+that bridges the sync and async world.
+The `Signals` component can be added to an entity,
+and the `NamedSignals` resource can be used to
 provide matching signals when needed.
 
-Here are the guarantees of signals:
+The implementation is similar to tokio's `Watch` channel and here are the guarantees:
 
 * A `Signal` can hold only one value.
 * A `Signal` is read at most once per write for every reader.
@@ -234,10 +229,10 @@ We can use `AsyncComputeTaskPool::get().spawn()` to spawn a future on task pool 
 
 ## Usage Tips
 
-The `futures` and/or `futures_lite` crate has excellent tools to for us to uses.
+The `futures` and/or `futures_lite` crate has excellent tools to for us to use.
 
 For example `futures::join!` can be used to run tasks concurrently, and
-`futures_select!` can be used to cancel tasks, for example despawning a task
+`futures::select!` can be used to cancel tasks, for example despawning a task
 if a level has finished.
 
 ## Versions

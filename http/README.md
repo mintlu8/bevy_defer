@@ -9,7 +9,4 @@ Http utilities for the `bevy_defer` crate, based on the `hyper` crate.
 
 ## Features
 
-* [x] Http client.
-* [ ] Https client.
-* [ ] Server.
-* [ ] WASM support.
+* Http client

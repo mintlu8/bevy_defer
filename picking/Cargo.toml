@@ -3,7 +3,16 @@ name = "bevy_defer_picking"
 version = "0.0.1"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+readme = "README.md"
+repository = "https://github.com/mintlu8/bevy_defer"
+description = """
+bevy_defer reactors for bevy_mod_picking.
+"""
+keywords = ["bevy", "async", "defer", "picking"]
+
 
 [dependencies]
 bevy_defer = { version = "0.11.0", path = ".." }
