@@ -108,9 +108,9 @@ impl AsyncEntityMut {
     /// let child = entity.spawn_child(Str("bevy"));
     /// # });
     /// ```
-    pub fn spawn_child(&self, bundle: impl Bundle) -> AsyncResult<Entity> {
+    pub fn spawn_child(&self, bundle: impl Bundle) -> AsyncResult<AsyncEntityMut> {
         let entity = self.entity;
-        with_world_mut(move |world: &mut World| {
+        let entity = with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
@@ -119,7 +119,8 @@ impl AsyncEntityMut {
                     id
                 })
                 .ok_or(AsyncFailure::EntityNotFound)
-        })
+        })?;
+        Ok(self.entity(entity))
     }
 
     /// Adds a single child.
