@@ -1,6 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
-use bevy_app::{App, First, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
+use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_utils::intern::Interned;
 use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
 
@@ -88,7 +88,7 @@ impl Plugin for CoreAsyncPlugin {
             .register_type_data::<Signals, ReflectDefault>()
             .add_systems(First, systems::run_time_series)
             .add_systems(First, systems::push_async_systems)
-            .add_systems(FixedUpdate, run_fixed_queue);
+            .add_systems(Update, run_fixed_queue);
     }
 }
 

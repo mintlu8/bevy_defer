@@ -8,14 +8,14 @@ use bevy_core::FrameCount;
 use bevy_ecs::system::NonSend;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
-use bevy_time::{Fixed, Time};
+use bevy_time::Time;
 use bevy_utils::Duration;
 use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
 
 #[allow(unused)]
-use bevy_app::FixedUpdate;
+use bevy_app::Update;
 
-/// A Task running on [`FixedUpdate`].
+/// A Task running on [`Update`] once per frame.
 pub(crate) struct FixedTask {
     task: Box<dyn FnMut(&mut World, Duration) -> bool>,
     cancel: TaskCancellation,
@@ -135,10 +135,10 @@ pub fn run_async_queries(w: &mut World) {
     queue.yielded.wake();
 }
 
-/// Run `fixed_queue` on [`FixedUpdate`].
+/// Run `fixed_queue` on [`Update`].
 pub fn run_fixed_queue(world: &mut World) {
     let executor = world.non_send_resource::<QueryQueue>().0.clone();
-    let delta_time = world.resource::<Time<Fixed>>().delta();
+    let delta_time = world.resource::<Time>().delta();
     executor.fixed_queue.borrow_mut().retain_mut(|x| {
         if x.cancel.cancelled() {
             return false;
@@ -167,8 +167,8 @@ pub fn run_time_series(queue: NonSend<QueryQueue>, time: Res<Time>, frames: Res<
 }
 
 impl AsyncWorldMut {
-    /// Run a repeatable routine on [`FixedUpdate`], with access to delta time.
-    pub fn fixed_routine<T: 'static>(
+    /// Run a repeatable routine on [`Update`], with access to delta time.
+    pub fn timed_routine<T: 'static>(
         &self,
         mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
         cancellation: impl Into<TaskCancellation>,

@@ -257,7 +257,7 @@ pub trait AsyncAccess {
         let cancel = cancel.into();
         let cx = self.as_cx();
         world
-            .fixed_routine(
+            .timed_routine(
                 move |world, dt| {
                     let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else {
                         return None;
@@ -307,7 +307,7 @@ pub trait AsyncAccess {
         let mut t = 0.0;
         let cancel = cancel.into();
         world
-            .fixed_routine(
+            .timed_routine(
                 move |world, dt| {
                     let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else {
                         return None;
