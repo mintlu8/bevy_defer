@@ -1,4 +1,7 @@
-use std::{cell::RefCell, task::{Context, Waker}};
+use std::{
+    cell::RefCell,
+    task::{Context, Waker},
+};
 
 /// A `!Send` internally mutable list of [`Waker`]s.
 #[derive(Debug, Default)]

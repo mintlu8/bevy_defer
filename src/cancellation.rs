@@ -1,6 +1,13 @@
 //! Cancellation handles for `bevy_defer`.
 
-use std::{cell::Cell, rc::Rc, sync::{atomic::{AtomicBool, Ordering}, Arc}};
+use std::{
+    cell::Cell,
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 /// Shared object for cancelling a running task.
 #[derive(Debug, Clone, Default)]
@@ -67,7 +74,7 @@ impl SyncCancellation {
 pub enum TaskCancellation {
     Unsync(Cancellation),
     Sync(SyncCancellation),
-    None
+    None,
 }
 
 impl TaskCancellation {

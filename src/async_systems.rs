@@ -1,6 +1,17 @@
 //! Per-entity repeatable async functions.
 
-use std::{future::Future, num::NonZeroU32, ops::{Deref, DerefMut}, sync::Arc, task::{Poll, Waker}};
+use super::AsyncFailure;
+#[allow(unused)]
+use crate::{
+    access::AsyncComponent,
+    signals::{Receiver, Sender},
+};
+use crate::{access::AsyncWorldMut, signals::Signals, AsyncExecutor, AsyncResult, QueryQueue};
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    system::{Local, NonSend, Query},
+};
 use bevy_hierarchy::Children;
 use bevy_reflect::Reflect;
 use futures::FutureExt;
@@ -8,19 +19,20 @@ use parking_lot::Mutex;
 use ref_cast::RefCast;
 use std::fmt::Debug;
 use std::pin::Pin;
-use bevy_ecs::{component::Component, entity::Entity, system::{Local, NonSend, Query}};
-use crate::{access::AsyncWorldMut, signals::Signals, AsyncExecutor, AsyncResult, QueryQueue};
-use super::AsyncFailure;
-#[allow(unused)]
-use crate::{access::AsyncComponent, signals::{Sender, Receiver}};
+use std::{
+    future::Future,
+    num::NonZeroU32,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+    task::{Poll, Waker},
+};
 
-
-/// Construct a [`Future`] via [`AsyncSystem`] semantics. 
-/// 
+/// Construct a [`Future`] via [`AsyncSystem`] semantics.
+///
 /// The future repeats forever, unless [`AsyncFailure::ManuallyKilled`] is returned.
-/// 
+///
 /// This function uses [`AsyncWorldParam`] as parameters, as there is no active entity.
-/// 
+///
 /// See [`async_system!`](crate::async_system) for syntax.
 #[macro_export]
 macro_rules! system_future {
@@ -42,16 +54,16 @@ macro_rules! system_future {
 }
 
 /// Construct an async system via the [`AsyncEntityParam`] abstraction.
-/// 
+///
 /// # Syntax
-/// 
+///
 /// * Expects an async closure with [`AsyncEntityParam`]s as parameters and returns `()`.
 /// * `?` can be used to propagate [`AsyncFailure`]s.
-/// * Most of this crate's [`AsyncEntityParam`]s, like [`Sender`], [`Receiver`] and [`AsyncComponent`] are automatically 
-/// imported and may shadow external names. 
-/// 
+/// * Most of this crate's [`AsyncEntityParam`]s, like [`Sender`], [`Receiver`] and [`AsyncComponent`] are automatically
+/// imported and may shadow external names.
+///
 /// # Example
-/// 
+///
 /// ```
 /// # /*
 /// // Set scale based on received position
@@ -107,11 +119,10 @@ impl Drop for ParentAlive {
     }
 }
 
-
 /// A shared storage that cleans up associated futures
 /// when their associated entity is destroyed.
 #[derive(Debug, Default)]
-pub(crate) struct ChildAlive{
+pub(crate) struct ChildAlive {
     inner: Arc<Mutex<Option<Waker>>>,
     init: bool,
 }
@@ -142,24 +153,29 @@ type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + 'static
 
 /// An async system function.
 pub struct AsyncSystem {
-    pub(crate) function: Box<dyn FnMut(
-        Entity,
-        &AsyncWorldMut,
-        &Signals,
-        &[Entity],
-    ) -> Option<PinnedFut> + Send + Sync> ,
+    pub(crate) function: Box<
+        dyn FnMut(Entity, &AsyncWorldMut, &Signals, &[Entity]) -> Option<PinnedFut> + Send + Sync,
+    >,
     pub(crate) marker: ParentAlive,
     pub id: Option<NonZeroU32>,
 }
 
 impl AsyncSystem {
-    pub fn new<F>(mut f: impl FnMut(Entity, AsyncWorldMut, &Signals, &[Entity]) -> Option<F> + Send + Sync + 'static) -> Self where F: Future<Output = AsyncResult> + 'static {
+    pub fn new<F>(
+        mut f: impl FnMut(Entity, AsyncWorldMut, &Signals, &[Entity]) -> Option<F>
+            + Send
+            + Sync
+            + 'static,
+    ) -> Self
+    where
+        F: Future<Output = AsyncResult> + 'static,
+    {
         AsyncSystem {
             function: Box::new(move |entity, executor, signals, children| {
                 f(entity, executor.clone(), signals, children).map(|x| Box::pin(x) as PinnedFut)
             }),
             marker: ParentAlive::new(),
-            id: None
+            id: None,
         }
     }
 
@@ -175,7 +191,6 @@ impl Debug for AsyncSystem {
         f.debug_struct("AsyncSystem").field("id", &self.id).finish()
     }
 }
-
 
 /// A component containing an entity's `AsyncSystem`s.
 #[derive(Debug, Component, Default, Reflect)]
@@ -201,7 +216,7 @@ impl DerefMut for AsyncSystems {
 impl FromIterator<AsyncSystem> for AsyncSystems {
     fn from_iter<T: IntoIterator<Item = AsyncSystem>>(iter: T) -> Self {
         AsyncSystems {
-            systems: iter.into_iter().collect()
+            systems: iter.into_iter().collect(),
         }
     }
 }
@@ -211,10 +226,8 @@ impl AsyncSystems {
         Self::default()
     }
 
-    pub fn from_single(sys: AsyncSystem) -> Self  {
-        AsyncSystems {
-            systems: vec![sys]
-        }
+    pub fn from_single(sys: AsyncSystem) -> Self {
+        AsyncSystems { systems: vec![sys] }
     }
 
     pub fn and(mut self, sys: AsyncSystem) -> Self {
@@ -228,7 +241,7 @@ impl AsyncSystems {
     }
 
     /// Remove all [`AsyncSystem`]s with a specific id.
-    /// 
+    ///
     /// This will cancel currently running futures.
     pub fn remove_by_id(&mut self, id: NonZeroU32) {
         self.retain(|x| x.id != Some(id))
@@ -238,9 +251,7 @@ impl AsyncSystems {
 /// A parameter of an [`AsyncSystem`].
 pub trait AsyncWorldParam: Sized {
     /// Obtain `Self` from the async context.
-    fn from_async_context(
-        executor: &AsyncWorldMut,
-    ) -> Option<Self>;
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self>;
 }
 
 /// A parameter of an [`AsyncSystem`].
@@ -259,7 +270,10 @@ pub trait AsyncEntityParam: Sized {
     ) -> Option<Self>;
 }
 
-impl<T> AsyncEntityParam for T where T: AsyncWorldParam {
+impl<T> AsyncEntityParam for T
+where
+    T: AsyncWorldParam,
+{
     type Signal = ();
 
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
@@ -281,11 +295,16 @@ pub fn push_async_systems(
     dummy: Local<Signals>,
     queue: NonSend<QueryQueue>,
     exec: NonSend<AsyncExecutor>,
-    mut query: Query<(Entity, Option<&Signals>, &mut AsyncSystems, Option<&Children>)>
+    mut query: Query<(
+        Entity,
+        Option<&Signals>,
+        &mut AsyncSystems,
+        Option<&Children>,
+    )>,
 ) {
     for (entity, signals, mut systems, children) in query.iter_mut() {
         let signals = signals.unwrap_or(&dummy);
-        for system in systems.systems.iter_mut(){
+        for system in systems.systems.iter_mut() {
             system.spawn(entity, &queue, &exec, signals, children);
         }
     }
@@ -293,14 +312,23 @@ pub fn push_async_systems(
 
 impl AsyncSystem {
     /// Spawn an [`AsyncSystem`] onto the executor.
-    pub fn spawn(&mut self, entity: Entity, queue: &QueryQueue, executor: &AsyncExecutor, signals: &Signals, children: Option<&Children>) {
+    pub fn spawn(
+        &mut self,
+        entity: Entity,
+        queue: &QueryQueue,
+        executor: &AsyncExecutor,
+        signals: &Signals,
+        children: Option<&Children>,
+    ) {
         if !self.marker.other_alive() {
             let alive = self.marker.clone_child();
             let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
-            let Some(fut) = (self.function)(entity, AsyncWorldMut::ref_cast(&queue.0), signals, children) else {return};
-            executor.spawn(
-                futures::future::select(alive, fut.map(|_| ()))
-            );
+            let Some(fut) =
+                (self.function)(entity, AsyncWorldMut::ref_cast(&queue.0), signals, children)
+            else {
+                return;
+            };
+            executor.spawn(futures::future::select(alive, fut.map(|_| ())));
         }
     }
 }

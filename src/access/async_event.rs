@@ -1,3 +1,8 @@
+use crate::access::AsyncWorldMut;
+use crate::async_systems::AsyncWorldParam;
+use crate::executor::{with_world_mut, REACTORS};
+use crate::reactors::Reactors;
+use crate::{AsyncFailure, AsyncResult};
 use bevy_core::FrameCount;
 use bevy_ecs::event::{Event, EventId, EventReader};
 use bevy_ecs::system::{Local, Res};
@@ -9,20 +14,15 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
-use crate::async_systems::AsyncWorldParam;
-use crate::executor::{with_world_mut, REACTORS};
-use crate::reactors::ArcReactors;
-use crate::{AsyncFailure, AsyncResult};
-use crate::access::AsyncWorldMut;
 
 impl AsyncWorldMut {
     /// Send an [`Event`].
     pub fn send_event<E: Event>(&self, event: E) -> AsyncResult<EventId<E>> {
-        with_world_mut(
-            move |world: &mut World| {
-                world.send_event(event).ok_or(AsyncFailure::EventNotRegistered)
-            }
-        )
+        with_world_mut(move |world: &mut World| {
+            world
+                .send_event(event)
+                .ok_or(AsyncFailure::EventNotRegistered)
+        })
     }
 
     /// Create a stream to an [`Event`], requires the corresponding [`react_to_event`] system.
@@ -48,13 +48,13 @@ impl<E: Event + Clone> DoubleBufferedEvent<E> {
         EventStream {
             frame: self.current_frame.load(Ordering::Relaxed).wrapping_sub(1),
             index: 0,
-            event: self
+            event: self,
         }
     }
 }
 
 /// A [`Stream`] of [`Event`]s, requires system [`react_to_event`] to function.
-/// 
+///
 /// This follows bevy's double buffering semantics.
 #[derive(Debug)]
 pub struct EventStream<E: Event + Clone> {
@@ -98,11 +98,11 @@ impl<E: Event + Clone> Stream for EventStream<E> {
 
 impl<E: Event> Default for DoubleBufferedEvent<E> {
     fn default() -> Self {
-        Self { 
-            last: Default::default(), 
-            this: Default::default(), 
-            wakers: Default::default(), 
-            current_frame: Default::default() 
+        Self {
+            last: Default::default(),
+            this: Default::default(),
+            wakers: Default::default(),
+            current_frame: Default::default(),
         }
     }
 }
@@ -111,10 +111,10 @@ impl<E: Event> Default for DoubleBufferedEvent<E> {
 pub fn react_to_event<E: Event + Clone>(
     cached: Local<OnceCell<Arc<DoubleBufferedEvent<E>>>>,
     frame: Res<FrameCount>,
-    reactors: Res<ArcReactors>,
+    reactors: Res<Reactors>,
     mut reader: EventReader<E>,
 ) {
-    let buffers = cached.get_or_init(||reactors.get_event::<E>());
+    let buffers = cached.get_or_init(|| reactors.get_event::<E>());
     if !reader.is_empty() {
         buffers.wakers.lock().drain(..).for_each(|x| x.wake())
     }
@@ -130,9 +130,7 @@ pub fn react_to_event<E: Event + Clone>(
 }
 
 impl<E: Event + Clone> AsyncWorldParam for EventStream<E> {
-    fn from_async_context(
-        executor: &AsyncWorldMut,
-    ) -> Option<Self> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
         Some(executor.event_stream())
     }
 }

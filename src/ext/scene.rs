@@ -1,11 +1,11 @@
-use std::borrow::Borrow;
+use crate::access::{AsyncEntityMut, AsyncWorldMut};
+use crate::AsyncResult;
 use bevy_ecs::component::Component;
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Commands, Query};
-use bevy_scene::SceneInstance;
 use bevy_ecs::{bundle::Bundle, entity::Entity};
-use crate::AsyncResult;
-use crate::access::{AsyncEntityMut, AsyncWorldMut};
+use bevy_scene::SceneInstance;
+use std::borrow::Borrow;
 
 /// A component that sends a signal and removes itself
 /// if a paired `Scene` is loaded.
@@ -15,7 +15,7 @@ pub struct SceneSignal(async_oneshot::Sender<()>);
 /// Send [`SceneSignal`] once scene is loaded.
 pub fn react_to_scene_load(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut SceneSignal), With<SceneInstance>>
+    mut query: Query<(Entity, &mut SceneSignal), With<SceneInstance>>,
 ) {
     for (entity, mut signal) in query.iter_mut() {
         let _ = signal.0.send(());
@@ -27,11 +27,14 @@ impl AsyncWorldMut {
     /// Spawn a scene and wait for spawning to complete.
     ///
     /// Requires [`react_to_scene_load`] to function.
-    pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncEntityMut{
+    pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncEntityMut {
         let (send, recv) = async_oneshot::oneshot();
         let entity = self.spawn_bundle((bun, SceneSignal(send))).id();
         let _ = recv.await;
-        AsyncEntityMut { entity, queue: self.queue.clone() }
+        AsyncEntityMut {
+            entity,
+            queue: self.queue.clone(),
+        }
     }
 }
 

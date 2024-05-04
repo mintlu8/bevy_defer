@@ -1,11 +1,26 @@
-use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
 use bevy_core::FrameCountPlugin;
-use bevy_ecs::{component::Component, event::{Event, EventWriter}, query::With, system::{Commands, Local, Query}};
-use bevy_defer::{async_system, async_systems::AsyncSystems, signal_ids, signals::{Signal, SignalSender}, systems::react_to_event, world, AsyncExtension, AsyncPlugin};
 use bevy_defer::signals::Signals;
+use bevy_defer::{
+    async_system,
+    async_systems::AsyncSystems,
+    signal_ids,
+    signals::{Signal, SignalSender},
+    systems::react_to_event,
+    world, AsyncExtension, AsyncPlugin,
+};
+use bevy_ecs::{
+    component::Component,
+    event::{Event, EventWriter},
+    query::With,
+    system::{Commands, Local, Query},
+};
 use bevy_tasks::futures_lite::StreamExt;
 use bevy_time::TimePlugin;
 signal_ids! {
@@ -37,29 +52,24 @@ pub fn main() {
 
 pub fn init(mut commands: Commands) {
     let signal = Signal::default();
+    commands.spawn((Marker1, Signals::from_sender::<SigText>(signal.clone())));
     commands.spawn((
-        Marker1, 
-        Signals::from_sender::<SigText>(signal.clone())
-    ));
-    commands.spawn((
-        Marker2, 
+        Marker2,
         Signals::from_receiver::<SigText>(signal.clone()),
-        AsyncSystems::from_single(
-            async_system!(|sig: Receiver<SigText>|{
-                let mut stream = sig.into_stream();
-                assert_eq!(stream.next().await, Some("hello"));
-                assert_eq!(stream.next().await, Some("rust"));
-                assert_eq!(stream.next().await, Some("and"));
-                assert_eq!(stream.next().await, Some("bevy"));
-                LOCK.store(true, Ordering::SeqCst)
-            })
-        )
+        AsyncSystems::from_single(async_system!(|sig: Receiver<SigText>| {
+            let mut stream = sig.into_stream();
+            assert_eq!(stream.next().await, Some("hello"));
+            assert_eq!(stream.next().await, Some("rust"));
+            assert_eq!(stream.next().await, Some("and"));
+            assert_eq!(stream.next().await, Some("bevy"));
+            LOCK.store(true, Ordering::SeqCst)
+        })),
     ));
 }
 
 fn update(mut i: Local<usize>, q: Query<SignalSender<SigText>, With<Marker1>>) {
     let s = ["hello", "rust", "and", "bevy"];
-    if let Some(s) = s.get(*i){
+    if let Some(s) = s.get(*i) {
         q.single().send(*s);
     }
     *i += 1;
@@ -78,17 +88,27 @@ pub fn chat() {
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
-        assert_eq!(world.named_signal::<Message>("Alice").poll().await, "Hello, Alice.");
+        assert_eq!(
+            world.named_signal::<Message>("Alice").poll().await,
+            "Hello, Alice."
+        );
         world.sleep(Duration::from_millis(16)).await;
-        world.named_signal::<Message>("Bob").send("Hello, Bob.".to_owned());
+        world
+            .named_signal::<Message>("Bob")
+            .send("Hello, Bob.".to_owned());
         ALICE.store(true, Ordering::Relaxed);
         Ok(())
     });
     app.spawn_task(async {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
-        world.named_signal::<Message>("Alice").send("Hello, Alice.".to_owned());
-        assert_eq!(world.named_signal::<Message>("Bob").poll().await, "Hello, Bob.");
+        world
+            .named_signal::<Message>("Alice")
+            .send("Hello, Alice.".to_owned());
+        assert_eq!(
+            world.named_signal::<Message>("Bob").poll().await,
+            "Hello, Bob."
+        );
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -106,7 +126,6 @@ pub fn chat() {
 #[derive(Debug, Clone, Event)]
 pub struct AliceChat(String);
 
-
 #[derive(Debug, Clone, Event)]
 pub struct BobChat(String);
 
@@ -123,7 +142,10 @@ pub fn events() {
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = world();
-        assert_eq!(world.event_stream::<AliceChat>().next().await.unwrap().0, "Hello, Alice.");
+        assert_eq!(
+            world.event_stream::<AliceChat>().next().await.unwrap().0,
+            "Hello, Alice."
+        );
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(BobChat("Hello, Bob.".to_owned()))?;
         ALICE.store(true, Ordering::Relaxed);
@@ -133,7 +155,10 @@ pub fn events() {
         let world = world();
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(AliceChat("Hello, Alice.".to_owned()))?;
-        assert_eq!(world.event_stream::<BobChat>().next().await.unwrap().0, "Hello, Bob.");
+        assert_eq!(
+            world.event_stream::<BobChat>().next().await.unwrap().0,
+            "Hello, Bob."
+        );
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -173,14 +198,16 @@ pub fn stream() {
         assert_eq!(stream.next().await, Some(Chat('e')));
         assert_eq!(stream.next().await, Some(Chat('v')));
         assert_eq!(stream.next().await, Some(Chat('y')));
-        if DONE.swap(true, Ordering::Relaxed){
+        if DONE.swap(true, Ordering::Relaxed) {
             world.quit();
         }
         Ok(())
     });
     app.spawn_task(async {
         let world = world();
-        let mut stream = world.event_stream::<Chat>().map(|c| c.0.to_ascii_uppercase());
+        let mut stream = world
+            .event_stream::<Chat>()
+            .map(|c| c.0.to_ascii_uppercase());
         assert_eq!(stream.next().await, Some('R'));
         assert_eq!(stream.next().await, Some('U'));
         assert_eq!(stream.next().await, Some('S'));
@@ -192,14 +219,14 @@ pub fn stream() {
         assert_eq!(stream.next().await, Some('E'));
         assert_eq!(stream.next().await, Some('V'));
         assert_eq!(stream.next().await, Some('Y'));
-        if DONE.swap(true, Ordering::Relaxed){
+        if DONE.swap(true, Ordering::Relaxed) {
             world.quit();
         }
         Ok(())
     });
 
     let mut msgs = vec!["bevy", "n ", "rust "];
-    
+
     app.add_systems(Update, move |mut w: EventWriter<Chat>| {
         if let Some(s) = msgs.pop() {
             w.send_batch(s.chars().map(Chat));

@@ -1,13 +1,16 @@
-use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
+use crate::sync::oneshot::ChannelOutOrCancel;
+use crate::sync::waitlist::WaitList;
+use crate::{
+    access::AsyncWorldMut, cancellation::TaskCancellation, channel, sync::oneshot::Sender,
+    QueryQueue,
+};
 use bevy_core::FrameCount;
 use bevy_ecs::system::NonSend;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time};
 use bevy_utils::Duration;
-use crate::sync::oneshot::ChannelOutOrCancel;
-use crate::sync::waitlist::WaitList;
-use crate::{access::AsyncWorldMut, cancellation::TaskCancellation, channel, sync::oneshot::Sender, QueryQueue};
+use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
 
 #[allow(unused)]
 use bevy_app::FixedUpdate;
@@ -20,7 +23,7 @@ pub(crate) struct FixedTask {
 
 /// A deferred query on a `World`.
 pub(crate) struct QueryCallback {
-    command: Box<dyn FnMut(&mut World) -> bool + 'static>
+    command: Box<dyn FnMut(&mut World) -> bool + 'static>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +36,6 @@ impl<T: Ord, V> PartialEq for TimeIndex<T, V> {
 }
 
 impl<T: Ord, V> Eq for TimeIndex<T, V> {}
-
 
 impl<T: Ord, V> PartialOrd for TimeIndex<T, V> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -76,65 +78,65 @@ impl std::fmt::Debug for AsyncQueryQueue {
 impl QueryCallback {
     fn new<Out: 'static>(
         mut query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
-        channel: Sender<Out>
+        channel: Sender<Out>,
     ) -> Self {
         let mut channel = channel.by_ref();
         Self {
             command: Box::new(move |w| {
-                if channel.is_closed() { return false } 
+                if channel.is_closed() {
+                    return false;
+                }
                 match query(w) {
                     Some(result) => {
                         channel.send(result);
                         false
-                    },
-                    None => true
+                    }
+                    None => true,
                 }
-            })
+            }),
         }
     }
 }
 
-
 impl AsyncQueryQueue {
     /// Spawn a `!Send` command and wait until it returns `Some`.
-    /// 
+    ///
     /// If receiver is dropped, the command will be cancelled.
-    pub fn repeat<Out: 'static> (
+    pub fn repeat<Out: 'static>(
         &self,
         query: impl (FnMut(&mut World) -> Option<Out>) + 'static,
-        channel: Sender<Out>
+        channel: Sender<Out>,
     ) {
-        self.repeat_queue.borrow_mut().push(
-            QueryCallback::new(query, channel)
-        )
+        self.repeat_queue
+            .borrow_mut()
+            .push(QueryCallback::new(query, channel))
     }
 
     pub fn timed(&self, duration: Duration, channel: Sender<()>) {
-        self.time_series.borrow_mut().push(
-            TimeIndex(self.now.get() + duration, channel)
-        )
+        self.time_series
+            .borrow_mut()
+            .push(TimeIndex(self.now.get() + duration, channel))
     }
 
     pub fn timed_frames(&self, duration: u32, channel: Sender<()>) {
-        self.frame_series.borrow_mut().push(
-            TimeIndex(self.frame.get() + duration, channel)
-        )
+        self.frame_series
+            .borrow_mut()
+            .push(TimeIndex(self.frame.get() + duration, channel))
     }
 }
 
 /// System that tries to resolve queries sent to the queue.
-pub fn run_async_queries(
-    w: &mut World,
-) {
+pub fn run_async_queries(w: &mut World) {
     let queue = w.non_send_resource::<QueryQueue>().0.clone();
-    queue.repeat_queue.borrow_mut().retain_mut(|f| (f.command)(w));
+    queue
+        .repeat_queue
+        .borrow_mut()
+        .retain_mut(|f| (f.command)(w));
     queue.yielded.wake();
 }
 
 /// Run `fixed_queue` on [`FixedUpdate`].
-pub fn run_fixed_queue(
-    world: &mut World
-) {
+pub fn run_fixed_queue(world: &mut World) {
     let executor = world.non_send_resource::<QueryQueue>().0.clone();
     let delta_time = world.resource::<Time<Fixed>>().delta();
     executor.fixed_queue.borrow_mut().retain_mut(|x| {
@@ -146,11 +148,7 @@ pub fn run_fixed_queue(
 }
 
 /// Run `sleep` and `sleep_frames` reactors.
-pub fn run_time_series(
-    queue: NonSend<QueryQueue>,
-    time: Res<Time>,
-    frames: Res<FrameCount>,
-) {
+pub fn run_time_series(queue: NonSend<QueryQueue>, time: Res<Time>, frames: Res<FrameCount>) {
     let now = time.elapsed();
     queue.now.set(now);
     let mut time_series = queue.time_series.borrow_mut();
@@ -159,7 +157,11 @@ pub fn run_time_series(
     }
     queue.frame.set(frames.0);
     let mut frame_series = queue.frame_series.borrow_mut();
-    while frame_series.peek().map(|x| x.0 <= frames.0).unwrap_or(false) {
+    while frame_series
+        .peek()
+        .map(|x| x.0 <= frames.0)
+        .unwrap_or(false)
+    {
         let _ = frame_series.pop().unwrap().1.send(());
     }
 }
@@ -169,24 +171,22 @@ impl AsyncWorldMut {
     pub fn fixed_routine<T: 'static>(
         &self,
         mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
-        cancellation: impl Into<TaskCancellation>
+        cancellation: impl Into<TaskCancellation>,
     ) -> ChannelOutOrCancel<T> {
         let (sender, receiver) = channel();
         let mut sender = sender.by_ref();
         let cancel = cancellation.into();
-        self.queue.fixed_queue.borrow_mut().push(
-            FixedTask {
-                task: Box::new(move |world, dt| {
-                    if let Some(item) = f(world, dt) {
-                        sender.send(item);
-                        true
-                    } else {
-                        false
-                    }
-                }),
-                cancel,
-            }
-        );
+        self.queue.fixed_queue.borrow_mut().push(FixedTask {
+            task: Box::new(move |world, dt| {
+                if let Some(item) = f(world, dt) {
+                    sender.send(item);
+                    true
+                } else {
+                    false
+                }
+            }),
+            cancel,
+        });
         receiver.into_option()
     }
 }

@@ -1,7 +1,10 @@
 //! Tweening support for `bevy_defer`.
-use std::{ops::{Add, Mul}, time::Duration};
 use bevy_math::Quat;
 use ref_cast::RefCast;
+use std::{
+    ops::{Add, Mul},
+    time::Duration,
+};
 
 /// Looping information for tweening.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -17,7 +20,10 @@ pub trait Lerp: Clone + Send + 'static {
     fn lerp(from: Self, to: Self, fac: f32) -> Self;
 }
 
-impl<T> Lerp for T where T: Add<T, Output = T> + Mul<f32, Output = T> + Clone + Send + 'static {
+impl<T> Lerp for T
+where
+    T: Add<T, Output = T> + Mul<f32, Output = T> + Clone + Send + 'static,
+{
     fn lerp(from: Self, to: Self, fac: f32) -> Self {
         from * (1.0 - fac) + to * fac
     }
@@ -33,7 +39,6 @@ impl Lerp for SLerp {
         SLerp(Quat::slerp(from.0, to.0, fac))
     }
 }
-
 
 /// [`f32`] or [`Duration`].
 pub trait AsSeconds {
@@ -51,7 +56,6 @@ impl AsSeconds for u64 {
         Duration::from_secs(*self)
     }
 }
-
 
 impl AsSeconds for f32 {
     fn as_secs(&self) -> f32 {

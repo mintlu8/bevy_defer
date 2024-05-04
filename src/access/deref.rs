@@ -1,10 +1,17 @@
 //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
 
-use std::ops::Deref;
 use bevy_asset::Asset;
-use bevy_ecs::{component::Component, query::{QueryData, QueryFilter}, system::{Resource, SystemParam}};
+use bevy_ecs::{
+    component::Component,
+    query::{QueryData, QueryFilter},
+    system::{Resource, SystemParam},
+};
+use std::ops::Deref;
 
-use super::{AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource, AsyncSystemParam};
+use super::{
+    AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource,
+    AsyncSystemParam,
+};
 
 /// Add method to [`AsyncComponent`] through deref.
 ///
@@ -14,7 +21,10 @@ pub trait AsyncComponentDeref: Component + Sized {
     fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncComponent<C> where C: AsyncComponentDeref{
+impl<C> Deref for AsyncComponent<C>
+where
+    C: AsyncComponentDeref,
+{
     type Target = <C as AsyncComponentDeref>::Target;
 
     fn deref(&self) -> &Self::Target {
@@ -30,7 +40,10 @@ pub trait AsyncResourceDeref: Resource + Sized {
     fn async_deref(this: &AsyncResource<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncResource<C> where C: AsyncResourceDeref{
+impl<C> Deref for AsyncResource<C>
+where
+    C: AsyncResourceDeref,
+{
     type Target = <C as AsyncResourceDeref>::Target;
 
     fn deref(&self) -> &Self::Target {
@@ -46,7 +59,10 @@ pub trait AsyncNonSendDeref: 'static + Sized {
     fn async_deref(this: &AsyncNonSend<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncNonSend<C> where C: AsyncNonSendDeref{
+impl<C> Deref for AsyncNonSend<C>
+where
+    C: AsyncNonSendDeref,
+{
     type Target = <C as AsyncNonSendDeref>::Target;
 
     fn deref(&self) -> &Self::Target {
@@ -62,14 +78,16 @@ pub trait AsyncSystemParamDeref: SystemParam + Sized {
     fn async_deref(this: &AsyncSystemParam<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncSystemParam<C> where C: AsyncSystemParamDeref{
+impl<C> Deref for AsyncSystemParam<C>
+where
+    C: AsyncSystemParamDeref,
+{
     type Target = <C as AsyncSystemParamDeref>::Target;
 
     fn deref(&self) -> &Self::Target {
         AsyncSystemParamDeref::async_deref(self)
     }
 }
-
 
 /// Add method to [`AsyncAsset`] through deref.
 ///
@@ -79,7 +97,10 @@ pub trait AsyncAssetDeref: Asset + Sized {
     fn async_deref(this: &AsyncAsset<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncAsset<C> where C: AsyncAssetDeref{
+impl<C> Deref for AsyncAsset<C>
+where
+    C: AsyncAssetDeref,
+{
     type Target = <C as AsyncAssetDeref>::Target;
 
     fn deref(&self) -> &Self::Target {
@@ -95,7 +116,11 @@ pub trait AsyncQuerySingleDeref: QueryData + Sized {
     fn async_deref<F: QueryFilter>(this: &AsyncQuerySingle<Self, F>) -> &Self::Target<F>;
 }
 
-impl<C, F> Deref for AsyncQuerySingle<C, F> where C: AsyncQuerySingleDeref, F: QueryFilter{
+impl<C, F> Deref for AsyncQuerySingle<C, F>
+where
+    C: AsyncQuerySingleDeref,
+    F: QueryFilter,
+{
     type Target = <C as AsyncQuerySingleDeref>::Target<F>;
 
     fn deref(&self) -> &Self::Target {
@@ -111,7 +136,11 @@ pub trait AsyncEntityQueryDeref: QueryData + Sized {
     fn async_deref<F: QueryFilter>(this: &AsyncEntityQuery<Self, F>) -> &Self::Target<F>;
 }
 
-impl<C, F> Deref for AsyncEntityQuery<C, F> where C: AsyncEntityQueryDeref, F: QueryFilter{
+impl<C, F> Deref for AsyncEntityQuery<C, F>
+where
+    C: AsyncEntityQueryDeref,
+    F: QueryFilter,
+{
     type Target = <C as AsyncEntityQueryDeref>::Target<F>;
 
     fn deref(&self) -> &Self::Target {

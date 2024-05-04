@@ -1,30 +1,28 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use bevy_ecs::component::Component;
-use bevy_ecs::{entity::Entity, world::World};
-use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
-use ref_cast::RefCast;
-use crate::async_systems::AsyncWorldParam;
 use crate::access::AsyncWorldMut;
+use crate::async_systems::AsyncEntityParam;
+use crate::async_systems::AsyncWorldParam;
 use crate::executor::with_world_mut;
 use crate::signals::Signals;
-use crate::async_systems::AsyncEntityParam;
-use crate::{AsyncQueryQueue, AsyncFailure, AsyncResult};
+use crate::{AsyncFailure, AsyncQueryQueue, AsyncResult};
+use bevy_ecs::component::Component;
+use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
+use bevy_ecs::{entity::Entity, world::World};
+use ref_cast::RefCast;
+use std::marker::PhantomData;
+use std::rc::Rc;
 
 /// Async version of [`SystemParam`].
 #[derive(Debug, Clone)]
-pub struct AsyncSystemParam<P: SystemParam>{
+pub struct AsyncSystemParam<P: SystemParam> {
     pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<P>
+    pub(crate) p: PhantomData<P>,
 }
 
 impl<P: SystemParam> AsyncWorldParam for AsyncSystemParam<P> {
-    fn from_async_context(
-        executor: &AsyncWorldMut
-    ) -> Option<Self> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
         Some(AsyncSystemParam {
             queue: executor.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         })
     }
 }
@@ -41,23 +39,25 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
     }
 
     /// Run a function on the [`SystemParam`] and obtain the result.
-    pub fn run<T: Send + Sync + 'static>(&self,
-        f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static
+    pub fn run<T: Send + Sync + 'static>(
+        &self,
+        f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static,
     ) -> AsyncResult<T> {
         with_world_mut(move |world: &mut World| {
-            let id = match world.get_resource::<ResSysParamId<Q, T>>(){
+            let id = match world.get_resource::<ResSysParamId<Q, T>>() {
                 Some(res) => res.0,
                 None => {
                     let id = world.register_system(
-                        |input: In<Box<SysParamFn<Q, T>>>, query: StaticSystemParam<Q>| -> T{
+                        |input: In<Box<SysParamFn<Q, T>>>, query: StaticSystemParam<Q>| -> T {
                             (input.0)(query)
-                        }
+                        },
                     );
                     world.insert_resource(ResSysParamId(id));
                     id
-                },
+                }
             };
-            world.run_system_with_input(id, Box::new(f))
+            world
+                .run_system_with_input(id, Box::new(f))
                 .map_err(|_| AsyncFailure::SystemParamError)
         })
     }
@@ -65,15 +65,15 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
 #[derive(Debug, Clone)]
-pub struct AsyncComponent<C: Component>{
+pub struct AsyncComponent<C: Component> {
     pub(crate) entity: Entity,
     pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<C>
+    pub(crate) p: PhantomData<C>,
 }
 
 impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
     type Signal = ();
-    
+
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
         Some(())
     }
@@ -82,12 +82,12 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
         entity: Entity,
         executor: &AsyncWorldMut,
         _: (),
-        _: &[Entity]
+        _: &[Entity],
     ) -> Option<Self> {
         Some(Self {
             entity,
             queue: executor.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         })
     }
 }
@@ -97,36 +97,32 @@ pub use bevy_ecs::system::NonSend;
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug, Clone)]
-pub struct AsyncNonSend<R: 'static>{
+pub struct AsyncNonSend<R: 'static> {
     pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<R>
+    pub(crate) p: PhantomData<R>,
 }
 
 impl<R: 'static> AsyncWorldParam for AsyncNonSend<R> {
-    fn from_async_context(
-        executor: &AsyncWorldMut,
-    ) -> Option<Self> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
         Some(Self {
             queue: executor.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         })
     }
 }
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug, Clone)]
-pub struct AsyncResource<R: Resource>{
+pub struct AsyncResource<R: Resource> {
     pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<R>
+    pub(crate) p: PhantomData<R>,
 }
 
 impl<R: Resource> AsyncWorldParam for AsyncResource<R> {
-    fn from_async_context(
-        executor: &AsyncWorldMut,
-    ) -> Option<Self> {
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
         Some(Self {
             queue: executor.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         })
     }
 }

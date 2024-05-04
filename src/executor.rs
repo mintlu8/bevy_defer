@@ -1,40 +1,45 @@
-use std::rc::Rc;
-use std::ops::Deref;
+use crate::access::AsyncWorldMut;
+use crate::queue::AsyncQueryQueue;
+use crate::reactors::{Reactors, ReactorsInner};
 use async_executor::{LocalExecutor, Task};
 use bevy_asset::AssetServer;
 use bevy_ecs::world::World;
-use std::future::Future;
 use ref_cast::RefCast;
-use crate::access::AsyncWorldMut;
-use crate::queue::AsyncQueryQueue;
-use crate::reactors::{ArcReactors, Reactors};
+use std::future::Future;
+use std::ops::Deref;
+use std::rc::Rc;
 
 scoped_tls_hkt::scoped_thread_local!(static mut WORLD: World);
 
-pub(crate) const USED_OUTSIDE: &str = "Should not be called outside of a `bevy_defer` future or inside a access function.";
+pub(crate) const USED_OUTSIDE: &str =
+    "Should not be called outside of a `bevy_defer` future or inside a access function.";
 
-pub(crate) fn with_world_ref<T>(f: impl FnOnce(&World) -> T) -> T{
-    if !WORLD.is_set() { panic!("{}", USED_OUTSIDE) }
+pub(crate) fn with_world_ref<T>(f: impl FnOnce(&World) -> T) -> T {
+    if !WORLD.is_set() {
+        panic!("{}", USED_OUTSIDE)
+    }
     WORLD.with(|w| f(w))
 }
 
-pub(crate) fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T{
-    if !WORLD.is_set() { panic!("{}", USED_OUTSIDE) }
+pub(crate) fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
+    if !WORLD.is_set() {
+        panic!("{}", USED_OUTSIDE)
+    }
     WORLD.with(f)
 }
 
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASSET_SERVER: AssetServer);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASYNC_WORLD: AsyncWorldMut);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'static>);
-scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
+scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: ReactorsInner);
 
 /// Spawn a `bevy_defer` compatible future with a handle.
-/// 
+///
 /// # Handle
-/// 
+///
 /// The handle can be used to obtain the result,
 /// if dropped, the associated future will be dropped by the executor.
-/// 
+///
 /// # Panics
 ///
 /// If used outside a `bevy_defer` future.
@@ -46,9 +51,9 @@ pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl 
 }
 
 /// Spawn a `bevy_defer` compatible future.
-/// 
+///
 /// The spawned future will not be dropped until finished.
-/// 
+///
 /// # Panics
 ///
 /// If used outside a `bevy_defer` future.
@@ -56,7 +61,7 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     if !SPAWNER.is_set() {
         panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
     }
-    SPAWNER.with(|s| s.spawn(fut).detach() );
+    SPAWNER.with(|s| s.spawn(fut).detach());
 }
 
 /// Obtain the [`AsyncWorldMut`] of the currently running `bevy_defer` executor.
@@ -68,7 +73,9 @@ pub fn world() -> AsyncWorldMut {
     if !ASYNC_WORLD.is_set() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")
     }
-    ASYNC_WORLD.with(|w| AsyncWorldMut{ queue: w.queue.clone() })
+    ASYNC_WORLD.with(|w| AsyncWorldMut {
+        queue: w.queue.clone(),
+    })
 }
 
 /// Returns `true` if in async context, for diagnostics purpose only.
@@ -76,7 +83,7 @@ pub fn in_async_context() -> bool {
     ASYNC_WORLD.is_set()
 }
 
-/// `!Send` resource containing a reference to an async executor, 
+/// `!Send` resource containing a reference to an async executor,
 /// this resource can be cloned to spawn futures.
 #[derive(Debug, Default, Clone)]
 pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
@@ -104,30 +111,28 @@ impl Deref for QueryQueue {
 }
 
 /// System for running [`AsyncExecutor`].
-pub fn run_async_executor (
-    world: &mut World
-) {
-    let reactors = world.resource::<ArcReactors>().clone();
+pub fn run_async_executor(world: &mut World) {
+    let reactors = world.resource::<Reactors>().clone();
     let queue = world.non_send_resource::<QueryQueue>().clone();
     let executor = world.non_send_resource::<AsyncExecutor>().clone();
     let assets = world.get_resource::<AssetServer>().cloned();
 
-    let mut f = || SPAWNER.set(&executor.0.clone(), || {
-        ASYNC_WORLD.set(AsyncWorldMut::ref_cast(&queue.0), || { 
-            REACTORS.set(&reactors, || {
-                WORLD.set(world, || {
-                    while executor.0.try_tick() {}
-                    while executor.0.try_tick() {}
-                });
+    let mut f = || {
+        SPAWNER.set(&executor.0.clone(), || {
+            ASYNC_WORLD.set(AsyncWorldMut::ref_cast(&queue.0), || {
+                REACTORS.set(&reactors, || {
+                    WORLD.set(world, || {
+                        while executor.0.try_tick() {}
+                        while executor.0.try_tick() {}
+                    });
+                })
             })
         })
-    });
+    };
 
     if let Some(assets) = assets {
         ASSET_SERVER.set(&assets, f)
     } else {
         f()
     }
-
-    
 }

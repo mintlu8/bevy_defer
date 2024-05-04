@@ -1,16 +1,17 @@
-use crate::{access::AsyncWorldMut, async_systems::AsyncWorldParam, executor::with_world_mut, signals::Signals};
+use crate::{
+    access::AsyncWorldMut, async_systems::AsyncWorldParam, executor::with_world_mut,
+    signals::Signals,
+};
+use crate::{async_systems::AsyncEntityParam, AsyncFailure, AsyncQueryQueue};
+#[allow(unused)]
+use bevy_ecs::system::Query;
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState, WorldQuery},
     system::{CommandQueue, Resource},
     world::World,
 };
-#[allow(unused)]
-use bevy_ecs::system::Query;
-use std::{
-    borrow::Borrow, marker::PhantomData, ops::Deref, rc::Rc
-};
-use crate::{AsyncQueryQueue, AsyncFailure, async_systems::AsyncEntityParam};
+use std::{borrow::Borrow, marker::PhantomData, ops::Deref, rc::Rc};
 
 /// Async version of [`Query`]
 #[derive(Debug, Clone)]
@@ -34,7 +35,6 @@ pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()> {
     pub(crate) p: PhantomData<(T, F)>,
 }
 
-
 impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     /// Obtain an [`AsyncEntityQuery`] on a specific entity.
     pub fn entity(&self, entity: impl Borrow<Entity>) -> AsyncEntityQuery<T, F> {
@@ -56,13 +56,10 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     /// Run a function on the iterator.
-    pub fn for_each (
-        &self,
-        mut f: impl FnMut(T::Item<'_>) + 'static,
-    ) {
+    pub fn for_each(&self, mut f: impl FnMut(T::Item<'_>) + 'static) {
         with_world_mut(move |w| {
             let mut state = OwnedQueryState::<T, F>::new(w);
-            for item in state.iter_mut(){
+            for item in state.iter_mut() {
                 f(item);
             }
         })
@@ -89,12 +86,17 @@ impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuerySingle<T, F> {
 
 impl<T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
     type Signal = ();
-    
+
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
         Some(())
     }
 
-    fn from_async_context(entity: Entity, executor: &AsyncWorldMut, _: (), _: &[Entity]) -> Option<Self> {
+    fn from_async_context(
+        entity: Entity,
+        executor: &AsyncWorldMut,
+        _: (),
+        _: &[Entity],
+    ) -> Option<Self> {
         Some(Self {
             entity,
             queue: executor.queue.clone(),
@@ -111,7 +113,11 @@ pub trait AsyncQueryDeref: QueryData + Sized {
     fn async_deref<F: QueryFilter>(this: &AsyncQuery<Self, F>) -> &Self::Target<F>;
 }
 
-impl<C, F> Deref for AsyncQuery<C, F> where C: AsyncQueryDeref, F: QueryFilter{
+impl<C, F> Deref for AsyncQuery<C, F>
+where
+    C: AsyncQueryDeref,
+    F: QueryFilter,
+{
     type Target = <C as AsyncQueryDeref>::Target<F>;
 
     fn deref(&self) -> &Self::Target {
@@ -119,18 +125,17 @@ impl<C, F> Deref for AsyncQuery<C, F> where C: AsyncQueryDeref, F: QueryFilter{
     }
 }
 
-
 /// A resource that caches a [`QueryState`].
-/// 
+///
 /// Since [`QueryState`] cannot be constructed from `&World`, readonly access is not supported.
 #[derive(Debug, Resource)]
 pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, F>);
 
 /// A [`World`] reference with a cached [`QueryState`].
-/// 
-/// Tries to obtain the [`QueryState`] from the [`World`] on create 
+///
+/// Tries to obtain the [`QueryState`] from the [`World`] on create
 /// and stores the [`QueryState`] in the [`World`] on drop.
-/// 
+///
 /// Since [`QueryState`] cannot be constructed from `&World`, readonly access is not supported.
 pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
     world: &'t mut World,
@@ -138,7 +143,7 @@ pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static>
 }
 
 impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
-    pub fn apply_commands(&mut self, commands: &mut CommandQueue)  {
+    pub fn apply_commands(&mut self, commands: &mut CommandQueue) {
         commands.apply(self.world)
     }
 }
@@ -155,49 +160,85 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
     }
 
     pub fn single(&mut self) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
-        self.state.as_mut().unwrap()
-            .get_single(self.world).map_err(|e| match e {
+        self.state
+            .as_mut()
+            .unwrap()
+            .get_single(self.world)
+            .map_err(|e| match e {
                 bevy_ecs::query::QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
-                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
+                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => {
+                    AsyncFailure::TooManyEntities
+                }
             })
     }
 
     pub fn single_mut(&mut self) -> Result<D::Item<'_>, AsyncFailure> {
-        self.state.as_mut().unwrap()
-            .get_single_mut(self.world).map_err(|e| match e {
+        self.state
+            .as_mut()
+            .unwrap()
+            .get_single_mut(self.world)
+            .map_err(|e| match e {
                 bevy_ecs::query::QuerySingleError::NoEntities(_) => AsyncFailure::EntityNotFound,
-                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => AsyncFailure::TooManyEntities,
+                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => {
+                    AsyncFailure::TooManyEntities
+                }
             })
     }
 
-    pub fn get(&mut self, entity: Entity) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
-        self.state.as_mut().unwrap()
-            .get(self.world, entity).map_err(|_|AsyncFailure::EntityNotFound)
+    pub fn get(
+        &mut self,
+        entity: Entity,
+    ) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AsyncFailure> {
+        self.state
+            .as_mut()
+            .unwrap()
+            .get(self.world, entity)
+            .map_err(|_| AsyncFailure::EntityNotFound)
     }
 
-    pub fn iter_many<E: IntoIterator>(&mut self, entities: E) -> QueryManyIter<'_, '_, D::ReadOnly, F, E::IntoIter> where E::Item: Borrow<Entity> {
+    pub fn iter_many<E: IntoIterator>(
+        &mut self,
+        entities: E,
+    ) -> QueryManyIter<'_, '_, D::ReadOnly, F, E::IntoIter>
+    where
+        E::Item: Borrow<Entity>,
+    {
         self.state.as_mut().unwrap().iter_many(self.world, entities)
     }
 
-    pub fn iter_many_mut<E: IntoIterator>(&mut self, entities: E) -> QueryManyIter<'_, '_, D, F, E::IntoIter> where E::Item: Borrow<Entity> {
-        self.state.as_mut().unwrap().iter_many_mut(self.world, entities)
+    pub fn iter_many_mut<E: IntoIterator>(
+        &mut self,
+        entities: E,
+    ) -> QueryManyIter<'_, '_, D, F, E::IntoIter>
+    where
+        E::Item: Borrow<Entity>,
+    {
+        self.state
+            .as_mut()
+            .unwrap()
+            .iter_many_mut(self.world, entities)
     }
 
     pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_>, AsyncFailure> {
-        self.state.as_mut().unwrap()
-            .get_mut(self.world, entity).map_err(|_|AsyncFailure::EntityNotFound)
+        self.state
+            .as_mut()
+            .unwrap()
+            .get_mut(self.world, entity)
+            .map_err(|_| AsyncFailure::EntityNotFound)
     }
 
     pub fn iter(&mut self) -> QueryIter<D::ReadOnly, F> {
         self.state.as_mut().unwrap().iter(self.world)
     }
 
-    pub fn iter_mut(&mut self) -> QueryIter<D, F>  {
+    pub fn iter_mut(&mut self) -> QueryIter<D, F> {
         self.state.as_mut().unwrap().iter_mut(self.world)
     }
 }
 
-impl<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator for &'s mut OwnedQueryState<'w, D, F> {
+impl<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
+    for &'s mut OwnedQueryState<'w, D, F>
+{
     type Item = D::Item<'s>;
     type IntoIter = QueryIter<'s, 's, D, F>;
 
@@ -208,6 +249,7 @@ impl<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator for 
 
 impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> Drop for OwnedQueryState<'t, D, F> {
     fn drop(&mut self) {
-        self.world.insert_resource(ResQueryCache(self.state.take().unwrap()))
+        self.world
+            .insert_resource(ResQueryCache(self.state.take().unwrap()))
     }
 }

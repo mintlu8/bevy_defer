@@ -1,11 +1,12 @@
 #![allow(clippy::type_complexity)]
 use bevy::prelude::*;
+use bevy_defer::ext::picking::{
+    react_to_ui, ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
+};
 use bevy_defer::signals::Signal;
 use bevy_defer::AsyncAccess;
-use bevy_defer::{async_system, signals::Signals, world, AsyncCommandsExtension, async_systems::AsyncSystems, AsyncPlugin};
-use bevy_defer::ext::picking::{react_to_ui, AsyncUIButton, ClickCancelled, Clicked, UIInteractionChange, LostFocus, ObtainedFocus, Pressed};
+use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
 use bevy_ui::RelativeCursorPosition;
-use futures::FutureExt;
 
 fn main() {
     App::new()
@@ -21,14 +22,10 @@ const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
-/// from the original 
+/// from the original
 fn button_system(
     mut interaction_query: Query<
-        (
-            &Interaction,
-            &mut BackgroundColor,
-            &mut BorderColor,
-        ),
+        (&Interaction, &mut BackgroundColor, &mut BorderColor),
         (Changed<Interaction>, With<Button>),
     >,
 ) {
@@ -99,7 +96,11 @@ fn setup(mut commands: Commands) {
                         .with_sender::<ClickCancelled>(cancel.clone())
                         .with_sender::<UIInteractionChange>(state.clone()),
                     AsyncSystems::from_single(async_system!(
-                        |click: Sender<Clicked>, press: Sender<Pressed>, focus: Sender<ObtainedFocus>, lose: Sender<LostFocus>, cancel: Sender<ClickCancelled>| {
+                        |click: Sender<Clicked>,
+                         press: Sender<Pressed>,
+                         focus: Sender<ObtainedFocus>,
+                         lose: Sender<LostFocus>,
+                         cancel: Sender<ClickCancelled>| {
                             futures::select_biased! {
                                 pos = click.recv() => println!("Clicked at {pos}"),
                                 pos = press.recv() => println!("Pressed at {pos}"),
@@ -107,8 +108,8 @@ fn setup(mut commands: Commands) {
                                 pos = focus.recv() => println!("Focus obtained at {pos}"),
                                 pos = lose.recv() => println!("Focus lost at {pos}"),
                             }
-                        } 
-                    ))
+                        }
+                    )),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -124,11 +125,13 @@ fn setup(mut commands: Commands) {
                         AsyncSystems::from_single(async_system!(
                             |click: Receiver<UIInteractionChange>, this: AsyncComponent<Text>| {
                                 let variant = format!("{:?}", click.await.to);
-                                this.set(move |text| text.sections[0].value = variant).unwrap();
-                            } 
-                        ))
+                                this.set(move |text| text.sections[0].value = variant)
+                                    .unwrap();
+                            }
+                        )),
                     ));
-                }).id();
+                })
+                .id();
             parent.spawn((
                 TextBundle::from_section(
                     "Receiving",
@@ -145,7 +148,12 @@ fn setup(mut commands: Commands) {
                     .with_receiver::<LostFocus>(lose.clone())
                     .with_receiver::<ClickCancelled>(cancel.clone()),
                 AsyncSystems::from_single(async_system!(
-                    |click: Receiver<Clicked>, press: Receiver<Pressed>, focus: Receiver<ObtainedFocus>, lose: Receiver<LostFocus>, cancel: Receiver<ClickCancelled>, this: AsyncComponent<Text>| {
+                    |click: Receiver<Clicked>,
+                     press: Receiver<Pressed>,
+                     focus: Receiver<ObtainedFocus>,
+                     lose: Receiver<LostFocus>,
+                     cancel: Receiver<ClickCancelled>,
+                     this: AsyncComponent<Text>| {
                         futures::select_biased! {
                             pos = click.recv() => {
                                 let s = format!("Clicked at {pos}");
@@ -168,21 +176,8 @@ fn setup(mut commands: Commands) {
                                 this.set(move |text| text.sections[0].value = s).unwrap();
                             },
                         }
-                    } 
-                ))
+                    }
+                )),
             ));
         });
-
-    commands.spawn_task(move || async move {
-        let world = world();
-        let entity = world.entity(btn_entity);
-        let btn = entity.query::<AsyncUIButton>();
-        loop {
-            // The other methods can yield immediately so ignored here.
-            futures::select_biased! {
-                pos = btn.clicked().fuse() => println!("Task: Clicked at {pos}"),
-                pos = btn.cancelled().fuse() => println!("Task: Click cancelled at {pos}"),
-            }
-        }
-    });
 }

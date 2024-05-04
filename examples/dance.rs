@@ -1,11 +1,19 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, pin::pin, time::Duration};
 use bevy::MinimalPlugins;
 use bevy_app::{App, First};
+use bevy_defer::{
+    access::deref::AsyncComponentDeref, access::AsyncComponent, reactors::react_to_state,
+    signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin,
+};
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
-use bevy_defer::{access::AsyncComponent, access::deref::AsyncComponentDeref, reactors::react_to_state, signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin};
 use bevy_tasks::futures_lite::StreamExt;
 use futures::FutureExt;
 use ref_cast::RefCast;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+    pin::pin,
+    time::Duration,
+};
 signal_ids! {
     SigText: &'static str,
 }
@@ -60,9 +68,9 @@ impl AsyncComponentDeref for Animator {
 pub struct AsyncAnimator(AsyncComponent<Animator>);
 
 impl AsyncAnimator {
-    pub async fn animate(&self, name: &'static str) -> Result<(), AsyncFailure>{
+    pub async fn animate(&self, name: &'static str) -> Result<(), AsyncFailure> {
         let len = name.len();
-        self.0.set(move |comp| { 
+        self.0.set(move |comp| {
             println!("Animating from {} to {}", &comp.0, name);
             comp.0 = name.to_owned();
         })?;
@@ -71,16 +79,24 @@ impl AsyncAnimator {
         Ok(())
     }
 
-    pub async fn until_exit(&self, name: &'static str) -> Result<(), AsyncFailure>{
+    pub async fn until_exit(&self, name: &'static str) -> Result<(), AsyncFailure> {
         self.0.watch(move |x| (x.0 != name).then_some(())).await
     }
 }
 
-async fn sound_routine(entity: Entity) -> Result<(), AsyncFailure>{
+async fn sound_routine(entity: Entity) -> Result<(), AsyncFailure> {
     println!("dancing~");
-    world().entity(entity).component::<Animator>().until_exit("Dance").await?;
+    world()
+        .entity(entity)
+        .component::<Animator>()
+        .until_exit("Dance")
+        .await?;
     println!("ballet~~");
-    world().entity(entity).component::<Animator>().until_exit("Ballet").await?;
+    world()
+        .entity(entity)
+        .component::<Animator>()
+        .until_exit("Ballet")
+        .await?;
     println!("fin~~");
     Ok(())
 }
@@ -90,15 +106,9 @@ pub fn main() {
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_systems(First, react_to_state::<GameState>);
-    
-    let e1 = app.world.spawn((
-        HP(0),
-        Animator("Idle".to_owned()),
-    )).id();
-    let e2 = app.world.spawn((
-        HP(0),
-        Animator("Idle".to_owned()),
-    )).id();
+
+    let e1 = app.world.spawn((HP(0), Animator("Idle".to_owned()))).id();
+    let e2 = app.world.spawn((HP(0), Animator("Idle".to_owned()))).id();
     app.insert_resource(NamedEntities(HashMap::from([
         ("Richard".to_owned(), e1),
         ("Jen".to_owned(), e2),
@@ -118,12 +128,18 @@ pub fn main() {
                 () = three => { println!("1"); break; },
             );
         }
-        
+
         // Wait for state to be `MyState::Combat`.
-        world.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await.unwrap();
+        world
+            .state_stream::<GameState>()
+            .filter(|x| x == &GameState::Animating)
+            .next()
+            .await
+            .unwrap();
         // This function is async because we don't own the world,
         // we send a query request and wait for the response.
-        let richard_entity = world.resource::<NamedEntities>()
+        let richard_entity = world
+            .resource::<NamedEntities>()
             .get(|res| *res.get("Richard").unwrap())?;
         let richard = world.entity(richard_entity);
         // We can also mutate the world asynchronously.

@@ -1,24 +1,31 @@
-use std::usize;
-use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
+use crate::access::{
+    AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource, AsyncSystemParam,
+};
+use crate::async_systems::AsyncWorldParam;
+use crate::sync::oneshot::ChannelOut;
+use crate::AsyncQueryQueue;
+use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    query::{QueryData, QueryFilter},
+    system::{NonSend, Resource, SystemParam},
+};
 use bevy_log::error;
 use bevy_tasks::futures_lite::FutureExt;
 use bevy_utils::Duration;
-use crate::async_systems::AsyncWorldParam;
-use crate::access::{AsyncComponent, AsyncNonSend, AsyncEntityQuery, AsyncQuery, AsyncResource, AsyncSystemParam};
-use crate::sync::oneshot::ChannelOut;
-use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, QueryFilter}, system::{NonSend, Resource, SystemParam}};
-use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
 use ref_cast::RefCast;
-use crate::AsyncQueryQueue;
+use std::usize;
+use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
 
 /// [`SystemParam`] for obtaining [`AsyncWorldMut`] and spawning futures.
-/// 
+///
 /// Note this `SystemParam` is [`NonSend`] and can only execute on the main thread.
 #[derive(SystemParam)]
 pub struct AsyncWorld<'w, 's> {
     queue: NonSend<'w, QueryQueue>,
     executor: NonSend<'w, AsyncExecutor>,
-    p: PhantomData<&'s ()>
+    p: PhantomData<&'s ()>,
 }
 
 impl AsyncWorld<'_, '_> {
@@ -26,7 +33,7 @@ impl AsyncWorld<'_, '_> {
         self.executor.spawn(async move {
             match fut.await {
                 Ok(()) => (),
-                Err(err) => error!("Async Failure: {err}.")
+                Err(err) => error!("Async Failure: {err}."),
             }
         });
     }
@@ -41,7 +48,7 @@ impl Deref for AsyncWorld<'_, '_> {
 }
 
 #[allow(unused)]
-use bevy_ecs::{world::World, system::Commands};
+use bevy_ecs::{system::Commands, world::World};
 
 /// Async version of [`World`] or [`Commands`].
 #[derive(Debug, RefCast, Clone)]
@@ -52,62 +59,62 @@ pub struct AsyncWorldMut {
 
 impl AsyncWorldMut {
     /// Obtain an [`AsyncEntityMut`] of the entity.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This does not mean the entity exists in the world.
     pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
-        AsyncEntityMut { 
-            entity, 
-            queue: self.queue.clone()
+        AsyncEntityMut {
+            entity,
+            queue: self.queue.clone(),
         }
     }
 
     /// Obtain an [`AsyncResource`].
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This does not mean the resource exists in the world.
     pub fn resource<R: Resource>(&self) -> AsyncResource<R> {
-        AsyncResource { 
+        AsyncResource {
             queue: self.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 
     /// Obtain an [`AsyncNonSend`].
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This does not mean the resource exists in the world.
     pub fn non_send_resource<R: 'static>(&self) -> AsyncNonSend<R> {
-        AsyncNonSend { 
+        AsyncNonSend {
             queue: self.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 
     /// Obtain an [`AsyncQuery`].
     pub fn query<Q: QueryData>(&self) -> AsyncQuery<Q> {
-        AsyncQuery { 
+        AsyncQuery {
             queue: self.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
-        AsyncQuery { 
+        AsyncQuery {
             queue: self.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 
     /// Obtain an [`AsyncSystemParam`].
     pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
-        AsyncSystemParam { 
+        AsyncSystemParam {
             queue: self.queue.clone(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 
@@ -140,11 +147,11 @@ impl Deref for AsyncEntityMut {
 #[derive(Debug)]
 pub struct AsyncEntityMutFuture {
     queue: Rc<AsyncQueryQueue>,
-    future: ChannelOut<Entity>
+    future: ChannelOut<Entity>,
 }
 
 impl ChannelOut<Entity> {
-    pub fn into_entity_mut_future(self, queue: Rc<AsyncQueryQueue>) -> AsyncEntityMutFuture{
+    pub fn into_entity_mut_future(self, queue: Rc<AsyncQueryQueue>) -> AsyncEntityMutFuture {
         AsyncEntityMutFuture {
             queue,
             future: self,
@@ -155,7 +162,10 @@ impl ChannelOut<Entity> {
 impl Future for AsyncEntityMutFuture {
     type Output = AsyncEntityMut;
 
-    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
         self.future.poll(cx).map(|entity| AsyncEntityMut {
             entity,
             queue: self.queue.clone(),
@@ -175,9 +185,9 @@ impl AsyncEntityMut {
     }
 
     /// Get an [`AsyncComponent`] on this entity.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This does not mean the component or the entity exists in the world.
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
@@ -188,9 +198,9 @@ impl AsyncEntityMut {
     }
 
     /// Get an [`AsyncEntityQuery`] on this entity.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This does not mean the component or the entity exists in the world.
     pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<T, ()> {
         AsyncEntityQuery {
@@ -201,9 +211,9 @@ impl AsyncEntityMut {
     }
 
     /// Get an [`AsyncEntityQuery`] on this entity.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// This does not mean the component or the entity exists in the world.
     pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
@@ -215,11 +225,9 @@ impl AsyncEntityMut {
 }
 
 impl AsyncWorldParam for AsyncWorldMut {
-    fn from_async_context(
-        executor: &AsyncWorldMut,
-    ) -> Option<Self> {
-        Some(AsyncWorldMut{
-            queue: executor.queue.clone()
+    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
+        Some(AsyncWorldMut {
+            queue: executor.queue.clone(),
         })
     }
 }
@@ -237,19 +245,17 @@ impl AsyncEntityParam for AsyncEntityMut {
         _: Self::Signal,
         _: &[Entity],
     ) -> Option<Self> {
-        Some(AsyncEntityMut{
+        Some(AsyncEntityMut {
             entity,
-            queue: executor.queue.clone()
+            queue: executor.queue.clone(),
         })
     }
 }
 
-
-
 /// [`AsyncEntityParam`] on an indexed child.
 #[derive(Debug, Clone, RefCast)]
 #[repr(transparent)]
-pub struct AsyncChild<const N: usize=0>(AsyncEntityMut);
+pub struct AsyncChild<const N: usize = 0>(AsyncEntityMut);
 
 impl Deref for AsyncChild {
     type Target = AsyncEntityMut;
@@ -272,9 +278,9 @@ impl<const N: usize> AsyncEntityParam for AsyncChild<N> {
         _: Self::Signal,
         children: &[Entity],
     ) -> Option<Self> {
-        Some(AsyncChild(AsyncEntityMut{
+        Some(AsyncChild(AsyncEntityMut {
             entity: children.get(N).copied()?,
-            queue: executor.queue.clone()
+            queue: executor.queue.clone(),
         }))
     }
 }

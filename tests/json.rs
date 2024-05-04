@@ -1,4 +1,11 @@
-use std::{convert::Infallible, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration};
+use std::{
+    convert::Infallible,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use bevy::MinimalPlugins;
 use bevy_app::App;
@@ -34,7 +41,7 @@ impl AssetLoader for JsonNumberLoader {
 }
 
 #[test]
-pub fn procedural(){
+pub fn procedural() {
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
     app.add_plugins(MinimalPlugins);
@@ -65,7 +72,7 @@ pub fn procedural(){
 }
 
 #[test]
-pub fn concurrent(){
+pub fn concurrent() {
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
     app.add_plugins(MinimalPlugins);
@@ -104,7 +111,7 @@ pub fn concurrent(){
 }
 
 #[test]
-pub fn cloned(){
+pub fn cloned() {
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
     app.add_plugins(MinimalPlugins);
@@ -142,7 +149,7 @@ pub fn cloned(){
 }
 
 #[test]
-pub fn take(){
+pub fn take() {
     let mut app = App::new();
     app.add_plugins(AssetPlugin::default());
     app.add_plugins(MinimalPlugins);

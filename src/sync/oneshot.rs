@@ -1,7 +1,15 @@
 //! `!Send` version of `futures_channels::oneshot`
-use std::{cell::{Cell, RefCell}, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
+use futures::{
+    future::{Either, Fuse, FusedFuture, Ready},
+    FutureExt,
+};
 use std::future::Future;
-use futures::{future::{Either, Fuse, FusedFuture, Ready}, FutureExt};
+use std::{
+    cell::{Cell, RefCell},
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll, Waker},
+};
 
 use crate::{AsyncResult, CHANNEL_CLOSED};
 
@@ -25,13 +33,13 @@ impl<T> Lock<T> {
         Lock(RefCell::new(None))
     }
 
-    fn set(&self, value: T) -> Result<(), T>{
+    fn set(&self, value: T) -> Result<(), T> {
         match &mut *self.0.borrow_mut() {
             Some(_) => Err(value),
             r => {
                 *r = Some(value);
                 Ok(())
-            },
+            }
         }
     }
 
@@ -40,7 +48,7 @@ impl<T> Lock<T> {
             Some(_) => (),
             r => {
                 *r = Some(value());
-            },
+            }
         }
     }
 
@@ -123,7 +131,7 @@ impl<T> Sender<T> {
         ChannelCancel(self)
     }
 
-    pub fn by_ref(self) -> RefSender<T>{
+    pub fn by_ref(self) -> RefSender<T> {
         RefSender(Some(self))
     }
 }
@@ -131,7 +139,6 @@ impl<T> Sender<T> {
 /// Sender for a `!Send` oneshot channel.
 #[derive(Debug)]
 pub struct RefSender<T>(Option<Sender<T>>);
-
 
 impl<T> RefSender<T> {
     pub fn send(&mut self, t: T) {
@@ -144,13 +151,13 @@ impl<T> RefSender<T> {
 }
 
 impl<T> Receiver<T> {
-    pub fn close(&mut self)  {
+    pub fn close(&mut self) {
         self.0.complete.set(true);
-        if let Some(waker) = self.0.cancel_waker.take(){
+        if let Some(waker) = self.0.cancel_waker.take() {
             waker.wake()
         }
     }
-    
+
     /// Assert channel will not be closed.
     pub fn into_out(self) -> ChannelOut<T> {
         ChannelOut(self.fuse())
@@ -165,7 +172,7 @@ impl<T> Receiver<T> {
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         self.0.complete.set(true);
-        if let Some(waker) = self.0.recv_waker.take(){
+        if let Some(waker) = self.0.recv_waker.take() {
             waker.wake()
         }
     }
@@ -186,7 +193,7 @@ impl<T> Future for ChannelCancel<'_, T> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        self.0.0.poll_canceled(cx)
+        self.0 .0.poll_canceled(cx)
     }
 }
 
@@ -211,9 +218,9 @@ impl<T> Future for Receiver<T> {
 }
 
 /// A [`FusedFuture`] channel output with cancellation asserted to be impossible.
-/// 
+///
 /// # Panics
-/// 
+///
 /// If trying to await a cancelled channel.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -246,13 +253,12 @@ impl<T> Future for ChannelOutOrCancel<T> {
     type Output = Option<T>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.0.0.recv(cx).map(|x| x.ok())
+        self.0 .0.recv(cx).map(|x| x.ok())
     }
 }
 
 /// Channel output or ready immediately with world access.
 pub type MaybeChannelOut<T> = Either<ChannelOut<T>, Ready<T>>;
-
 
 /// Channel output with cancellation as `None`.
 #[derive(Debug)]
@@ -263,7 +269,7 @@ impl Future for InterpolateOut {
     type Output = AsyncResult<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.0.0.recv(cx).map(|x| match x {
+        self.0 .0.recv(cx).map(|x| match x {
             Ok(x) => x,
             Err(_) => Ok(()),
         })
@@ -272,7 +278,7 @@ impl Future for InterpolateOut {
 
 impl FusedFuture for InterpolateOut {
     fn is_terminated(&self) -> bool {
-        self.0.0.complete.get()
+        self.0 .0.complete.get()
     }
 }
 

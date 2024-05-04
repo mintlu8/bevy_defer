@@ -1,7 +1,10 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy_defer::{cancellation::Cancellation, spawn, tween::Playback, world, AsyncAccess, AsyncExtension, AsyncPlugin};
+use bevy_defer::{
+    cancellation::Cancellation, spawn, tween::Playback, world, AsyncAccess, AsyncExtension,
+    AsyncPlugin,
+};
 
 fn main() {
     App::new()
@@ -18,38 +21,54 @@ fn main() {
                 },
                 ..Default::default()
             });
-            entity.component::<Transform>().interpolate_to(
-                Vec3::new(-100.0, -100.0, 0.0),
-                |t| t.translation, 
-                |t, v| t.translation = v, 
-                |x| x * x, 
-                2.0, 
-                ()
-            ).await.unwrap();
-            entity.component::<Transform>().interpolate_to(
-                Vec3::new(-100.0, 100.0, 0.0),
-                |t| t.translation, 
-                |t, v| t.translation = v, 
-                |x| x * x, 
-                2.0, 
-                ()
-            ).await.unwrap();
-            entity.component::<Transform>().interpolate_to(
-                Vec3::new(100.0, 0.0, 0.0),
-                |t| t.translation,
-                |t, v| t.translation = v, 
-                |x| x * x, 
-                2.0, 
-                ()
-            ).await.unwrap();
-            entity.component::<Transform>().interpolate_to(
-                Vec3::new(0.0, 0.0, 0.0),
-                |t| t.translation, 
-                |t, v| t.translation = v, 
-                |x| x * x, 
-                2.0, 
-                ()
-            ).await.unwrap();
+            entity
+                .component::<Transform>()
+                .interpolate_to(
+                    Vec3::new(-100.0, -100.0, 0.0),
+                    |t| t.translation,
+                    |t, v| t.translation = v,
+                    |x| x * x,
+                    2.0,
+                    (),
+                )
+                .await
+                .unwrap();
+            entity
+                .component::<Transform>()
+                .interpolate_to(
+                    Vec3::new(-100.0, 100.0, 0.0),
+                    |t| t.translation,
+                    |t, v| t.translation = v,
+                    |x| x * x,
+                    2.0,
+                    (),
+                )
+                .await
+                .unwrap();
+            entity
+                .component::<Transform>()
+                .interpolate_to(
+                    Vec3::new(100.0, 0.0, 0.0),
+                    |t| t.translation,
+                    |t, v| t.translation = v,
+                    |x| x * x,
+                    2.0,
+                    (),
+                )
+                .await
+                .unwrap();
+            entity
+                .component::<Transform>()
+                .interpolate_to(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    |t| t.translation,
+                    |t, v| t.translation = v,
+                    |x| x * x,
+                    2.0,
+                    (),
+                )
+                .await
+                .unwrap();
             Ok(())
         })
         .spawn_task(async {
@@ -67,8 +86,8 @@ fn main() {
             let comp = entity.component::<Transform>();
             spawn(comp.interpolate(
                 |x| Vec3::new(0.0, 200.0, 0.0).lerp(Vec3::new(0.0, -200.0, 0.0), x),
-                |t, v| t.translation = v, 
-                |x| x * x, 
+                |t, v| t.translation = v,
+                |x| x * x,
                 2.0,
                 Playback::Bounce,
                 &cancel,
@@ -77,19 +96,21 @@ fn main() {
             cancel.cancel();
             comp.interpolate_to(
                 Vec3::new(0.0, 0.0, 0.0),
-                |t| t.translation, 
-                |t, v| t.translation = v, 
-                |x| x * x, 
-                2.0, 
+                |t| t.translation,
+                |t, v| t.translation = v,
+                |x| x * x,
+                2.0,
                 (),
-            ).await.unwrap();
-            
+            )
+            .await
+            .unwrap();
+
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
             spawn(comp.interpolate(
                 |x| Vec3::new(0.0, 0.0, 0.0).lerp(Vec3::new(200.0, 0.0, 0.0), x),
-                |t, v| t.translation = v, 
-                |x| x, 
+                |t, v| t.translation = v,
+                |x| x,
                 2.0,
                 Playback::Loop,
                 &cancel,
