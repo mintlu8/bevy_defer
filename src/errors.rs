@@ -13,7 +13,9 @@ use bevy_log::error;
 /// via `bevy_log` in the `into` implementation.
 ///
 /// ```
+/// # /*
 /// returns_a_custom_error().await?;
+/// # */
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]

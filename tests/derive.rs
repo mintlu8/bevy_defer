@@ -2,7 +2,6 @@ use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_defer::{access::AsyncResource, async_access, world, AsyncExtension, AsyncPlugin};
 use bevy_ecs::system::Resource;
-use ref_cast::RefCast;
 
 #[derive(Debug, Resource, AsyncResource)]
 pub struct Unit {
