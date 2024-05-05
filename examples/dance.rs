@@ -2,7 +2,7 @@ use bevy::MinimalPlugins;
 use bevy_app::{App, First};
 use bevy_defer::{
     access::deref::AsyncComponentDeref, access::AsyncComponent, reactors::react_to_state,
-    signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin,
+    signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AccessError, AsyncPlugin,
 };
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
 use bevy_tasks::futures_lite::StreamExt;
@@ -68,7 +68,7 @@ impl AsyncComponentDeref for Animator {
 pub struct AsyncAnimator(AsyncComponent<Animator>);
 
 impl AsyncAnimator {
-    pub async fn animate(&self, name: &'static str) -> Result<(), AsyncFailure> {
+    pub async fn animate(&self, name: &'static str) -> Result<(), AccessError> {
         let len = name.len();
         self.0.set(move |comp| {
             println!("Animating from {} to {}", &comp.0, name);
@@ -79,12 +79,12 @@ impl AsyncAnimator {
         Ok(())
     }
 
-    pub async fn until_exit(&self, name: &'static str) -> Result<(), AsyncFailure> {
+    pub async fn until_exit(&self, name: &'static str) -> Result<(), AccessError> {
         self.0.watch(move |x| (x.0 != name).then_some(())).await
     }
 }
 
-async fn sound_routine(entity: Entity) -> Result<(), AsyncFailure> {
+async fn sound_routine(entity: Entity) -> Result<(), AccessError> {
     println!("dancing~");
     world()
         .entity(entity)

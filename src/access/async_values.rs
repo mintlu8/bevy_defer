@@ -3,7 +3,7 @@ use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::with_world_mut;
 use crate::signals::Signals;
-use crate::{AsyncFailure, AsyncQueryQueue, AsyncResult};
+use crate::{AccessError, AsyncQueryQueue, AsyncResult};
 use bevy_ecs::component::Component;
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use bevy_ecs::{entity::Entity, world::World};
@@ -58,7 +58,7 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
             };
             world
                 .run_system_with_input(id, Box::new(f))
-                .map_err(|_| AsyncFailure::SystemParamError)
+                .map_err(|_| AccessError::SystemParamError)
         })
     }
 }

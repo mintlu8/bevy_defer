@@ -1,10 +1,11 @@
 //! Per-entity repeatable async functions.
 
-use super::AsyncFailure;
+use super::AccessError;
 #[allow(unused)]
 use crate::{
     access::AsyncComponent,
     signals::{Receiver, Sender},
+    SystemError,
 };
 use crate::{access::AsyncWorldMut, signals::Signals, AsyncExecutor, AsyncResult, QueryQueue};
 use bevy_ecs::{
@@ -29,7 +30,7 @@ use std::{
 
 /// Construct a [`Future`] via [`AsyncSystem`] semantics.
 ///
-/// The future repeats forever, unless [`AsyncFailure::ManuallyKilled`] is returned.
+/// The future repeats forever, unless [`SystemError::ManuallyKilled`] is returned.
 ///
 /// This function uses [`AsyncWorldParam`] as parameters, as there is no active entity.
 ///
@@ -41,12 +42,16 @@ macro_rules! system_future {
             use $crate::access::*;
             let __world = $crate::world();
             loop {
-                $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::from_async_context(&__world).ok_or($crate::AsyncFailure::WorldParamNotFound)?;)*
-                if let Err(AsyncFailure::ManuallyKilled) = async {
+                $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::from_async_context(&__world).ok_or($crate::AccessError::WorldParamNotFound)?;)*
+                match async {
                     let _ = $body;
-                    Result::<(), $crate::AsyncFailure>::Ok(())
+                    Result::<(), $crate::SystemError>::Ok(())
                 }.await {
-                    return Result::<(), $crate::AsyncFailure>::Ok(())
+                    Ok(_) => (),
+                    Err($crate::SystemError::ManuallyKilled) => return Ok(()),
+                    Err($crate::SystemError::AccessError(e)) => {
+                        $crate::error!("{}", e);
+                    },
                 }
             }
         }
@@ -149,7 +154,7 @@ impl Drop for ChildAlive {
     }
 }
 
-type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AsyncFailure>> + 'static>>;
+type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AccessError>> + 'static>>;
 
 /// An async system function.
 pub struct AsyncSystem {

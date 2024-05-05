@@ -2,7 +2,7 @@ use crate::access::AsyncWorldMut;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::{with_world_mut, REACTORS};
 use crate::reactors::Reactors;
-use crate::{AsyncFailure, AsyncResult};
+use crate::{AccessError, AsyncResult};
 use bevy_core::FrameCount;
 use bevy_ecs::event::{Event, EventId, EventReader};
 use bevy_ecs::system::{Local, Res};
@@ -21,7 +21,7 @@ impl AsyncWorldMut {
         with_world_mut(move |world: &mut World| {
             world
                 .send_event(event)
-                .ok_or(AsyncFailure::EventNotRegistered)
+                .ok_or(AccessError::EventNotRegistered)
         })
     }
 

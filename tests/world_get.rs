@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_app::App;
 use bevy_core::FrameCountPlugin;
-use bevy_defer::{system_future, world, AsyncAccess, AsyncExtension, AsyncFailure, AsyncPlugin};
+use bevy_defer::{system_future, world, AsyncAccess, AsyncExtension, AccessError, AsyncPlugin};
 use bevy_ecs::{component::Component, query::With};
 use bevy_time::TimePlugin;
 use std::sync::{
@@ -106,7 +106,7 @@ pub fn system_future() {
         }
         w.yield_now().await;
         // Uses AsyncSystem semantics so failure does not cancel the system.
-        Err(AsyncFailure::ComponentNotFound)?;
+        Err(AccessError::ComponentNotFound)?;
     }));
     app.run();
     assert!(lock2.load(Ordering::Relaxed) > 10);

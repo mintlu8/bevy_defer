@@ -1,7 +1,7 @@
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
 use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue};
-use crate::{AsyncFailure, AsyncResult};
+use crate::{AccessError, AsyncResult};
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::future::{ready, Either};
@@ -63,7 +63,7 @@ impl AsyncWorldMut {
     pub fn add_asset<A: Asset + 'static>(&self, item: A) -> AsyncResult<Handle<A>> {
         with_world_mut(|w| {
             Ok(w.get_resource_mut::<Assets<A>>()
-                .ok_or(AsyncFailure::ResourceNotFound)?
+                .ok_or(AccessError::ResourceNotFound)?
                 .add(item))
         })
     }

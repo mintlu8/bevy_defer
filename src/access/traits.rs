@@ -10,7 +10,7 @@ use crate::{
     cancellation::TaskCancellation,
     executor::{with_world_mut, with_world_ref},
     sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut},
-    AsyncFailure, AsyncResult,
+    AccessError, AsyncResult,
 };
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{
@@ -146,7 +146,7 @@ pub trait AsyncAccess {
 
     /// Continue `watch` and `on_load` if fetch context failed with these errors.
     #[allow(unused_variables)]
-    fn should_continue(err: AsyncFailure) -> bool {
+    fn should_continue(err: AccessError) -> bool {
         false
     }
 
@@ -204,7 +204,7 @@ pub trait AsyncAccess {
             if let Some(f) = f.take() {
                 Ok(f(item))
             } else {
-                Err(AsyncFailure::ShouldNotHappen)
+                Err(AccessError::ShouldNotHappen)
             }
         };
         match with_world_ref(&mut f) {
@@ -360,7 +360,7 @@ impl<C: Component> AsyncAccess for AsyncComponent<C> {
     fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::RefMut<'t>> {
         world
             .get_mut::<C>(*cx)
-            .ok_or(AsyncFailure::ComponentNotFound)
+            .ok_or(AccessError::ComponentNotFound)
             .map(|x| x.into_inner())
     }
 
@@ -376,9 +376,9 @@ impl<C: Component> AsyncReadonlyAccess for AsyncComponent<C> {
     fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
         world
             .get_entity(*cx)
-            .ok_or(AsyncFailure::EntityNotFound)?
+            .ok_or(AccessError::EntityNotFound)?
             .get::<C>()
-            .ok_or(AsyncFailure::ComponentNotFound)
+            .ok_or(AccessError::ComponentNotFound)
     }
 }
 
@@ -390,9 +390,9 @@ impl<C: Component> AsyncTake for AsyncComponent<C> {
     fn take(world: &mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic> {
         world
             .get_entity_mut(*cx)
-            .ok_or(AsyncFailure::EntityNotFound)?
+            .ok_or(AccessError::EntityNotFound)?
             .take::<C>()
-            .ok_or(AsyncFailure::ComponentNotFound)
+            .ok_or(AccessError::ComponentNotFound)
     }
 }
 
@@ -408,14 +408,14 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
 
     fn as_cx(&self) -> Self::Cx {}
 
-    fn should_continue(err: AsyncFailure) -> bool {
-        err == AsyncFailure::ResourceNotFound
+    fn should_continue(err: AccessError) -> bool {
+        err == AccessError::ResourceNotFound
     }
 
     fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMut<'t>> {
         world
             .get_resource_mut::<R>()
-            .ok_or(AsyncFailure::ResourceNotFound)
+            .ok_or(AccessError::ResourceNotFound)
             .map(|x| x.into_inner())
     }
 
@@ -429,7 +429,7 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
 
 impl<R: Resource> AsyncReadonlyAccess for AsyncResource<R> {
     fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
-        world.get_resource().ok_or(AsyncFailure::ResourceNotFound)
+        world.get_resource().ok_or(AccessError::ResourceNotFound)
     }
 }
 
@@ -441,7 +441,7 @@ impl<R: Resource> AsyncTake for AsyncResource<R> {
     fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
         world
             .remove_resource()
-            .ok_or(AsyncFailure::ResourceNotFound)
+            .ok_or(AccessError::ResourceNotFound)
     }
 }
 
@@ -457,8 +457,8 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
         AsyncWorldMut::ref_cast(&self.queue)
     }
 
-    fn should_continue(err: AsyncFailure) -> bool {
-        err == AsyncFailure::ResourceNotFound
+    fn should_continue(err: AccessError) -> bool {
+        err == AccessError::ResourceNotFound
     }
 
     fn as_cx(&self) -> Self::Cx {}
@@ -466,7 +466,7 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
     fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMut<'t>> {
         world
             .get_non_send_resource_mut::<R>()
-            .ok_or(AsyncFailure::ResourceNotFound)
+            .ok_or(AccessError::ResourceNotFound)
             .map(|x| x.into_inner())
     }
 
@@ -482,7 +482,7 @@ impl<R: 'static> AsyncReadonlyAccess for AsyncNonSend<R> {
     fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
         world
             .get_non_send_resource()
-            .ok_or(AsyncFailure::ResourceNotFound)
+            .ok_or(AccessError::ResourceNotFound)
     }
 }
 
@@ -496,7 +496,7 @@ impl<R: 'static> AsyncTake for AsyncNonSend<R> {
     fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
         world
             .remove_non_send_resource()
-            .ok_or(AsyncFailure::ResourceNotFound)
+            .ok_or(AccessError::ResourceNotFound)
     }
 }
 
@@ -514,8 +514,8 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
         self.handle.clone_weak()
     }
 
-    fn should_continue(err: AsyncFailure) -> bool {
-        err == AsyncFailure::AssetNotFound
+    fn should_continue(err: AccessError) -> bool {
+        err == AccessError::AssetNotFound
     }
 
     fn from_mut_world<'t>(
@@ -524,10 +524,10 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
     ) -> AsyncResult<Self::RefMut<'t>> {
         world
             .get_resource_mut::<Assets<A>>()
-            .ok_or(AsyncFailure::ResourceNotFound)?
+            .ok_or(AccessError::ResourceNotFound)?
             .into_inner()
             .get_mut(handle)
-            .ok_or(AsyncFailure::AssetNotFound)
+            .ok_or(AccessError::AssetNotFound)
     }
 
     fn from_mut_cx<'t>(
@@ -542,9 +542,9 @@ impl<A: Asset> AsyncReadonlyAccess for AsyncAsset<A> {
     fn from_ref_world<'t>(world: &'t World, handle: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
         world
             .get_resource::<Assets<A>>()
-            .ok_or(AsyncFailure::ResourceNotFound)?
+            .ok_or(AccessError::ResourceNotFound)?
             .get(handle)
-            .ok_or(AsyncFailure::AssetNotFound)
+            .ok_or(AccessError::AssetNotFound)
     }
 }
 
@@ -556,9 +556,9 @@ impl<A: Asset> AsyncTake for AsyncAsset<A> {
     fn take(world: &mut World, handle: &Self::Cx) -> AsyncResult<Self::Generic> {
         world
             .get_resource_mut::<Assets<A>>()
-            .ok_or(AsyncFailure::ResourceNotFound)?
+            .ok_or(AccessError::ResourceNotFound)?
             .remove(handle)
-            .ok_or(AsyncFailure::AssetNotFound)
+            .ok_or(AccessError::AssetNotFound)
     }
 }
 
@@ -635,6 +635,6 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         entity: &Entity,
     ) -> AsyncResult<Self::RefMut<'t>> {
         cx.get_mut(*entity)
-            .map_err(|_| AsyncFailure::EntityNotFound)
+            .map_err(|_| AccessError::EntityNotFound)
     }
 }

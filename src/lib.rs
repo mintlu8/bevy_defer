@@ -16,6 +16,7 @@ pub mod reactors;
 pub mod signals;
 pub mod sync;
 pub mod tween;
+mod errors;
 pub use access::async_event::DoubleBufferedEvent;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
@@ -24,12 +25,11 @@ use bevy_ecs::{
     system::{Command, Commands},
     world::World,
 };
-use bevy_log::error;
 use bevy_reflect::std_traits::ReflectDefault;
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
-
+pub use errors::{AccessError, SystemError, CustomError};
 pub use crate::executor::{in_async_context, spawn, spawn_scoped, world};
 
 pub mod systems {
@@ -63,12 +63,16 @@ pub use bevy_ecs::entity::Entity;
 pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
 pub use scoped_tls::scoped_thread_local;
+#[doc(hidden)]
+pub use bevy_log::error;
 
 use queue::run_fixed_queue;
 use signals::{Signal, SignalId, Signals};
 
+pub use bevy_defer_derive::async_access;
+
 /// Result type of `AsyncSystemFunction`.
-pub type AsyncResult<T = ()> = Result<T, AsyncFailure>;
+pub type AsyncResult<T = ()> = Result<T, AccessError>;
 
 #[derive(Debug, Default, Clone, Copy)]
 
@@ -287,49 +291,6 @@ impl Command for SpawnFn {
     fn apply(self, world: &mut World) {
         world.spawn_task(self.0());
     }
-}
-
-/// Standard errors for the async runtime.
-///
-/// This type is designed to be match friendly but not necessarily carry all the debugging information.
-/// It might me more correct to either match or unwrap this error instead of propagating it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[non_exhaustive]
-pub enum AsyncFailure {
-    #[error("async channel closed")]
-    ChannelClosed,
-    #[error("entity not found")]
-    EntityNotFound,
-    #[error("too many entities")]
-    TooManyEntities,
-    #[error("child index missing")]
-    ChildNotFound,
-    #[error("component not found")]
-    ComponentNotFound,
-    #[error("resource not found")]
-    ResourceNotFound,
-    #[error("asset not found")]
-    AssetNotFound,
-    #[error("event not registered")]
-    EventNotRegistered,
-    #[error("signal not found")]
-    SignalNotFound,
-    #[error("schedule not found")]
-    ScheduleNotFound,
-    #[error("system param error")]
-    SystemParamError,
-    #[error("AsyncWorldParam not found")]
-    WorldParamNotFound,
-    #[error("SystemId not found")]
-    SystemIdNotFound,
-    #[error("name not found")]
-    NameNotFound,
-    /// Return `Err(ManuallyKilled)` to terminate a `system_future!` future.
-    #[error("manually killed a `system_future!` future")]
-    ManuallyKilled,
-
-    #[error("This error should not happen.")]
-    ShouldNotHappen,
 }
 
 #[doc(hidden)]

@@ -127,16 +127,18 @@ impl<T> Sender<T> {
         self.0.complete.get()
     }
 
+    /// Create a future that can poll for receiver being dropped.
     pub fn cancellation(&mut self) -> ChannelCancel<T> {
         ChannelCancel(self)
     }
 
+    /// Create a [`RefSender`] that does not require ownership and can send repeatedly (only the first call works).
     pub fn by_ref(self) -> RefSender<T> {
         RefSender(Some(self))
     }
 }
 
-/// Sender for a `!Send` oneshot channel.
+/// Sender for a `!Send` oneshot channel. Sending does not require ownership.
 #[derive(Debug)]
 pub struct RefSender<T>(Option<Sender<T>>);
 

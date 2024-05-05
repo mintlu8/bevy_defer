@@ -1,5 +1,5 @@
 [workspace] 
-members = [ 
+members = [ "derive",
     "http",
     "picking"
 ]
@@ -23,6 +23,8 @@ keywords = ["bevy", "async", "defer"]
 default = ["bevy_ui", "bevy_animation", "bevy_scene"]
 
 [dependencies]
+
+bevy_defer_derive = { version = "0.1", path = "./derive" }
 futures = { version = "0.3.30", default-features = false }
 async-executor = "1.10.0"
 

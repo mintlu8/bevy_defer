@@ -2,7 +2,7 @@ use crate::executor::{with_world_mut, with_world_ref};
 use crate::{
     access::AsyncEntityMut,
     signals::{SignalBorrow, SignalId, Signals},
-    AsyncFailure, AsyncResult,
+    AccessError, AsyncResult,
 };
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
@@ -20,7 +20,7 @@ impl AsyncEntityMut {
     /// entity.insert(Str("bevy"));
     /// # });
     /// ```
-    pub fn insert(&self, bundle: impl Bundle) -> Result<(), AsyncFailure> {
+    pub fn insert(&self, bundle: impl Bundle) -> Result<(), AccessError> {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             world
@@ -28,7 +28,7 @@ impl AsyncEntityMut {
                 .map(|mut e| {
                     e.insert(bundle);
                 })
-                .ok_or(AsyncFailure::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound)
         })
     }
 
@@ -42,7 +42,7 @@ impl AsyncEntityMut {
     /// entity.remove::<Int>();
     /// # });
     /// ```
-    pub fn remove<T: Bundle>(&self) -> Result<(), AsyncFailure> {
+    pub fn remove<T: Bundle>(&self) -> Result<(), AccessError> {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             world
@@ -50,7 +50,7 @@ impl AsyncEntityMut {
                 .map(|mut e| {
                     e.remove::<T>();
                 })
-                .ok_or(AsyncFailure::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound)
         })
     }
 
@@ -64,7 +64,7 @@ impl AsyncEntityMut {
     /// entity.retain::<Int>();
     /// # });
     /// ```
-    pub fn retain<T: Bundle>(&self) -> Result<(), AsyncFailure> {
+    pub fn retain<T: Bundle>(&self) -> Result<(), AccessError> {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             world
@@ -72,7 +72,7 @@ impl AsyncEntityMut {
                 .map(|mut e| {
                     e.retain::<T>();
                 })
-                .ok_or(AsyncFailure::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound)
         })
     }
 
@@ -88,13 +88,13 @@ impl AsyncEntityMut {
     /// entity.take::<Int>();
     /// # });
     /// ```
-    pub fn take<T: Bundle>(&self) -> Result<Option<T>, AsyncFailure> {
+    pub fn take<T: Bundle>(&self) -> Result<Option<T>, AccessError> {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
                 .map(|mut e| e.take::<T>())
-                .ok_or(AsyncFailure::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound)
         })
     }
 
@@ -118,7 +118,7 @@ impl AsyncEntityMut {
                     entity.with_children(|spawn| id = spawn.spawn(bundle).id());
                     id
                 })
-                .ok_or(AsyncFailure::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound)
         })?;
         Ok(self.entity(entity))
     }
@@ -142,7 +142,7 @@ impl AsyncEntityMut {
                 .map(|mut entity| {
                     entity.add_child(child);
                 })
-                .ok_or(AsyncFailure::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound)
         })
     }
 
@@ -185,10 +185,10 @@ impl AsyncEntityMut {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AsyncFailure::EntityNotFound);
+                return Err(AccessError::EntityNotFound);
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AsyncFailure::ComponentNotFound);
+                return Err(AccessError::ComponentNotFound);
             };
             Ok(signals.send::<S>(data))
         })
@@ -199,14 +199,14 @@ impl AsyncEntityMut {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AsyncFailure::EntityNotFound);
+                return Err(AccessError::EntityNotFound);
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AsyncFailure::ComponentNotFound);
+                return Err(AccessError::ComponentNotFound);
             };
             signals
                 .borrow_sender::<S>()
-                .ok_or(AsyncFailure::SignalNotFound)
+                .ok_or(AccessError::SignalNotFound)
         })
     }
 
@@ -215,14 +215,14 @@ impl AsyncEntityMut {
         let entity = self.entity;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AsyncFailure::EntityNotFound);
+                return Err(AccessError::EntityNotFound);
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AsyncFailure::ComponentNotFound);
+                return Err(AccessError::ComponentNotFound);
             };
             signals
                 .borrow_receiver::<S>()
-                .ok_or(AsyncFailure::SignalNotFound)
+                .ok_or(AccessError::SignalNotFound)
         })
     }
 
@@ -250,7 +250,7 @@ impl AsyncEntityMut {
                 entity,
                 queue: self.queue.clone(),
             }),
-            None => Err(AsyncFailure::EntityNotFound),
+            None => Err(AccessError::EntityNotFound),
         }
     }
 

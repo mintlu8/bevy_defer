@@ -6,7 +6,7 @@ use crate::{
     sync::oneshot::{channel, ChannelOut, MaybeChannelOut},
     tween::AsSeconds,
 };
-use crate::{access::AsyncWorldMut, AsyncFailure, AsyncResult};
+use crate::{access::AsyncWorldMut, AccessError, AsyncResult};
 use bevy_app::AppExit;
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use bevy_ecs::{
@@ -111,7 +111,7 @@ impl AsyncWorldMut {
         with_world_mut(move |world: &mut World| {
             world
                 .try_run_schedule(schedule)
-                .map_err(|_| AsyncFailure::ScheduleNotFound)
+                .map_err(|_| AccessError::ScheduleNotFound)
         })
     }
 
@@ -163,7 +163,7 @@ impl AsyncWorldMut {
         with_world_mut(move |world: &mut World| {
             world
                 .run_system_with_input(system, input)
-                .map_err(|_| AsyncFailure::SystemIdNotFound)
+                .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
 
@@ -224,7 +224,7 @@ impl AsyncWorldMut {
             {
                 world
                     .run_system_with_input(id, input)
-                    .map_err(|_| AsyncFailure::SystemIdNotFound)
+                    .map_err(|_| AccessError::SystemIdNotFound)
             } else {
                 let id = world.register_system(system);
                 world
@@ -233,7 +233,7 @@ impl AsyncWorldMut {
                     .insert(type_id, Box::new(id));
                 world
                     .run_system_with_input(id, input)
-                    .map_err(|_| AsyncFailure::SystemIdNotFound)
+                    .map_err(|_| AccessError::SystemIdNotFound)
             }
         })
     }
@@ -282,7 +282,7 @@ impl AsyncWorldMut {
             world
                 .get_resource_mut::<NextState<S>>()
                 .map(|mut s| s.set(state))
-                .ok_or(AsyncFailure::ResourceNotFound)
+                .ok_or(AccessError::ResourceNotFound)
         })
     }
 
@@ -300,7 +300,7 @@ impl AsyncWorldMut {
             world
                 .get_resource::<State<S>>()
                 .map(|s| s.get().clone())
-                .ok_or(AsyncFailure::ResourceNotFound)
+                .ok_or(AccessError::ResourceNotFound)
         })
     }
 
