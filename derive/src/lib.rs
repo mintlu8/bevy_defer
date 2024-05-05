@@ -27,6 +27,8 @@ fn import_crate() -> TokenStream {
 /// * All functions must have `&self` or `&mut self` receivers.
 ///
 /// * Outputs must be `'static`.
+/// 
+/// * Does not support `async` functions, return `impl Future + 'static` instead.
 ///
 /// ```
 /// use module::{Character, AsyncCharacter};
@@ -203,6 +205,7 @@ fn async_access_deref(tokens: TokenStream, ty: Ident, ty_deref: Ident) -> TokenS
             type Target = #async_name;
 
             fn async_deref(this: &#bevy_defer::access::#ty<Self>) -> &Self::Target {
+                use #bevy_defer::RefCast;
                 #async_name::ref_cast(this)
             }
         }
