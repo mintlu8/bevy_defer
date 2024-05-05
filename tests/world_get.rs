@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_app::App;
 use bevy_core::FrameCountPlugin;
-use bevy_defer::{system_future, world, AsyncAccess, AsyncExtension, AccessError, AsyncPlugin};
+use bevy_defer::{system_future, world, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin};
 use bevy_ecs::{component::Component, query::With};
 use bevy_time::TimePlugin;
 use std::sync::{

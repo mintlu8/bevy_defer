@@ -20,11 +20,12 @@ A simple asynchronous runtime for executing async coroutines.
 keywords = ["bevy", "async", "defer"]
 
 [features]
-default = ["bevy_ui", "bevy_animation", "bevy_scene"]
+default = ["bevy_ui", "bevy_animation", "bevy_scene", "derive"]
+derive = ["bevy_defer_derive"]
 
 [dependencies]
 
-bevy_defer_derive = { version = "0.1", path = "./derive" }
+bevy_defer_derive = { version = "0.1", path = "./derive", optional = true }
 futures = { version = "0.3.30", default-features = false }
 async-executor = "1.10.0"
 

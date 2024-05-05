@@ -2,7 +2,7 @@ use bevy::MinimalPlugins;
 use bevy_app::{App, First};
 use bevy_defer::{
     access::deref::AsyncComponentDeref, access::AsyncComponent, reactors::react_to_state,
-    signal_ids, spawn_scoped, world, AsyncAccess, AsyncExtension, AccessError, AsyncPlugin,
+    signal_ids, spawn_scoped, world, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin,
 };
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
 use bevy_tasks::futures_lite::StreamExt;

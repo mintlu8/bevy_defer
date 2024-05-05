@@ -9,6 +9,7 @@ pub mod async_systems;
 pub mod cancellation;
 mod commands;
 mod entity_commands;
+mod errors;
 mod executor;
 pub mod ext;
 mod queue;
@@ -16,7 +17,7 @@ pub mod reactors;
 pub mod signals;
 pub mod sync;
 pub mod tween;
-mod errors;
+pub use crate::executor::{in_async_context, spawn, spawn_scoped, world};
 pub use access::async_event::DoubleBufferedEvent;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
@@ -26,11 +27,10 @@ use bevy_ecs::{
     world::World,
 };
 use bevy_reflect::std_traits::ReflectDefault;
+pub use errors::{AccessError, CustomError, SystemError};
 pub use executor::{AsyncExecutor, QueryQueue};
 use queue::AsyncQueryQueue;
 use reactors::Reactors;
-pub use errors::{AccessError, SystemError, CustomError};
-pub use crate::executor::{in_async_context, spawn, spawn_scoped, world};
 
 pub mod systems {
     //! Systems in `bevy_defer`.
@@ -62,16 +62,19 @@ pub use bevy_ecs::entity::Entity;
 #[doc(hidden)]
 pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
-pub use scoped_tls::scoped_thread_local;
-#[doc(hidden)]
 pub use bevy_log::error;
+#[doc(hidden)]
+pub use ref_cast::RefCast;
+#[doc(hidden)]
+pub use scoped_tls::scoped_thread_local;
 
 use queue::run_fixed_queue;
 use signals::{Signal, SignalId, Signals};
 
+#[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
 
-/// Result type of `AsyncSystemFunction`.
+/// Result type of spawned tasks.
 pub type AsyncResult<T = ()> = Result<T, AccessError>;
 
 #[derive(Debug, Default, Clone, Copy)]

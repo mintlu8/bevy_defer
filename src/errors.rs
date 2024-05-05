@@ -6,12 +6,12 @@ use bevy_log::error;
 ///
 /// This type is designed to be match friendly but not necessarily carry all the debugging information.
 /// It might me more correct to either match or unwrap this error instead of propagating it.
-/// 
+///
 /// ## Logging Pattern
-/// 
+///
 /// For custom errors, convert to `AccessError` via `Into` and log the message
 /// via `bevy_log` in the `into` implementation.
-/// 
+///
 /// ```
 /// returns_a_custom_error().await?;
 /// ```
@@ -52,7 +52,7 @@ pub enum AccessError {
     ShouldNotHappen,
 }
 
-/// An alternative [`AccessError`] with a custom error message. 
+/// An alternative [`AccessError`] with a custom error message.
 /// If propagated to `AccessError` via `?`, will log the error message via `bevy_log`.
 #[derive(Debug, Clone)]
 pub struct CustomError {
@@ -63,13 +63,11 @@ pub struct CustomError {
 impl Display for CustomError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.error {
-            AccessError::Custom => {
-                f.write_str(&self.message)
-            },
+            AccessError::Custom => f.write_str(&self.message),
             err => {
                 write!(f, "{}: {}", err, self.message)
             }
-        }   
+        }
     }
 }
 
@@ -155,7 +153,7 @@ macro_rules! format_error {
                 message: ::std::borrow::Cow::Borrowed($str),
             }
         }
-        
+
     };
 
     ($variant: expr, $str: literal $(,$expr: expr)* $(,)?) => {

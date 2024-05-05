@@ -439,9 +439,7 @@ impl<R: Resource> AsyncAccessRef for AsyncResource<R> {
 
 impl<R: Resource> AsyncTake for AsyncResource<R> {
     fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
-        world
-            .remove_resource()
-            .ok_or(AccessError::ResourceNotFound)
+        world.remove_resource().ok_or(AccessError::ResourceNotFound)
     }
 }
 
@@ -634,7 +632,6 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         cx: &'t mut Self::RefMutCx<'_>,
         entity: &Entity,
     ) -> AsyncResult<Self::RefMut<'t>> {
-        cx.get_mut(*entity)
-            .map_err(|_| AccessError::EntityNotFound)
+        cx.get_mut(*entity).map_err(|_| AccessError::EntityNotFound)
     }
 }

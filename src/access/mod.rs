@@ -12,3 +12,6 @@ pub use async_event::EventStream;
 pub use async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle};
 pub use async_values::{AsyncComponent, AsyncNonSend, AsyncResource, AsyncSystemParam};
 pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld, AsyncWorldMut};
+
+#[cfg(feature = "derive")]
+pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
