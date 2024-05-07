@@ -1,6 +1,7 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
+use bevy_time::TimeSystem;
 use bevy_utils::intern::Interned;
 use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
 
@@ -93,7 +94,7 @@ impl Plugin for CoreAsyncPlugin {
             .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
-            .add_systems(First, systems::run_time_series)
+            .add_systems(First, systems::run_time_series.after(TimeSystem))
             .add_systems(First, systems::push_async_systems)
             .add_systems(Update, run_fixed_queue);
     }
@@ -110,7 +111,7 @@ pub struct AsyncPlugin {
 }
 
 impl AsyncPlugin {
-    /// Equivalent to `CoreAsyncPlugin`.
+    /// Equivalent to [`CoreAsyncPlugin`].
     pub fn empty() -> Self {
         AsyncPlugin {
             schedules: Vec::new(),
@@ -118,7 +119,7 @@ impl AsyncPlugin {
         }
     }
 
-    /// Run on `Update` only.
+    /// Run on [`Update`] only.
     pub fn default_settings() -> Self {
         AsyncPlugin {
             schedules: vec![(Interned(Box::leak(Box::new(Update))), None)],
@@ -126,7 +127,7 @@ impl AsyncPlugin {
         }
     }
 
-    /// Run on `PreUpdate`, `Update` and `PostUpdate`.
+    /// Run on [`PreUpdate`], [`Update`] and [`PostUpdate`].
     pub fn busy_schedule() -> Self {
         AsyncPlugin {
             schedules: vec![
