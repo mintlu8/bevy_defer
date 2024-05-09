@@ -1,6 +1,9 @@
 use bevy::MinimalPlugins;
 use bevy_app::App;
-use bevy_defer::{access::AsyncResource, async_access, world, AsyncExtension, AsyncPlugin};
+use bevy_defer::{
+    access::{AsyncResource, AsyncWorld},
+    async_access, AsyncExtension, AsyncPlugin,
+};
 use bevy_ecs::system::Resource;
 
 #[derive(Debug, Resource, AsyncResource)]
@@ -25,7 +28,7 @@ fn test() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
-        world().resource::<Unit>().set_name("Name")?;
+        AsyncWorld.resource::<Unit>().set_name("Name")?;
         Ok(())
     });
 }

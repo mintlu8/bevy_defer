@@ -5,7 +5,9 @@ use bevy::{
 };
 use bevy_app::App;
 use bevy_core::FrameCountPlugin;
-use bevy_defer::{system_future, world, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin};
+use bevy_defer::{
+    access::AsyncWorld, system_future, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin,
+};
 use bevy_ecs::{component::Component, query::With};
 use bevy_time::TimePlugin;
 use std::sync::{
@@ -30,50 +32,50 @@ pub fn main() {
 
     static LOCK: AtomicBool = AtomicBool::new(false);
     app.spawn_task(async move {
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
-        assert_eq!(world().entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
+        assert_eq!(AsyncWorld.entity(a).component::<Int>().get(|x| x.0)?, 69);
 
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         assert_eq!(
-            world().entity(b).component::<String>().get(|x| x.0)?,
+            AsyncWorld.entity(b).component::<String>().get(|x| x.0)?,
             "ferris"
         );
         LOCK.store(true, Ordering::Relaxed);

@@ -10,7 +10,7 @@ use std::{
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt};
-use bevy_defer::{world, AsyncAccess, AsyncExtension, AsyncPlugin};
+use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
 use bevy_reflect::TypePath;
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
@@ -51,7 +51,7 @@ pub fn procedural() {
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {
-        let world = world();
+        let world = AsyncWorld;
         let one = world.load_asset::<JsonNumber>("1.json");
         let four = world.load_asset::<JsonNumber>("4.json");
         let sixty_nine = world.load_asset::<JsonNumber>("69.json");
@@ -62,7 +62,7 @@ pub fn procedural() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(500)).await;
         world.quit();
         Ok(())
@@ -82,7 +82,7 @@ pub fn concurrent() {
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {
-        let world = world();
+        let world = AsyncWorld;
         let (one, four, sixty_nine) = (
             world.load_asset::<JsonNumber>("1.json"),
             world.load_asset::<JsonNumber>("4.json"),
@@ -101,7 +101,7 @@ pub fn concurrent() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(500)).await;
         world.quit();
         Ok(())
@@ -121,7 +121,7 @@ pub fn cloned() {
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {
-        let world = world();
+        let world = AsyncWorld;
         let (one, four, sixty_nine) = (
             world.load_asset::<JsonNumber>("1.json"),
             world.load_asset::<JsonNumber>("4.json"),
@@ -139,7 +139,7 @@ pub fn cloned() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(500)).await;
         world.quit();
         Ok(())
@@ -159,7 +159,7 @@ pub fn take() {
     let lock = Arc::new(AtomicBool::new(false));
     let lock2 = lock.clone();
     app.spawn_task(async move {
-        let world = world();
+        let world = AsyncWorld;
         let (one, four, sixty_nine) = (
             world.load_asset::<JsonNumber>("1.json"),
             world.load_asset::<JsonNumber>("4.json"),
@@ -177,7 +177,7 @@ pub fn take() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(500)).await;
         world.quit();
         Ok(())

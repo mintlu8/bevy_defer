@@ -39,7 +39,6 @@ macro_rules! system_future {
     (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
         async move {
             use $crate::access::*;
-            let __world = $crate::world();
             loop {
                 $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::build_in_async().ok_or($crate::AccessError::WorldParamNotFound)?;)*
                 match async {

@@ -7,12 +7,13 @@ use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
 use bevy_core::FrameCountPlugin;
 use bevy_defer::{
+    access::AsyncWorld,
     async_system,
     async_systems::AsyncSystems,
     signal_ids,
     signals::{Signal, SignalSender},
     systems::react_to_event,
-    world, AsyncExtension, AsyncPlugin,
+    AsyncExtension, AsyncPlugin,
 };
 use bevy_defer::{signals::Signals, systems::run_async_executor};
 use bevy_ecs::{
@@ -88,7 +89,7 @@ pub fn chat() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         assert_eq!(
             world.named_signal::<Message>("Alice").poll().await,
             "Hello, Alice."
@@ -101,7 +102,7 @@ pub fn chat() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(16)).await;
         world
             .named_signal::<Message>("Alice")
@@ -114,7 +115,7 @@ pub fn chat() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(100)).await;
         world.quit();
         Ok(())
@@ -142,7 +143,7 @@ pub fn events() {
     app.add_systems(Update, react_to_event::<BobChat>);
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         assert_eq!(
             world.event_stream::<AliceChat>().next().await.unwrap().0,
             "Hello, Alice."
@@ -153,7 +154,7 @@ pub fn events() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(AliceChat("Hello, Alice.".to_owned()))?;
         assert_eq!(
@@ -164,7 +165,7 @@ pub fn events() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         world.sleep(Duration::from_millis(100)).await;
         world.quit();
         Ok(())
@@ -186,7 +187,7 @@ pub fn stream() {
     app.add_plugins(MinimalPlugins);
     app.add_systems(Update, react_to_event::<Chat>);
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         let mut stream = world.event_stream::<Chat>();
         assert_eq!(stream.next().await, Some(Chat('r')));
         assert_eq!(stream.next().await, Some(Chat('u')));
@@ -205,7 +206,7 @@ pub fn stream() {
         Ok(())
     });
     app.spawn_task(async {
-        let world = world();
+        let world = AsyncWorld;
         let mut stream = world
             .event_stream::<Chat>()
             .map(|c| c.0.to_ascii_uppercase());

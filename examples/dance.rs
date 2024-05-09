@@ -1,8 +1,9 @@
 use bevy::MinimalPlugins;
 use bevy_app::{App, First};
 use bevy_defer::{
-    access::deref::AsyncComponentDeref, access::AsyncComponent, reactors::react_to_state,
-    signal_ids, spawn_scoped, world, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin,
+    access::{deref::AsyncComponentDeref, AsyncComponent, AsyncWorld},
+    reactors::react_to_state,
+    signal_ids, spawn_scoped, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin,
 };
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
 use bevy_tasks::futures_lite::StreamExt;
@@ -74,7 +75,7 @@ impl AsyncAnimator {
             println!("Animating from {} to {}", &comp.0, name);
             comp.0 = name.to_owned();
         })?;
-        world().sleep(Duration::from_secs(len as u64)).await;
+        AsyncWorld.sleep(Duration::from_secs(len as u64)).await;
         println!("Animation {name} done!");
         Ok(())
     }
@@ -86,13 +87,13 @@ impl AsyncAnimator {
 
 async fn sound_routine(entity: Entity) -> Result<(), AccessError> {
     println!("dancing~");
-    world()
+    AsyncWorld
         .entity(entity)
         .component::<Animator>()
         .until_exit("Dance")
         .await?;
     println!("ballet~~");
-    world()
+    AsyncWorld
         .entity(entity)
         .component::<Animator>()
         .until_exit("Ballet")
@@ -117,7 +118,7 @@ pub fn main() {
     app.spawn_task(async move {
         // This is an `AsyncWorld`.
         // like tokio::spawn() this only works in the async context.
-        let world = world();
+        let world = AsyncWorld;
         let mut three = pin!(&mut world.sleep(3.0));
         let mut two = pin!(&mut world.sleep(2.0));
         let mut one = pin!(&mut world.sleep(1.0));

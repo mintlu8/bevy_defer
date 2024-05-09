@@ -4,6 +4,7 @@ use crate::access::{
 use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::QUERY_QUEUE;
+use crate::in_async_context;
 use crate::reactors::Reactors;
 use bevy_ecs::{
     component::Component,
@@ -24,6 +25,23 @@ use bevy_ecs::{system::Commands, world::World};
 pub struct AsyncWorld;
 
 impl AsyncWorld {
+    /// Acquire an `AsyncWorld`, checks if in a `bevy_defer` future.
+    ///
+    /// # Panics
+    ///
+    /// When used outside a `bevy_defer` future.
+    ///
+    /// # Note
+    ///
+    /// You can construct [`AsyncWorld`] directly without this error.
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        if !in_async_context() {
+            panic!("AsyncWorld can only be used in a bevy_defer future.")
+        }
+        AsyncWorld
+    }
+
     /// Obtain an [`AsyncEntityMut`] of the entity.
     ///
     /// # Note

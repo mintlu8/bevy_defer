@@ -138,7 +138,7 @@ mod test {
     use std::sync::atomic::AtomicBool;
 
     use bevy::{app::App, MinimalPlugins};
-    use bevy_defer::{world, AsyncExtension, AsyncPlugin};
+    use bevy_defer::{access::AsyncWorld, AsyncExtension, AsyncPlugin};
 
     use crate::HyperHttpClientExt;
 
@@ -149,9 +149,9 @@ mod test {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(AsyncPlugin::default_settings());
         app.spawn_task(async {
-            world().http_get("http://httpbin.org/ip").await.unwrap();
+            AsyncWorld.http_get("http://httpbin.org/ip").await.unwrap();
             LOCK.store(true, std::sync::atomic::Ordering::Relaxed);
-            world().quit();
+            AsyncWorld.quit();
             Ok(())
         });
         app.run();

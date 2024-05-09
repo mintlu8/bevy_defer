@@ -67,6 +67,7 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
 /// # Panics
 ///
 /// If used outside a `bevy_defer` future.
+#[deprecated = "Use `AsyncWorld` directly, or `AsyncWorld::new()` that mimicks this function's behavior."]
 pub fn world() -> AsyncWorld {
     if !in_async_context() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")

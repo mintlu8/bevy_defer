@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_defer::{
-    cancellation::Cancellation, spawn, tween::Playback, world, AsyncAccess, AsyncExtension,
-    AsyncPlugin,
+    access::AsyncWorld, cancellation::Cancellation, spawn, tween::Playback, AsyncAccess,
+    AsyncExtension, AsyncPlugin,
 };
 
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
         .add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, setup)
         .spawn_task(async {
-            let world = world();
+            let world = AsyncWorld;
             let entity = world.spawn_bundle(SpriteBundle {
                 sprite: Sprite {
                     color: Color::BLUE,
@@ -72,7 +72,7 @@ fn main() {
             Ok(())
         })
         .spawn_task(async {
-            let world = world();
+            let world = AsyncWorld;
             let entity = world.spawn_bundle(SpriteBundle {
                 sprite: Sprite {
                     color: Color::GREEN,

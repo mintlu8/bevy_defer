@@ -18,7 +18,9 @@ pub mod reactors;
 pub mod signals;
 pub mod sync;
 pub mod tween;
-pub use crate::executor::{in_async_context, spawn, spawn_scoped, world};
+#[allow(deprecated)]
+pub use crate::executor::world;
+pub use crate::executor::{in_async_context, spawn, spawn_scoped};
 pub use access::async_event::DoubleBufferedEvent;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;

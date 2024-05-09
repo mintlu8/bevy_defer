@@ -1,5 +1,6 @@
-[workspace] 
-members = [ "derive",
+[workspace]
+members = [
+    "derive",
     "http",
     "picking"
 ]
