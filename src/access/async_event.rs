@@ -141,10 +141,6 @@ pub fn react_to_event<E: Event + Clone>(
 
 impl<E: Event + Clone> AsyncWorldParam for EventStream<E> {
     fn from_async_context(reactors: &Reactors) -> Option<Self> {
-        Some(EventStream {
-            frame: 0,
-            index: 0,
-            event: reactors.get_event(),
-        })
+        Some(reactors.get_event().into_stream())
     }
 }
