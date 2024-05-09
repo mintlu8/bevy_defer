@@ -1,10 +1,10 @@
 use crate::access::{
     AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource, AsyncSystemParam,
 };
+use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::QUERY_QUEUE;
 use crate::reactors::Reactors;
-use crate::async_systems::AsyncEntityParam;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -22,7 +22,6 @@ use bevy_ecs::{system::Commands, world::World};
 /// Async version of [`World`] or [`Commands`].
 #[derive(Debug, Copy, Clone)]
 pub struct AsyncWorld;
-
 
 impl AsyncWorld {
     /// Obtain an [`AsyncEntityMut`] of the entity.
@@ -80,9 +79,7 @@ impl AsyncWorld {
 
 #[derive(Debug, Clone)]
 /// Async version of `EntityMut` or `EntityCommands`.
-pub struct AsyncEntityMut(
-    pub(crate) Entity,
-);
+pub struct AsyncEntityMut(pub(crate) Entity);
 
 impl AsyncEntityMut {
     /// Obtain the underlying [`Entity`] id.

@@ -324,13 +324,11 @@ impl AsyncWorld {
     /// ```
     #[deprecated = "Use `state_stream` instead."]
     pub fn in_state<S: States>(&self, state: S) -> ChannelOut<()> {
-        self.watch(
-            move |world: &mut World| {
-                world
-                    .get_resource::<State<S>>()
-                    .and_then(|s| (s.get() == &state).then_some(()))
-            },
-        )
+        self.watch(move |world: &mut World| {
+            world
+                .get_resource::<State<S>>()
+                .and_then(|s| (s.get() == &state).then_some(()))
+        })
     }
 
     /// Obtain a [`Stream`] that reacts to changes of a [`States`].

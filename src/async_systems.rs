@@ -157,19 +157,15 @@ type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AccessError>> + 'static>
 
 /// An async system function.
 pub struct AsyncSystem {
-    pub(crate) function: Box<
-        dyn FnMut(Entity, &Reactors, &Signals, &[Entity]) -> Option<PinnedFut> + Send + Sync,
-    >,
+    pub(crate) function:
+        Box<dyn FnMut(Entity, &Reactors, &Signals, &[Entity]) -> Option<PinnedFut> + Send + Sync>,
     pub(crate) marker: ParentAlive,
     pub id: Option<NonZeroU32>,
 }
 
 impl AsyncSystem {
     pub fn new<F>(
-        mut f: impl FnMut(Entity, &Reactors, &Signals, &[Entity]) -> Option<F>
-            + Send
-            + Sync
-            + 'static,
+        mut f: impl FnMut(Entity, &Reactors, &Signals, &[Entity]) -> Option<F> + Send + Sync + 'static,
     ) -> Self
     where
         F: Future<Output = AsyncResult> + 'static,
@@ -331,9 +327,7 @@ impl AsyncSystem {
         if !self.marker.other_alive() {
             let alive = self.marker.clone_child();
             let children = children.map(|x| x.as_ref()).unwrap_or(&[]);
-            let Some(fut) =
-                (self.function)(entity, reactors, signals, children)
-            else {
+            let Some(fut) = (self.function)(entity, reactors, signals, children) else {
                 return;
             };
             executor.spawn(futures::future::select(alive, fut.map(|_| ())));

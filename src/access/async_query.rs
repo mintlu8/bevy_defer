@@ -1,9 +1,6 @@
 use crate::reactors::Reactors;
-use crate::{
-    async_systems::AsyncWorldParam, executor::with_world_mut,
-    signals::Signals,
-};
 use crate::{async_systems::AsyncEntityParam, AccessError};
+use crate::{async_systems::AsyncWorldParam, executor::with_world_mut, signals::Signals};
 #[allow(unused)]
 use bevy_ecs::system::Query;
 use bevy_ecs::{
@@ -16,9 +13,7 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Deref};
 
 /// Async version of [`Query`]
 #[derive(Debug)]
-pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> (
-    pub(crate) PhantomData<(T, F)>
-);
+pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()>(pub(crate) PhantomData<(T, F)>);
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncQuery<T, F> {}
 
@@ -45,9 +40,7 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncEntityQuery<T, F> {
 
 /// Async version of [`Query`] on a unique entity.
 #[derive(Debug)]
-pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()> (
-    pub(crate) PhantomData<(T, F)>,
-);
+pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()>(pub(crate) PhantomData<(T, F)>);
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncQuerySingle<T, F> {}
 
@@ -56,7 +49,6 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncQuerySingle<T, F> {
         *self
     }
 }
-
 
 impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     /// Obtain an [`AsyncEntityQuery`] on a specific entity.
@@ -104,12 +96,7 @@ impl<T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
         Some(())
     }
 
-    fn from_async_context(
-        entity: Entity,
-        _: &Reactors,
-        _: (),
-        _: &[Entity],
-    ) -> Option<Self> {
+    fn from_async_context(entity: Entity, _: &Reactors, _: (), _: &[Entity]) -> Option<Self> {
         Some(Self {
             entity,
             p: PhantomData,

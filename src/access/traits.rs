@@ -83,12 +83,11 @@ pub trait AsyncAccess {
         Self: AsyncTake + AsyncLoad,
     {
         let ctx = self.as_cx();
-        AsyncWorld
-            .watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
-                Ok(result) => Some(Ok(result)),
-                Err(err) if Self::should_continue(err) => None,
-                Err(err) => Some(Err(err)),
-            })
+        AsyncWorld.watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
+            Ok(result) => Some(Ok(result)),
+            Err(err) if Self::should_continue(err) => None,
+            Err(err) => Some(Err(err)),
+        })
     }
 
     /// Run a function on this item and obtain the result.
@@ -110,16 +109,15 @@ pub trait AsyncAccess {
         Self: AsyncLoad,
     {
         let cx = self.as_cx();
-        AsyncWorld
-            .watch(move |w| match Self::from_mut_world(w, &cx) {
-                Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
-                    Ok(ref_mut) => Some(Ok(f(ref_mut))),
-                    Err(err) if Self::should_continue(err) => None,
-                    Err(err) => Some(Err(err)),
-                },
+        AsyncWorld.watch(move |w| match Self::from_mut_world(w, &cx) {
+            Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
+                Ok(ref_mut) => Some(Ok(f(ref_mut))),
                 Err(err) if Self::should_continue(err) => None,
                 Err(err) => Some(Err(err)),
-            })
+            },
+            Err(err) if Self::should_continue(err) => None,
+            Err(err) => Some(Err(err)),
+        })
     }
 
     /// Run a function on this item until it returns `Some`.
@@ -128,16 +126,15 @@ pub trait AsyncAccess {
         mut f: impl FnMut(Self::RefMut<'_>) -> Option<T> + 'static,
     ) -> ChannelOut<AsyncResult<T>> {
         let cx = self.as_cx();
-        AsyncWorld
-            .watch(move |w| match Self::from_mut_world(w, &cx) {
-                Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
-                    Ok(ref_mut) => f(ref_mut).map(Ok),
-                    Err(err) if Self::should_continue(err) => None,
-                    Err(err) => Some(Err(err)),
-                },
+        AsyncWorld.watch(move |w| match Self::from_mut_world(w, &cx) {
+            Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
+                Ok(ref_mut) => f(ref_mut).map(Ok),
                 Err(err) if Self::should_continue(err) => None,
                 Err(err) => Some(Err(err)),
-            })
+            },
+            Err(err) if Self::should_continue(err) => None,
+            Err(err) => Some(Err(err)),
+        })
     }
 
     /// Continue `watch` and `on_load` if fetch context failed with these errors.
@@ -545,7 +542,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncQuer
     type RefMutCx<'t> = Option<OwnedQueryState<'t, D, F>>;
     type Ref<'t> = OwnedQueryState<'t, D, F>;
     type RefMut<'t> = OwnedQueryState<'t, D, F>;
-    
+
     fn as_cx(&self) -> Self::Cx {}
 
     fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>> {

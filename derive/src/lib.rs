@@ -27,7 +27,7 @@ fn import_crate() -> TokenStream {
 /// * All functions must have `&self` or `&mut self` receivers.
 ///
 /// * Outputs must be `'static`.
-/// 
+///
 /// * Does not support `async` functions, return `impl Future + 'static` instead.
 ///
 /// ```
@@ -47,7 +47,7 @@ fn import_crate() -> TokenStream {
 ///
 /// * `#[async_access(must_exist)]`
 ///
-///     This will unwrap the results instead of returning `AsyncResult`. 
+///     This will unwrap the results instead of returning `AsyncResult`.
 ///     Useful on resources that should always be available.
 #[proc_macro_attribute]
 pub fn async_access(args: TokenStream1, tokens: TokenStream1) -> TokenStream1 {

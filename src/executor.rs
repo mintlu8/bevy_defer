@@ -105,9 +105,7 @@ pub fn run_async_executor(world: &mut World) {
         SPAWNER.set(&executor.0.clone(), || {
             QUERY_QUEUE.set(&queue, || {
                 REACTORS.set(&reactors, || {
-                    WORLD.set(world, || {
-                        while executor.0.try_tick() {}
-                    });
+                    WORLD.set(world, || while executor.0.try_tick() {});
                 })
             })
         })

@@ -18,4 +18,3 @@ type AsyncWorldMut = AsyncWorld;
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
-

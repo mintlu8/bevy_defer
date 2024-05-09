@@ -33,7 +33,6 @@ type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'stati
 struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
 
 impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
-
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(
         &self,
@@ -81,12 +80,7 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
         Some(())
     }
 
-    fn from_async_context(
-        entity: Entity,
-        _: &Reactors,
-        _: (),
-        _: &[Entity],
-    ) -> Option<Self> {
+    fn from_async_context(entity: Entity, _: &Reactors, _: (), _: &[Entity]) -> Option<Self> {
         Some(Self {
             entity,
             p: PhantomData,
@@ -99,9 +93,7 @@ pub use bevy_ecs::system::NonSend;
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
-pub struct AsyncNonSend<R: 'static> (
-    pub(crate) PhantomData<R>,
-);
+pub struct AsyncNonSend<R: 'static>(pub(crate) PhantomData<R>);
 
 impl<R: 'static> Copy for AsyncNonSend<R> {}
 
@@ -119,9 +111,7 @@ impl<R: 'static> AsyncWorldParam for AsyncNonSend<R> {
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
-pub struct AsyncResource<R: Resource>(
-    pub(crate) PhantomData<R>,
-);
+pub struct AsyncResource<R: Resource>(pub(crate) PhantomData<R>);
 
 impl<R: Resource> Copy for AsyncResource<R> {}
 

@@ -7,13 +7,13 @@ use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 
 use futures::future::FusedFuture;
 use futures::{Future, Sink, Stream};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use std::sync::atomic::Ordering;
 
 /// The data component of a signal.
 #[derive(Debug, Default)]
 pub(crate) struct SignalData<T> {
-    pub(crate) data: Mutex<T>,
+    pub(crate) data: RwLock<T>,
     pub(crate) tick: AtomicU32,
     pub(crate) wakers: Mutex<Vec<Waker>>,
 }
@@ -60,7 +60,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     pub fn new(value: T) -> Self {
         Self(Arc::new(SignalInner {
             inner: Arc::new(SignalData {
-                data: Mutex::new(value),
+                data: RwLock::new(value),
                 tick: AtomicU32::new(0),
                 wakers: Default::default(),
             }),
@@ -93,7 +93,7 @@ impl<T: Send + Sync + 'static> Deref for Signal<T> {
 impl<T: Send + Sync + 'static> SignalInner<T> {
     /// Send a value, does not increment the read tick.
     pub fn send(&self, value: T) {
-        let mut lock = self.inner.data.lock();
+        let mut lock = self.inner.data.write();
         *lock = value;
         self.inner.tick.fetch_add(1, Ordering::Relaxed);
         let mut wakers = self.inner.wakers.lock();
@@ -105,7 +105,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     where
         T: PartialEq,
     {
-        let mut lock = self.inner.data.lock();
+        let mut lock = self.inner.data.write();
         if *lock != value {
             *lock = value;
             let mut wakers = self.inner.wakers.lock();
@@ -116,7 +116,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
 
     /// Send a value and increment the read tick.
     pub fn broadcast(&self, value: T) {
-        let mut lock = self.inner.data.lock();
+        let mut lock = self.inner.data.write();
         *lock = value;
         let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
         let mut wakers = self.inner.wakers.lock();
@@ -129,7 +129,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     where
         T: PartialEq,
     {
-        let mut lock = self.inner.data.lock();
+        let mut lock = self.inner.data.write();
         if *lock != value {
             *lock = value;
             let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
@@ -146,7 +146,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     {
         let version = self.inner.tick.load(Ordering::Relaxed);
         if self.tick.swap(version, Ordering::Relaxed) != version {
-            Some(self.inner.data.lock().clone())
+            Some(self.inner.data.read().clone())
         } else {
             None
         }
@@ -159,7 +159,7 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     {
         let version = self.inner.tick.load(Ordering::Relaxed);
         self.tick.swap(version, Ordering::Relaxed);
-        self.inner.data.lock().clone()
+        self.inner.data.read().clone()
     }
 
     /// Poll the signal value asynchronously.
@@ -190,7 +190,7 @@ impl<T: Clone> Future for SignalFuture<T> {
         let tick = self.signal.inner.tick.load(Ordering::Relaxed);
         if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
             self.is_terminated = true;
-            Poll::Ready(self.signal.inner.data.lock().clone())
+            Poll::Ready(self.signal.inner.data.read().clone())
         } else {
             let mut lock = self.signal.inner.wakers.lock();
             lock.push(cx.waker().clone());

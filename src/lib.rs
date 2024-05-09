@@ -110,7 +110,7 @@ pub struct AsyncPlugin {
 
 impl AsyncPlugin {
     /// Equivalent to [`CoreAsyncPlugin`].
-    /// 
+    ///
     /// Use [`AsyncPlugin::run_in`] and [`AsyncPlugin::run_in_set`] to add runs.
     pub fn empty() -> Self {
         AsyncPlugin {
@@ -118,8 +118,8 @@ impl AsyncPlugin {
         }
     }
 
-    /// Run in [`Update`] once. 
-    /// 
+    /// Run in [`Update`] once.
+    ///
     /// This is usually enough, be sure to order your
     /// systems against [`run_async_executor`](systems::run_async_executor) correctly if needed.
     pub fn default_settings() -> Self {

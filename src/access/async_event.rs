@@ -65,10 +65,10 @@ pub struct EventStream<E: Event + Clone> {
 
 impl<E: Event + Clone> Clone for EventStream<E> {
     fn clone(&self) -> Self {
-        Self { 
-            frame: self.frame, 
-            index: self.index, 
-            event: self.event.clone() 
+        Self {
+            frame: self.frame,
+            index: self.index,
+            event: self.event.clone(),
         }
     }
 }

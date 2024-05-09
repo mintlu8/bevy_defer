@@ -1,6 +1,6 @@
+use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
-use crate::access::AsyncWorld;
 use crate::{AccessError, AsyncResult};
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
@@ -8,9 +8,7 @@ use futures::future::{ready, Either};
 
 /// Async version of [`Handle`].
 #[derive(Debug)]
-pub struct AsyncAsset<A: Asset> (
-    pub(crate) Handle<A>,
-);
+pub struct AsyncAsset<A: Asset>(pub(crate) Handle<A>);
 
 impl<A: Asset> Clone for AsyncAsset<A> {
     fn clone(&self) -> Self {
@@ -89,12 +87,12 @@ impl<A: Asset> AsyncAsset<A> {
             _ => (),
         };
         let handle = self.0.id();
-        AsyncWorld.watch_left(
-            move |world: &mut World| match world.resource::<AssetServer>().load_state(handle) {
+        AsyncWorld.watch_left(move |world: &mut World| {
+            match world.resource::<AssetServer>().load_state(handle) {
                 LoadState::Loaded => Some(true),
                 LoadState::Failed => Some(false),
                 _ => None,
             }
-        )
+        })
     }
 }
