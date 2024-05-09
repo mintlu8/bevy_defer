@@ -115,7 +115,7 @@ pub fn main() {
     ])));
 
     app.spawn_task(async move {
-        // This is an `AsyncWorldMut`.
+        // This is an `AsyncWorld`.
         // like tokio::spawn() this only works in the async context.
         let world = world();
         let mut three = pin!(&mut world.sleep(3.0));

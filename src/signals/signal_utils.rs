@@ -1,7 +1,7 @@
 use super::signal_component::Signals;
 use super::signal_inner::{SignalBorrow, SignalFuture};
-use crate::access::AsyncWorldMut;
 use crate::async_systems::AsyncEntityParam;
+use crate::reactors::Reactors;
 use bevy_ecs::entity::Entity;
 use futures::Stream;
 use std::future::IntoFuture;
@@ -160,7 +160,7 @@ impl<T: SignalId> AsyncEntityParam for Sender<T> {
 
     fn from_async_context(
         _: Entity,
-        _: &AsyncWorldMut,
+        _: &Reactors,
         signal: Self::Signal,
         _: &[Entity],
     ) -> Option<Self> {
@@ -177,7 +177,7 @@ impl<T: SignalId> AsyncEntityParam for Receiver<T> {
 
     fn from_async_context(
         _: Entity,
-        _: &AsyncWorldMut,
+        _: &Reactors,
         signal: Self::Signal,
         _: &[Entity],
     ) -> Option<Self> {

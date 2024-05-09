@@ -11,7 +11,11 @@ pub use async_asset::AsyncAsset;
 pub use async_event::EventStream;
 pub use async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle};
 pub use async_values::{AsyncComponent, AsyncNonSend, AsyncResource, AsyncSystemParam};
-pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld, AsyncWorldMut};
+pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld};
+
+#[deprecated = "Use `AsyncWorld` instead."]
+type AsyncWorldMut = AsyncWorld;
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
+

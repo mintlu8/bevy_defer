@@ -2,72 +2,36 @@ use crate::access::{
     AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource, AsyncSystemParam,
 };
 use crate::async_systems::AsyncWorldParam;
-use crate::sync::oneshot::ChannelOut;
-use crate::AsyncQueryQueue;
-use crate::{async_systems::AsyncEntityParam, AsyncExecutor, AsyncResult, QueryQueue};
+use crate::executor::QUERY_QUEUE;
+use crate::reactors::Reactors;
+use crate::async_systems::AsyncEntityParam;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
     query::{QueryData, QueryFilter},
-    system::{NonSend, Resource, SystemParam},
+    system::{Resource, SystemParam},
 };
-use bevy_log::error;
-use bevy_tasks::futures_lite::FutureExt;
 use bevy_utils::Duration;
 use ref_cast::RefCast;
 use std::usize;
-use std::{future::Future, marker::PhantomData, ops::Deref, rc::Rc};
-
-/// [`SystemParam`] for obtaining [`AsyncWorldMut`] and spawning futures.
-///
-/// Note this `SystemParam` is [`NonSend`] and can only execute on the main thread.
-#[derive(SystemParam)]
-pub struct AsyncWorld<'w, 's> {
-    queue: NonSend<'w, QueryQueue>,
-    executor: NonSend<'w, AsyncExecutor>,
-    p: PhantomData<&'s ()>,
-}
-
-impl AsyncWorld<'_, '_> {
-    pub fn spawn(&self, fut: impl Future<Output = AsyncResult> + 'static) {
-        self.executor.spawn(async move {
-            match fut.await {
-                Ok(()) => (),
-                Err(err) => error!("Async Failure: {err}."),
-            }
-        });
-    }
-}
-
-impl Deref for AsyncWorld<'_, '_> {
-    type Target = AsyncWorldMut;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncWorldMut::ref_cast(&self.queue.0)
-    }
-}
+use std::{marker::PhantomData, ops::Deref};
 
 #[allow(unused)]
 use bevy_ecs::{system::Commands, world::World};
 
 /// Async version of [`World`] or [`Commands`].
-#[derive(Debug, RefCast, Clone)]
-#[repr(transparent)]
-pub struct AsyncWorldMut {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-}
+#[derive(Debug, Copy, Clone)]
+pub struct AsyncWorld;
 
-impl AsyncWorldMut {
+
+impl AsyncWorld {
     /// Obtain an [`AsyncEntityMut`] of the entity.
     ///
     /// # Note
     ///
     /// This does not mean the entity exists in the world.
     pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
-        AsyncEntityMut {
-            entity,
-            queue: self.queue.clone(),
-        }
+        AsyncEntityMut(entity)
     }
 
     /// Obtain an [`AsyncResource`].
@@ -76,10 +40,7 @@ impl AsyncWorldMut {
     ///
     /// This does not mean the resource exists in the world.
     pub fn resource<R: Resource>(&self) -> AsyncResource<R> {
-        AsyncResource {
-            queue: self.queue.clone(),
-            p: PhantomData,
-        }
+        AsyncResource(PhantomData)
     }
 
     /// Obtain an [`AsyncNonSend`].
@@ -88,100 +49,50 @@ impl AsyncWorldMut {
     ///
     /// This does not mean the resource exists in the world.
     pub fn non_send_resource<R: 'static>(&self) -> AsyncNonSend<R> {
-        AsyncNonSend {
-            queue: self.queue.clone(),
-            p: PhantomData,
-        }
+        AsyncNonSend(PhantomData)
     }
 
     /// Obtain an [`AsyncQuery`].
     pub fn query<Q: QueryData>(&self) -> AsyncQuery<Q> {
-        AsyncQuery {
-            queue: self.queue.clone(),
-            p: PhantomData,
-        }
+        AsyncQuery(PhantomData)
     }
 
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
-        AsyncQuery {
-            queue: self.queue.clone(),
-            p: PhantomData,
-        }
+        AsyncQuery(PhantomData)
     }
 
     /// Obtain an [`AsyncSystemParam`].
     pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
-        AsyncSystemParam {
-            queue: self.queue.clone(),
-            p: PhantomData,
-        }
+        AsyncSystemParam(PhantomData)
     }
 
     /// Obtain duration from `init`, according to the executor.
     pub fn now(&self) -> Duration {
-        self.queue.now.get()
+        QUERY_QUEUE.with(|q| q.now.get())
     }
 
     /// Obtain frame count since `init`, according to the executor.
     pub fn frame_count(&self) -> u32 {
-        self.queue.frame.get()
+        QUERY_QUEUE.with(|q| q.frame.get())
     }
 }
 
 #[derive(Debug, Clone)]
 /// Async version of `EntityMut` or `EntityCommands`.
-pub struct AsyncEntityMut {
-    pub(crate) entity: Entity,
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-}
-
-impl Deref for AsyncEntityMut {
-    type Target = AsyncWorldMut;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
-}
-
-#[derive(Debug)]
-pub struct AsyncEntityMutFuture {
-    queue: Rc<AsyncQueryQueue>,
-    future: ChannelOut<Entity>,
-}
-
-impl ChannelOut<Entity> {
-    pub fn into_entity_mut_future(self, queue: Rc<AsyncQueryQueue>) -> AsyncEntityMutFuture {
-        AsyncEntityMutFuture {
-            queue,
-            future: self,
-        }
-    }
-}
-
-impl Future for AsyncEntityMutFuture {
-    type Output = AsyncEntityMut;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.future.poll(cx).map(|entity| AsyncEntityMut {
-            entity,
-            queue: self.queue.clone(),
-        })
-    }
-}
+pub struct AsyncEntityMut(
+    pub(crate) Entity,
+);
 
 impl AsyncEntityMut {
     /// Obtain the underlying [`Entity`] id.
     pub fn id(&self) -> Entity {
-        self.entity
+        self.0
     }
 
-    /// Obtain the underlying [`AsyncWorldMut`]
-    pub fn world(&self) -> AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue).clone()
+    /// Obtain the underlying [`AsyncWorld`]
+    pub fn world(&self) -> AsyncWorld {
+        AsyncWorld
     }
 
     /// Get an [`AsyncComponent`] on this entity.
@@ -191,8 +102,7 @@ impl AsyncEntityMut {
     /// This does not mean the component or the entity exists in the world.
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
-            entity: self.entity,
-            queue: self.queue.clone(),
+            entity: self.0,
             p: PhantomData,
         }
     }
@@ -204,8 +114,7 @@ impl AsyncEntityMut {
     /// This does not mean the component or the entity exists in the world.
     pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<T, ()> {
         AsyncEntityQuery {
-            entity: self.entity,
-            queue: self.queue.clone(),
+            entity: self.0,
             p: PhantomData,
         }
     }
@@ -217,18 +126,15 @@ impl AsyncEntityMut {
     /// This does not mean the component or the entity exists in the world.
     pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
-            entity: self.entity,
-            queue: self.queue.clone(),
+            entity: self.0,
             p: PhantomData,
         }
     }
 }
 
-impl AsyncWorldParam for AsyncWorldMut {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(AsyncWorldMut {
-            queue: executor.queue.clone(),
-        })
+impl AsyncWorldParam for AsyncWorld {
+    fn from_async_context(_: &Reactors) -> Option<Self> {
+        Some(AsyncWorld)
     }
 }
 
@@ -241,14 +147,11 @@ impl AsyncEntityParam for AsyncEntityMut {
 
     fn from_async_context(
         entity: Entity,
-        executor: &AsyncWorldMut,
+        _: &Reactors,
         _: Self::Signal,
         _: &[Entity],
     ) -> Option<Self> {
-        Some(AsyncEntityMut {
-            entity,
-            queue: executor.queue.clone(),
-        })
+        Some(AsyncEntityMut(entity))
     }
 }
 
@@ -274,13 +177,10 @@ impl<const N: usize> AsyncEntityParam for AsyncChild<N> {
 
     fn from_async_context(
         _: Entity,
-        executor: &AsyncWorldMut,
+        _: &Reactors,
         _: Self::Signal,
         children: &[Entity],
     ) -> Option<Self> {
-        Some(AsyncChild(AsyncEntityMut {
-            entity: children.get(N).copied()?,
-            queue: executor.queue.clone(),
-        }))
+        Some(AsyncChild(AsyncEntityMut(children.get(N).copied()?)))
     }
 }

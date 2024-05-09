@@ -1,12 +1,10 @@
-use crate::access::AsyncWorldMut;
-use crate::queue::AsyncQueryQueue;
-use crate::reactors::{Reactors, ReactorsInner};
+use crate::access::AsyncWorld;
+use crate::queue::QueryQueue;
+use crate::reactors::Reactors;
 use async_executor::{LocalExecutor, Task};
 use bevy_asset::AssetServer;
 use bevy_ecs::world::World;
-use ref_cast::RefCast;
 use std::future::Future;
-use std::ops::Deref;
 use std::rc::Rc;
 
 scoped_tls_hkt::scoped_thread_local!(static mut WORLD: World);
@@ -29,9 +27,9 @@ pub(crate) fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
 }
 
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASSET_SERVER: AssetServer);
-scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASYNC_WORLD: AsyncWorldMut);
+scoped_tls_hkt::scoped_thread_local!(pub(crate) static QUERY_QUEUE: QueryQueue);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'static>);
-scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: ReactorsInner);
+scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
 
 /// Spawn a `bevy_defer` compatible future with a handle.
 ///
@@ -64,23 +62,21 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     SPAWNER.with(|s| s.spawn(fut).detach());
 }
 
-/// Obtain the [`AsyncWorldMut`] of the currently running `bevy_defer` executor.
+/// Obtain the [`AsyncWorld`] of the currently running `bevy_defer` executor.
 ///
 /// # Panics
 ///
 /// If used outside a `bevy_defer` future.
-pub fn world() -> AsyncWorldMut {
-    if !ASYNC_WORLD.is_set() {
+pub fn world() -> AsyncWorld {
+    if !in_async_context() {
         panic!("bevy_defer::world can only be used in a bevy_defer future.")
     }
-    ASYNC_WORLD.with(|w| AsyncWorldMut {
-        queue: w.queue.clone(),
-    })
+    AsyncWorld
 }
 
 /// Returns `true` if in async context, for diagnostics purpose only.
 pub fn in_async_context() -> bool {
-    ASYNC_WORLD.is_set()
+    QUERY_QUEUE.is_set()
 }
 
 /// `!Send` resource containing a reference to an async executor,
@@ -98,18 +94,6 @@ impl AsyncExecutor {
     }
 }
 
-/// A `!Send` Queue for deferred queries applied on the `World`.
-#[derive(Debug, Default, Clone)]
-pub struct QueryQueue(pub(crate) Rc<AsyncQueryQueue>);
-
-impl Deref for QueryQueue {
-    type Target = AsyncQueryQueue;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref()
-    }
-}
-
 /// System for running [`AsyncExecutor`].
 pub fn run_async_executor(world: &mut World) {
     let reactors = world.resource::<Reactors>().clone();
@@ -119,10 +103,9 @@ pub fn run_async_executor(world: &mut World) {
 
     let mut f = || {
         SPAWNER.set(&executor.0.clone(), || {
-            ASYNC_WORLD.set(AsyncWorldMut::ref_cast(&queue.0), || {
+            QUERY_QUEUE.set(&queue, || {
                 REACTORS.set(&reactors, || {
                     WORLD.set(world, || {
-                        while executor.0.try_tick() {}
                         while executor.0.try_tick() {}
                     });
                 })

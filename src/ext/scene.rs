@@ -1,4 +1,4 @@
-use crate::access::{AsyncEntityMut, AsyncWorldMut};
+use crate::access::{AsyncEntityMut, AsyncWorld};
 use crate::AsyncResult;
 use bevy_ecs::component::Component;
 use bevy_ecs::query::With;
@@ -23,7 +23,7 @@ pub fn react_to_scene_load(
     }
 }
 
-impl AsyncWorldMut {
+impl AsyncWorld {
     /// Spawn a scene and wait for spawning to complete.
     ///
     /// Requires [`react_to_scene_load`] to function.
@@ -31,10 +31,7 @@ impl AsyncWorldMut {
         let (send, recv) = async_oneshot::oneshot();
         let entity = self.spawn_bundle((bun, SceneSignal(send))).id();
         let _ = recv.await;
-        AsyncEntityMut {
-            entity,
-            queue: self.queue.clone(),
-        }
+        AsyncEntityMut(entity)
     }
 }
 

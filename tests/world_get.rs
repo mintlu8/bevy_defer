@@ -91,7 +91,7 @@ pub fn system_future() {
     app.add_plugins(AsyncPlugin::default_settings());
     let lock = Arc::new(AtomicI64::new(0));
     let lock2 = lock.clone();
-    app.spawn_task(system_future!(|w: AsyncWorldMut,
+    app.spawn_task(system_future!(|w: AsyncWorld,
                                    q: AsyncQuery<
         (&mut Transform, &Sprite),
         With<GlobalTransform>,

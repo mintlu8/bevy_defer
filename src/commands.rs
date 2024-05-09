@@ -1,4 +1,4 @@
-use crate::executor::{with_world_mut, with_world_ref, REACTORS};
+use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS};
 use crate::{
     access::AsyncEntityMut,
     reactors::StateSignal,
@@ -6,7 +6,7 @@ use crate::{
     sync::oneshot::{channel, ChannelOut, MaybeChannelOut},
     tween::AsSeconds,
 };
-use crate::{access::AsyncWorldMut, AccessError, AsyncResult};
+use crate::{access::AsyncWorld, AccessError, AsyncResult};
 use bevy_app::AppExit;
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use bevy_ecs::{
@@ -28,10 +28,10 @@ use std::{
 #[allow(unused)]
 use bevy_ecs::entity::Entity;
 
-impl AsyncWorldMut {
+impl AsyncWorld {
     /// Apply a command, does not wait for it to complete.
     ///
-    /// Use [`AsyncWorldMut::run`] to wait and obtain a result.
+    /// Use [`AsyncWorld::run`] to wait and obtain a result.
     ///
     /// # Example
     ///
@@ -94,8 +94,17 @@ impl AsyncWorldMut {
         f: impl FnMut(&mut World) -> Option<T> + 'static,
     ) -> ChannelOut<T> {
         let (sender, receiver) = channel();
-        self.queue.repeat(f, sender);
+        QUERY_QUEUE.with(|queue| queue.repeat(f, sender));
         receiver.into_out()
+    }
+
+    pub(crate) fn watch_left<T: 'static, R: Future>(
+        &self,
+        f: impl FnMut(&mut World) -> Option<T> + 'static,
+    ) -> Either<ChannelOut<T>, R> {
+        let (sender, receiver) = channel();
+        QUERY_QUEUE.with(|queue| queue.repeat(f, sender));
+        Either::Left(receiver.into_out())
     }
 
     /// Runs a schedule a single time.
@@ -315,16 +324,13 @@ impl AsyncWorldMut {
     /// ```
     #[deprecated = "Use `state_stream` instead."]
     pub fn in_state<S: States>(&self, state: S) -> ChannelOut<()> {
-        let (sender, receiver) = channel::<()>();
-        self.queue.repeat(
+        self.watch(
             move |world: &mut World| {
                 world
                     .get_resource::<State<S>>()
                     .and_then(|s| (s.get() == &state).then_some(()))
             },
-            sender,
-        );
-        receiver.into_out()
+        )
     }
 
     /// Obtain a [`Stream`] that reacts to changes of a [`States`].
@@ -351,7 +357,7 @@ impl AsyncWorldMut {
             return Either::Right(ready(()));
         }
         let (sender, receiver) = channel();
-        self.queue.timed(duration.as_duration(), sender);
+        QUERY_QUEUE.with(|queue| queue.timed(duration.as_duration(), sender));
         Either::Left(receiver.into_out())
     }
 
@@ -369,7 +375,7 @@ impl AsyncWorldMut {
         if frames == 0 {
             return Either::Right(ready(()));
         }
-        self.queue.timed_frames(frames, sender);
+        QUERY_QUEUE.with(|queue| queue.timed_frames(frames, sender));
         Either::Left(receiver.into_out())
     }
 
@@ -379,13 +385,12 @@ impl AsyncWorldMut {
     /// the future will be resumed on the next execution point.
     pub fn yield_now(&self) -> impl Future<Output = ()> + 'static {
         let mut yielded = false;
-        let queue = self.queue.clone();
         poll_fn(move |cx| {
             if yielded {
                 return Poll::Ready(());
             }
             yielded = true;
-            queue.yielded.push_cx(cx);
+            QUERY_QUEUE.with(|queue| queue.yielded.push_cx(cx));
             Poll::Pending
         })
     }

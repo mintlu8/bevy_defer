@@ -3,7 +3,7 @@
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_time::TimeSystem;
 use bevy_utils::intern::Interned;
-use std::{borrow::Borrow, marker::PhantomData, pin::Pin};
+use std::{borrow::Borrow, pin::Pin};
 
 pub mod access;
 pub mod async_systems;
@@ -29,8 +29,8 @@ use bevy_ecs::{
 };
 use bevy_reflect::std_traits::ReflectDefault;
 pub use errors::{AccessError, CustomError, SystemError};
-pub use executor::{AsyncExecutor, QueryQueue};
-use queue::AsyncQueryQueue;
+pub use executor::AsyncExecutor;
+pub use queue::QueryQueue;
 use reactors::Reactors;
 
 pub mod systems {
@@ -102,32 +102,33 @@ impl Plugin for CoreAsyncPlugin {
 
 /// An `bevy_defer` plugin that can run the executor through user configuration.
 ///
-/// This plugin is not unique, if you need different locals in different schedules,
-/// add multiple of this components.
+/// This plugin is not unique and can be used repeatedly to add runs.
 #[derive(Debug)]
 pub struct AsyncPlugin {
     schedules: Vec<(Interned<dyn ScheduleLabel>, Option<Interned<dyn SystemSet>>)>,
-    p: PhantomData<()>,
 }
 
 impl AsyncPlugin {
     /// Equivalent to [`CoreAsyncPlugin`].
+    /// 
+    /// Use [`AsyncPlugin::run_in`] and [`AsyncPlugin::run_in_set`] to add runs.
     pub fn empty() -> Self {
         AsyncPlugin {
             schedules: Vec::new(),
-            p: PhantomData,
         }
     }
 
-    /// Run on [`Update`] only.
+    /// Run in [`Update`] once. 
+    /// 
+    /// This is usually enough, be sure to order your
+    /// systems against [`run_async_executor`](systems::run_async_executor) correctly if needed.
     pub fn default_settings() -> Self {
         AsyncPlugin {
             schedules: vec![(Interned(Box::leak(Box::new(Update))), None)],
-            p: PhantomData,
         }
     }
 
-    /// Run on [`PreUpdate`], [`Update`] and [`PostUpdate`].
+    /// Run in [`PreUpdate`], [`Update`] and [`PostUpdate`].
     pub fn busy_schedule() -> Self {
         AsyncPlugin {
             schedules: vec![
@@ -135,7 +136,6 @@ impl AsyncPlugin {
                 (Interned(Box::leak(Box::new(Update))), None),
                 (Interned(Box::leak(Box::new(PostUpdate))), None),
             ],
-            p: PhantomData,
         }
     }
 }

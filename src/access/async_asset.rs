@@ -1,20 +1,24 @@
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
-use crate::{access::AsyncWorldMut, channel, queue::AsyncQueryQueue};
+use crate::access::AsyncWorld;
 use crate::{AccessError, AsyncResult};
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::future::{ready, Either};
-use std::rc::Rc;
 
 /// Async version of [`Handle`].
-#[derive(Debug, Clone)]
-pub struct AsyncAsset<A: Asset> {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) handle: Handle<A>,
+#[derive(Debug)]
+pub struct AsyncAsset<A: Asset> (
+    pub(crate) Handle<A>,
+);
+
+impl<A: Asset> Clone for AsyncAsset<A> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
 
-impl AsyncWorldMut {
+impl AsyncWorld {
     /// Obtain an [`AsyncAsset`] from a [`Handle`].
     ///
     /// # Example
@@ -26,10 +30,7 @@ impl AsyncWorldMut {
     /// # });
     /// ```
     pub fn asset<A: Asset>(&self, handle: Handle<A>) -> AsyncAsset<A> {
-        AsyncAsset {
-            queue: self.queue.clone(),
-            handle,
-        }
+        AsyncAsset(handle)
     }
 
     /// Load an asset from an [`AssetPath`], equivalent to `AssetServer::load`.
@@ -53,10 +54,7 @@ impl AsyncWorldMut {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset {
-            queue: self.queue.clone(),
-            handle: ASSET_SERVER.with(|s| s.load::<A>(path)),
-        }
+        AsyncAsset(ASSET_SERVER.with(|s| s.load::<A>(path)))
     }
 
     /// Add an asset and obtain its handle.
@@ -72,12 +70,12 @@ impl AsyncWorldMut {
 impl<A: Asset> AsyncAsset<A> {
     /// Obtain the underlying [`Handle`].
     pub fn handle(&self) -> &Handle<A> {
-        &self.handle
+        &self.0
     }
 
     /// Obtain the underlying [`Handle`].
     pub fn into_handle(self) -> Handle<A> {
-        self.handle
+        self.0
     }
 
     /// Repeat until the asset is loaded, returns false if loading failed.
@@ -85,21 +83,18 @@ impl<A: Asset> AsyncAsset<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        match ASSET_SERVER.with(|server| server.load_state(&self.handle)) {
+        match ASSET_SERVER.with(|server| server.load_state(&self.0)) {
             LoadState::Loaded => return Either::Right(ready(true)),
             LoadState::Failed => return Either::Right(ready(false)),
             _ => (),
         };
-        let (sender, receiver) = channel();
-        let handle = self.handle.id();
-        self.queue.repeat(
+        let handle = self.0.id();
+        AsyncWorld.watch_left(
             move |world: &mut World| match world.resource::<AssetServer>().load_state(handle) {
                 LoadState::Loaded => Some(true),
                 LoadState::Failed => Some(false),
                 _ => None,
-            },
-            sender,
-        );
-        Either::Left(receiver.into_out())
+            }
+        )
     }
 }

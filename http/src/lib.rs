@@ -13,7 +13,7 @@
 //! - [ ] WASM support.
 
 use async_io::Async;
-use bevy_defer::access::AsyncWorldMut;
+use bevy_defer::access::AsyncWorld;
 use bevy_defer::spawn;
 use smol_hyper::rt::FuturesIo;
 use std::{future::Future, net::TcpStream};
@@ -64,7 +64,7 @@ pub enum HttpError {
 }
 
 /// Extension methods for making web request.
-impl HyperHttpClientExt for AsyncWorldMut {
+impl HyperHttpClientExt for AsyncWorld {
     /// Compose a quick `get` request and obtain the result.
     async fn http_get(&self, uri: &str) -> Result<Vec<u8>, HttpError> {
         let uri = uri.parse::<hyper::Uri>()?;

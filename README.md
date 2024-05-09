@@ -72,7 +72,7 @@ to complete, instead of a single frame like a normal system.
 
 ```rust, ignore
 commands.spawn_task(|| async move {
-    // This is an `AsyncWorldMut`.
+    // This is an `AsyncWorld`.
     // like tokio::spawn() this only works in the async context.
     let world = world();
     // Wait for state to be `GameState::Animating`.
@@ -114,7 +114,7 @@ We provide types mimicking bevy's types:
 
 | Query Type | Corresponding Bevy/Sync Type |
 | ---- | ----- |
-| `AsyncWorldMut` | `World` / `Commands` |
+| `AsyncWorld` | `World` / `Commands` |
 | `AsyncEntityMut` | `EntityMut` / `EntityCommands` |
 | `AsyncQuery` | `WorldQuery` |
 | `AsyncEntityQuery` | `WorldQuery` on `Entity` |

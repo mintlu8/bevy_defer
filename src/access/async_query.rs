@@ -1,8 +1,9 @@
+use crate::reactors::Reactors;
 use crate::{
-    access::AsyncWorldMut, async_systems::AsyncWorldParam, executor::with_world_mut,
+    async_systems::AsyncWorldParam, executor::with_world_mut,
     signals::Signals,
 };
-use crate::{async_systems::AsyncEntityParam, AccessError, AsyncQueryQueue};
+use crate::{async_systems::AsyncEntityParam, AccessError};
 #[allow(unused)]
 use bevy_ecs::system::Query;
 use bevy_ecs::{
@@ -11,46 +12,64 @@ use bevy_ecs::{
     system::{CommandQueue, Resource},
     world::World,
 };
-use std::{borrow::Borrow, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{borrow::Borrow, marker::PhantomData, ops::Deref};
 
 /// Async version of [`Query`]
-#[derive(Debug, Clone)]
-pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<(T, F)>,
+#[derive(Debug)]
+pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()> (
+    pub(crate) PhantomData<(T, F)>
+);
+
+impl<T: QueryData, F: QueryFilter> Copy for AsyncQuery<T, F> {}
+
+impl<T: QueryData, F: QueryFilter> Clone for AsyncQuery<T, F> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
-/// Async version of [`Query`] on a single entity.
-#[derive(Debug, Clone)]
+/// Async version of [`Query`] on a specific entity.
+#[derive(Debug)]
 pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
-    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<(T, F)>,
 }
 
-/// Async version of [`Query`]
-#[derive(Debug, Clone)]
-pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()> {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<(T, F)>,
+impl<T: QueryData, F: QueryFilter> Copy for AsyncEntityQuery<T, F> {}
+
+impl<T: QueryData, F: QueryFilter> Clone for AsyncEntityQuery<T, F> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
+
+/// Async version of [`Query`] on a unique entity.
+#[derive(Debug)]
+pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()> (
+    pub(crate) PhantomData<(T, F)>,
+);
+
+impl<T: QueryData, F: QueryFilter> Copy for AsyncQuerySingle<T, F> {}
+
+impl<T: QueryData, F: QueryFilter> Clone for AsyncQuerySingle<T, F> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 
 impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     /// Obtain an [`AsyncEntityQuery`] on a specific entity.
     pub fn entity(&self, entity: impl Borrow<Entity>) -> AsyncEntityQuery<T, F> {
         AsyncEntityQuery {
             entity: *entity.borrow(),
-            queue: self.queue.clone(),
             p: PhantomData,
         }
     }
 
     /// Obtain an [`AsyncQuerySingle`] on a single entity.
     pub fn single(&self) -> AsyncQuerySingle<T, F> {
-        AsyncQuerySingle {
-            queue: self.queue.clone(),
-            p: PhantomData,
-        }
+        AsyncQuerySingle(PhantomData)
     }
 }
 
@@ -67,20 +86,14 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
 }
 
 impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuery<T, F> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(Self {
-            queue: executor.queue.clone(),
-            p: PhantomData,
-        })
+    fn from_async_context(_: &Reactors) -> Option<Self> {
+        Some(Self(PhantomData))
     }
 }
 
 impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuerySingle<T, F> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(Self {
-            queue: executor.queue.clone(),
-            p: PhantomData,
-        })
+    fn from_async_context(_: &Reactors) -> Option<Self> {
+        Some(Self(PhantomData))
     }
 }
 
@@ -93,13 +106,12 @@ impl<T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &AsyncWorldMut,
+        _: &Reactors,
         _: (),
         _: &[Entity],
     ) -> Option<Self> {
         Some(Self {
             entity,
-            queue: executor.queue.clone(),
             p: PhantomData,
         })
     }

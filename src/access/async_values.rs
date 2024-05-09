@@ -1,29 +1,29 @@
-use crate::access::AsyncWorldMut;
 use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::with_world_mut;
+use crate::reactors::Reactors;
 use crate::signals::Signals;
-use crate::{AccessError, AsyncQueryQueue, AsyncResult};
+use crate::{AccessError, AsyncResult};
 use bevy_ecs::component::Component;
 use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
 use bevy_ecs::{entity::Entity, world::World};
-use ref_cast::RefCast;
 use std::marker::PhantomData;
-use std::rc::Rc;
 
 /// Async version of [`SystemParam`].
-#[derive(Debug, Clone)]
-pub struct AsyncSystemParam<P: SystemParam> {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<P>,
+#[derive(Debug)]
+pub struct AsyncSystemParam<P: SystemParam>(pub(crate) PhantomData<P>);
+
+impl<P: SystemParam> Copy for AsyncSystemParam<P> {}
+
+impl<P: SystemParam> Clone for AsyncSystemParam<P> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<P: SystemParam> AsyncWorldParam for AsyncSystemParam<P> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(AsyncSystemParam {
-            queue: executor.queue.clone(),
-            p: PhantomData,
-        })
+    fn from_async_context(_: &Reactors) -> Option<Self> {
+        Some(AsyncSystemParam(PhantomData))
     }
 }
 
@@ -33,10 +33,6 @@ type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'stati
 struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
 
 impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
-    /// Obtain the underlying [`AsyncWorldMut`]
-    pub fn world(&self) -> AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue).clone()
-    }
 
     /// Run a function on the [`SystemParam`] and obtain the result.
     pub fn run<T: Send + Sync + 'static>(
@@ -64,11 +60,18 @@ impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
 }
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AsyncComponent<C: Component> {
     pub(crate) entity: Entity,
-    pub(crate) queue: Rc<AsyncQueryQueue>,
     pub(crate) p: PhantomData<C>,
+}
+
+impl<C: Component> Copy for AsyncComponent<C> {}
+
+impl<C: Component> Clone for AsyncComponent<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
@@ -80,13 +83,12 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
 
     fn from_async_context(
         entity: Entity,
-        executor: &AsyncWorldMut,
+        _: &Reactors,
         _: (),
         _: &[Entity],
     ) -> Option<Self> {
         Some(Self {
             entity,
-            queue: executor.queue.clone(),
             p: PhantomData,
         })
     }
@@ -96,33 +98,41 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
 pub use bevy_ecs::system::NonSend;
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
-#[derive(Debug, Clone)]
-pub struct AsyncNonSend<R: 'static> {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<R>,
+#[derive(Debug)]
+pub struct AsyncNonSend<R: 'static> (
+    pub(crate) PhantomData<R>,
+);
+
+impl<R: 'static> Copy for AsyncNonSend<R> {}
+
+impl<R: 'static> Clone for AsyncNonSend<R> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<R: 'static> AsyncWorldParam for AsyncNonSend<R> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(Self {
-            queue: executor.queue.clone(),
-            p: PhantomData,
-        })
+    fn from_async_context(_: &Reactors) -> Option<Self> {
+        Some(Self(PhantomData))
     }
 }
 
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
-#[derive(Debug, Clone)]
-pub struct AsyncResource<R: Resource> {
-    pub(crate) queue: Rc<AsyncQueryQueue>,
-    pub(crate) p: PhantomData<R>,
+#[derive(Debug)]
+pub struct AsyncResource<R: Resource>(
+    pub(crate) PhantomData<R>,
+);
+
+impl<R: Resource> Copy for AsyncResource<R> {}
+
+impl<R: Resource> Clone for AsyncResource<R> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<R: Resource> AsyncWorldParam for AsyncResource<R> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(Self {
-            queue: executor.queue.clone(),
-            p: PhantomData,
-        })
+    fn from_async_context(_: &Reactors) -> Option<Self> {
+        Some(Self(PhantomData))
     }
 }

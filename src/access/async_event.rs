@@ -1,4 +1,4 @@
-use crate::access::AsyncWorldMut;
+use crate::access::AsyncWorld;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::{with_world_mut, REACTORS};
 use crate::reactors::Reactors;
@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
-impl AsyncWorldMut {
+impl AsyncWorld {
     /// Send an [`Event`].
     pub fn send_event<E: Event>(&self, event: E) -> AsyncResult<EventId<E>> {
         with_world_mut(move |world: &mut World| {
@@ -61,6 +61,16 @@ pub struct EventStream<E: Event + Clone> {
     frame: u32,
     index: usize,
     event: Arc<DoubleBufferedEvent<E>>,
+}
+
+impl<E: Event + Clone> Clone for EventStream<E> {
+    fn clone(&self) -> Self {
+        Self { 
+            frame: self.frame, 
+            index: self.index, 
+            event: self.event.clone() 
+        }
+    }
 }
 
 impl<E: Event + Clone> Unpin for EventStream<E> {}
@@ -130,7 +140,11 @@ pub fn react_to_event<E: Event + Clone>(
 }
 
 impl<E: Event + Clone> AsyncWorldParam for EventStream<E> {
-    fn from_async_context(executor: &AsyncWorldMut) -> Option<Self> {
-        Some(executor.event_stream())
+    fn from_async_context(reactors: &Reactors) -> Option<Self> {
+        Some(EventStream {
+            frame: 0,
+            index: 0,
+            event: reactors.get_event(),
+        })
     }
 }

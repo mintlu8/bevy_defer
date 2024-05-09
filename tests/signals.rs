@@ -6,7 +6,7 @@ use std::{
 use bevy::MinimalPlugins;
 use bevy_app::{App, Startup, Update};
 use bevy_core::FrameCountPlugin;
-use bevy_defer::signals::Signals;
+use bevy_defer::{signals::Signals, systems::run_async_executor};
 use bevy_defer::{
     async_system,
     async_systems::AsyncSystems,
@@ -16,10 +16,7 @@ use bevy_defer::{
     world, AsyncExtension, AsyncPlugin,
 };
 use bevy_ecs::{
-    component::Component,
-    event::{Event, EventWriter},
-    query::With,
-    system::{Commands, Local, Query},
+    component::Component, event::{Event, EventWriter}, query::With, schedule::IntoSystemConfigs, system::{Commands, Local, Query}
 };
 use bevy_tasks::futures_lite::StreamExt;
 use bevy_time::TimePlugin;
@@ -42,7 +39,7 @@ pub fn main() {
     app.add_plugins(FrameCountPlugin);
     app.add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, init)
-        .add_systems(Update, update);
+        .add_systems(Update, update.before(run_async_executor));
     app.update();
     app.update();
     app.update();

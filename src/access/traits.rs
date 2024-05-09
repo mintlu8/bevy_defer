@@ -2,7 +2,7 @@
 
 use crate::access::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
-    AsyncResource, AsyncWorldMut,
+    AsyncResource, AsyncWorld,
 };
 use crate::tween::{AsSeconds, Lerp, Playback};
 use crate::OwnedQueryState;
@@ -21,7 +21,6 @@ use bevy_ecs::{
     world::World,
 };
 use futures::future::{ready, Either};
-use ref_cast::RefCast;
 use std::{borrow::BorrowMut, cell::OnceCell};
 
 /// Obtain readonly access from a readonly `&World`.
@@ -58,9 +57,6 @@ pub trait AsyncAccess {
     /// Reference for mutable access.
     type RefMut<'t>;
 
-    /// Obtain the underlying [`AsyncWorldMut`].
-    fn world(&self) -> &AsyncWorldMut;
-
     /// Obtain `Cx`.
     fn as_cx(&self) -> Self::Cx;
 
@@ -87,7 +83,7 @@ pub trait AsyncAccess {
         Self: AsyncTake + AsyncLoad,
     {
         let ctx = self.as_cx();
-        self.world()
+        AsyncWorld
             .watch(move |w| match <Self as AsyncTake>::take(w, &ctx) {
                 Ok(result) => Some(Ok(result)),
                 Err(err) if Self::should_continue(err) => None,
@@ -114,7 +110,7 @@ pub trait AsyncAccess {
         Self: AsyncLoad,
     {
         let cx = self.as_cx();
-        self.world()
+        AsyncWorld
             .watch(move |w| match Self::from_mut_world(w, &cx) {
                 Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
                     Ok(ref_mut) => Some(Ok(f(ref_mut))),
@@ -132,7 +128,7 @@ pub trait AsyncAccess {
         mut f: impl FnMut(Self::RefMut<'_>) -> Option<T> + 'static,
     ) -> ChannelOut<AsyncResult<T>> {
         let cx = self.as_cx();
-        self.world()
+        AsyncWorld
             .watch(move |w| match Self::from_mut_world(w, &cx) {
                 Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
                     Ok(ref_mut) => f(ref_mut).map(Ok),
@@ -169,7 +165,7 @@ pub trait AsyncAccess {
             return Either::Right(ready(()));
         }
         Either::Left(
-            self.world()
+            AsyncWorld
                 .watch(move |world: &mut World| Self::from_mut_world(world, &ctx).ok().map(|_| ())),
         )
     }
@@ -212,7 +208,7 @@ pub trait AsyncAccess {
             Err(err) if Self::should_continue(err) => (),
             Err(err) => return Either::Right(ready(Err(err))),
         };
-        Either::Left(self.world().watch(move |w| match f(w) {
+        Either::Left(AsyncWorld.watch(move |w| match f(w) {
             Ok(result) => Some(Ok(result)),
             Err(err) if Self::should_continue(err) => None,
             Err(err) => Some(Err(err)),
@@ -250,13 +246,12 @@ pub trait AsyncAccess {
     where
         Self: AsyncAccessRef,
     {
-        let world = self.world().clone();
         let mut t = 0.0;
         let duration = duration.as_secs();
         let source = OnceCell::new();
         let cancel = cancel.into();
         let cx = self.as_cx();
-        world
+        AsyncWorld
             .timed_routine(
                 move |world, dt| {
                     let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else {
@@ -301,12 +296,11 @@ pub trait AsyncAccess {
         playback: Playback,
         cancel: impl Into<TaskCancellation>,
     ) -> InterpolateOut {
-        let world = self.world().clone();
         let cx = self.as_cx();
         let duration = duration.as_secs();
         let mut t = 0.0;
         let cancel = cancel.into();
-        world
+        AsyncWorld
             .timed_routine(
                 move |world, dt| {
                     let Ok(mut mut_cx) = Self::from_mut_world(world, &cx) else {
@@ -348,10 +342,6 @@ impl<C: Component> AsyncAccess for AsyncComponent<C> {
     type RefMutCx<'t> = &'t mut C;
     type Ref<'t> = &'t C;
     type RefMut<'t> = &'t mut C;
-
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
 
     fn as_cx(&self) -> Self::Cx {
         self.entity
@@ -402,10 +392,6 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
     type Ref<'t> = &'t R;
     type RefMut<'t> = &'t mut R;
 
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
-
     fn as_cx(&self) -> Self::Cx {}
 
     fn should_continue(err: AccessError) -> bool {
@@ -450,10 +436,6 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
     type RefMutCx<'t> = &'t mut R;
     type Ref<'t> = &'t R;
     type RefMut<'t> = &'t mut R;
-
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
 
     fn should_continue(err: AccessError) -> bool {
         err == AccessError::ResourceNotFound
@@ -504,12 +486,8 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
     type Ref<'t> = &'t A;
     type RefMut<'t> = &'t mut A;
 
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
-
     fn as_cx(&self) -> Self::Cx {
-        self.handle.clone_weak()
+        self.0.clone_weak()
     }
 
     fn should_continue(err: AccessError) -> bool {
@@ -567,11 +545,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncQuer
     type RefMutCx<'t> = Option<OwnedQueryState<'t, D, F>>;
     type Ref<'t> = OwnedQueryState<'t, D, F>;
     type RefMut<'t> = OwnedQueryState<'t, D, F>;
-
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
-
+    
     fn as_cx(&self) -> Self::Cx {}
 
     fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>> {
@@ -592,10 +566,6 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncQuer
     type Ref<'t> = <D::ReadOnly as WorldQuery>::Item<'t>;
     type RefMut<'t> = D::Item<'t>;
 
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
-
     fn as_cx(&self) -> Self::Cx {}
 
     fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>> {
@@ -615,10 +585,6 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
     type RefMutCx<'t> = OwnedQueryState<'t, D, F>;
     type Ref<'t> = <D::ReadOnly as WorldQuery>::Item<'t>;
     type RefMut<'t> = D::Item<'t>;
-
-    fn world(&self) -> &AsyncWorldMut {
-        AsyncWorldMut::ref_cast(&self.queue)
-    }
 
     fn as_cx(&self) -> Self::Cx {
         self.entity

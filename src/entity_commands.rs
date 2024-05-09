@@ -1,3 +1,4 @@
+use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
 use crate::{
     access::AsyncEntityMut,
@@ -21,7 +22,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn insert(&self, bundle: impl Bundle) -> Result<(), AccessError> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
@@ -43,7 +44,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn remove<T: Bundle>(&self) -> Result<(), AccessError> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
@@ -65,7 +66,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn retain<T: Bundle>(&self) -> Result<(), AccessError> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
@@ -89,7 +90,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn take<T: Bundle>(&self) -> Result<Option<T>, AccessError> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
@@ -109,7 +110,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn spawn_child(&self, bundle: impl Bundle) -> AsyncResult<AsyncEntityMut> {
-        let entity = self.entity;
+        let entity = self.0;
         let entity = with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
@@ -120,7 +121,7 @@ impl AsyncEntityMut {
                 })
                 .ok_or(AccessError::EntityNotFound)
         })?;
-        Ok(self.entity(entity))
+        Ok(AsyncWorld.entity(entity))
     }
 
     /// Adds a single child.
@@ -135,7 +136,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn add_child(&self, child: Entity) -> AsyncResult<()> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
@@ -157,7 +158,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn despawn(&self) {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             DespawnRecursive { entity }.apply(world);
         })
@@ -174,7 +175,7 @@ impl AsyncEntityMut {
     /// # });
     /// ```
     pub fn despawn_descendants(&self) {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| DespawnChildrenRecursive { entity }.apply(world))
     }
 
@@ -182,7 +183,7 @@ impl AsyncEntityMut {
     ///
     /// Returns `true` if the signal exists.
     pub fn send<S: SignalId>(&self, data: S::Data) -> AsyncResult<bool> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
                 return Err(AccessError::EntityNotFound);
@@ -196,7 +197,7 @@ impl AsyncEntityMut {
 
     /// Borrow a sender from an entity with shared read tick.
     pub fn sender<S: SignalId>(&self) -> AsyncResult<SignalBorrow<S::Data>> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
                 return Err(AccessError::EntityNotFound);
@@ -212,7 +213,7 @@ impl AsyncEntityMut {
 
     /// Borrow a receiver from an entity with shared read tick.
     pub fn receiver<S: SignalId>(&self) -> AsyncResult<SignalBorrow<S::Data>> {
-        let entity = self.entity;
+        let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
                 return Err(AccessError::EntityNotFound);
@@ -243,13 +244,10 @@ impl AsyncEntityMut {
                 None
             }
         }
-        let entity = self.entity;
+        let entity = self.0;
 
         match with_world_ref(|world| find_name(world, entity, name.borrow())) {
-            Some(entity) => Ok(AsyncEntityMut {
-                entity,
-                queue: self.queue.clone(),
-            }),
+            Some(entity) => Ok(AsyncEntityMut(entity)),
             None => Err(AccessError::EntityNotFound),
         }
     }
@@ -272,7 +270,7 @@ impl AsyncEntityMut {
                 }
             }
         }
-        let entity = self.entity;
+        let entity = self.0;
 
         let mut result = vec![entity];
 

@@ -1,8 +1,8 @@
+use crate::executor::QUERY_QUEUE;
 use crate::sync::oneshot::ChannelOutOrCancel;
 use crate::sync::waitlist::WaitList;
 use crate::{
-    access::AsyncWorldMut, cancellation::TaskCancellation, channel, sync::oneshot::Sender,
-    QueryQueue,
+    access::AsyncWorld, cancellation::TaskCancellation, channel, sync::oneshot::Sender,
 };
 use bevy_core::FrameCount;
 use bevy_ecs::system::NonSend;
@@ -10,6 +10,8 @@ use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::Time;
 use bevy_utils::Duration;
+use std::ops::Deref;
+use std::rc::Rc;
 use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
 
 #[allow(unused)]
@@ -50,8 +52,20 @@ impl<T: Ord, V> Ord for TimeIndex<T, V> {
 }
 
 /// Queue for deferred `!Send` queries applied on the [`World`].
+#[derive(Default, Clone)]
+pub struct QueryQueue(Rc<QueryQueueInner>);
+
+impl Deref for QueryQueue {
+    type Target = QueryQueueInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Queue for deferred `!Send` queries applied on the [`World`].
 #[derive(Default)]
-pub struct AsyncQueryQueue {
+pub struct QueryQueueInner {
     pub(crate) repeat_queue: RefCell<Vec<QueryCallback>>,
     pub(crate) fixed_queue: RefCell<Vec<FixedTask>>,
     pub(crate) time_series: RefCell<BinaryHeap<TimeIndex<Duration, Sender<()>>>>,
@@ -61,9 +75,9 @@ pub struct AsyncQueryQueue {
     pub(crate) frame: Cell<u32>,
 }
 
-impl std::fmt::Debug for AsyncQueryQueue {
+impl std::fmt::Debug for QueryQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AsyncQueryQueue")
+        f.debug_struct("QueryQueue")
             .field("repeat_queue", &self.repeat_queue.borrow().len())
             .field("fixed_queue", &self.fixed_queue.borrow().len())
             .field("time_series", &self.time_series.borrow().len())
@@ -98,7 +112,7 @@ impl QueryCallback {
     }
 }
 
-impl AsyncQueryQueue {
+impl QueryQueue {
     /// Spawn a `!Send` command and wait until it returns `Some`.
     ///
     /// If receiver is dropped, the command will be cancelled.
@@ -126,25 +140,27 @@ impl AsyncQueryQueue {
 }
 
 /// System that tries to resolve queries sent to the queue.
-pub fn run_async_queries(w: &mut World) {
-    let queue = w.non_send_resource::<QueryQueue>().0.clone();
-    queue
+pub fn run_async_queries(world: &mut World) {
+    let query_queue = world.remove_non_send_resource::<QueryQueue>().unwrap();
+    query_queue
         .repeat_queue
         .borrow_mut()
-        .retain_mut(|f| (f.command)(w));
-    queue.yielded.wake();
+        .retain_mut(|f| (f.command)(world));
+    query_queue.yielded.wake();
+    world.insert_non_send_resource(query_queue);
 }
 
 /// Run `fixed_queue` on [`Update`].
 pub fn run_fixed_queue(world: &mut World) {
-    let executor = world.non_send_resource::<QueryQueue>().0.clone();
+    let query_queue = world.remove_non_send_resource::<QueryQueue>().unwrap();
     let delta_time = world.resource::<Time>().delta();
-    executor.fixed_queue.borrow_mut().retain_mut(|x| {
+    query_queue.fixed_queue.borrow_mut().retain_mut(|x| {
         if x.cancel.cancelled() {
             return false;
         }
         !(x.task)(world, delta_time)
     });
+    world.insert_non_send_resource(query_queue);
 }
 
 /// Run `sleep` and `sleep_frames` reactors.
@@ -166,7 +182,7 @@ pub fn run_time_series(queue: NonSend<QueryQueue>, time: Res<Time>, frames: Res<
     }
 }
 
-impl AsyncWorldMut {
+impl AsyncWorld {
     /// Run a repeatable routine on [`Update`], with access to delta time.
     pub fn timed_routine<T: 'static>(
         &self,
@@ -176,16 +192,18 @@ impl AsyncWorldMut {
         let (sender, receiver) = channel();
         let mut sender = sender.by_ref();
         let cancel = cancellation.into();
-        self.queue.fixed_queue.borrow_mut().push(FixedTask {
-            task: Box::new(move |world, dt| {
-                if let Some(item) = f(world, dt) {
-                    sender.send(item);
-                    true
-                } else {
-                    false
-                }
-            }),
-            cancel,
+        QUERY_QUEUE.with(|queue| {
+            queue.fixed_queue.borrow_mut().push(FixedTask {
+                task: Box::new(move |world, dt| {
+                    if let Some(item) = f(world, dt) {
+                        sender.send(item);
+                        true
+                    } else {
+                        false
+                    }
+                }),
+                cancel,
+            });
         });
         receiver.into_option()
     }
