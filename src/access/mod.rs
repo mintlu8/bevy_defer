@@ -14,7 +14,7 @@ pub use async_values::{AsyncComponent, AsyncNonSend, AsyncResource, AsyncSystemP
 pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld};
 
 #[deprecated = "Use `AsyncWorld` instead."]
-type AsyncWorldMut = AsyncWorld;
+pub type AsyncWorldMut = AsyncWorld;
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
