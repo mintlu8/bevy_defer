@@ -3,9 +3,11 @@ use bevy::prelude::*;
 use bevy_defer::ext::picking::{
     react_to_ui, ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
 };
+use bevy_defer::reactors::StateMachine;
 use bevy_defer::signals::Signal;
 use bevy_defer::AsyncAccess;
 use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
+use bevy_tasks::futures_lite::StreamExt;
 use bevy_ui::RelativeCursorPosition;
 
 fn main() {
@@ -123,10 +125,13 @@ fn setup(mut commands: Commands) {
                         ),
                         Signals::from_receiver::<UIInteractionChange>(state),
                         AsyncSystems::from_single(async_system!(
-                            |click: Receiver<UIInteractionChange>, this: AsyncComponent<Text>| {
-                                let variant = format!("{:?}", click.await.to);
-                                this.set(move |text| text.sections[0].value = variant)
-                                    .unwrap();
+                            |click: StateMachine<Interaction>, this: AsyncComponent<Text>| {
+                                let mut stream = click.into_stream();
+                                while let Some(item) = stream.next().await {
+                                    let variant = format!("{:?}", item.to);
+                                    this.set(move |text| text.sections[0].value = variant)
+                                        .unwrap();
+                                }
                             }
                         )),
                     ));

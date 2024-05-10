@@ -16,14 +16,13 @@ use std::{
     cell::OnceCell,
     convert::Infallible,
     marker::PhantomData,
-    ops::Deref,
     sync::Arc,
 };
 
 use crate::access::async_event::DoubleBufferedEvent;
 use crate::signals::{Receiver, Signal, SignalId, SignalSender, Signals};
 
-/// Signal sending changed value of a [`States`].
+/// Signal that sends changed values of a [`States`].
 #[derive(Debug, Clone, Copy)]
 pub struct StateSignal<T: States + Clone + Default>(PhantomData<T>, Infallible);
 
@@ -35,17 +34,9 @@ impl<T: States + Clone + Default> SignalId for StateSignal<T> {
 #[derive(Resource, Default, Clone)]
 pub struct Reactors(Arc<ReactorsInner>);
 
-impl Deref for Reactors {
-    type Target = ReactorsInner;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// Named or typed synchronization primitives of `bevy_defer`.
 #[derive(Default)]
-pub struct ReactorsInner {
+pub(crate) struct ReactorsInner {
     typed: Mutex<FxHashMap<TypeId, Box<dyn Any + Send + Sync>>>,
     named: Mutex<FxHashMap<(String, TypeId), Box<dyn Any + Send + Sync>>>,
     event_buffers: Mutex<FxHashMap<TypeId, Box<dyn Any + Send + Sync>>>,
@@ -60,11 +51,11 @@ impl std::fmt::Debug for ReactorsInner {
     }
 }
 
-impl ReactorsInner {
+impl Reactors {
     /// Obtain a typed signal.
     #[allow(clippy::box_default)]
     pub fn get_typed<T: SignalId>(&self) -> Signal<T::Data> {
-        self.typed
+        self.0.typed
             .lock()
             .entry(TypeId::of::<T>())
             .or_insert(Box::new(Signal::<T::Data>::default()))
@@ -75,7 +66,7 @@ impl ReactorsInner {
 
     /// Obtain a named signal.
     pub fn get_named<T: SignalId>(&self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
-        let mut lock = self.named.lock();
+        let mut lock = self.0.named.lock();
         if let Some(data) = lock.get(&(name.borrow(), TypeId::of::<T>()) as &dyn NameAndType) {
             data.downcast_ref::<Signal<T::Data>>()
                 .expect("Unexpected signal type.")
@@ -89,7 +80,7 @@ impl ReactorsInner {
 
     /// Obtain an event buffer by event type.
     pub fn get_event<E: Event + Clone>(&self) -> Arc<DoubleBufferedEvent<E>> {
-        let mut lock = self.event_buffers.lock();
+        let mut lock = self.0.event_buffers.lock();
         if let Some(data) = lock.get(&TypeId::of::<E>()) {
             data.downcast_ref::<Arc<DoubleBufferedEvent<E>>>()
                 .expect("Unexpected event buffer type.")
