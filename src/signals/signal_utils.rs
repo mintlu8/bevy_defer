@@ -5,8 +5,6 @@ use crate::reactors::Reactors;
 use bevy_ecs::entity::Entity;
 use futures::Stream;
 use std::future::IntoFuture;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::{any::Any, marker::PhantomData};
 
 /// A marker type that indicates the type and purpose of a signal.
@@ -73,6 +71,11 @@ impl<T: SignalId> Sender<T> {
     pub fn recv(&self) -> SignalFuture<T::Data> {
         self.0.poll()
     }
+
+    /// Convert into a stream.
+    pub fn into_stream(self) -> impl Stream<Item = T::Data> {
+        self.0.into_stream()
+    }
 }
 
 /// [`AsyncEntityParam`] for receiving a signal.
@@ -89,25 +92,7 @@ impl<T: SignalId> Receiver<T> {
 
     /// Convert into a stream.
     pub fn into_stream(self) -> impl Stream<Item = T::Data> {
-        self.0
-    }
-}
-
-impl<T: SignalId> Stream for Receiver<T> {
-    type Item = T::Data;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let signal = Pin::new(&mut self.0);
-        SignalBorrow::poll_next(signal, cx)
-    }
-}
-
-impl<T: SignalId> Stream for Sender<T> {
-    type Item = T::Data;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let signal = Pin::new(&mut self.0);
-        SignalBorrow::poll_next(signal, cx)
+        self.0.into_stream()
     }
 }
 

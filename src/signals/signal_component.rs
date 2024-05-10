@@ -5,7 +5,7 @@ use bevy_reflect::Reflect;
 use rustc_hash::FxHashMap;
 use std::any::{Any, TypeId};
 
-/// A composable component that contains signals on an `Entity`.
+/// A composable component that contains type-erased signals on an `Entity`.
 #[derive(Debug, Component, Default, Reflect)]
 pub struct Signals {
     #[reflect(ignore)]
