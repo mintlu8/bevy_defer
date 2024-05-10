@@ -2,6 +2,7 @@ use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
 use crate::{AccessError, AsyncResult};
+use bevy_asset::meta::Settings;
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use futures::future::{ready, Either};
@@ -53,6 +54,18 @@ impl AsyncWorld {
             panic!("AssetServer does not exist.")
         }
         AsyncAsset(ASSET_SERVER.with(|s| s.load::<A>(path)))
+    }
+
+
+    pub fn load_asset_with_settings<A: Asset, S: Settings>(
+        &self,
+        path: impl Into<AssetPath<'static>> + Send + 'static,
+        f: impl Fn(&mut S) + Send + Sync + 'static,
+    ) -> AsyncAsset<A> {
+        if !ASSET_SERVER.is_set() {
+            panic!("AssetServer does not exist.")
+        }
+        AsyncAsset(ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f)))
     }
 
     /// Add an asset and obtain its handle.
