@@ -1,13 +1,15 @@
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
+use crate::OwnedQueryState;
 use crate::{
     access::AsyncEntityMut,
     signals::{SignalBorrow, SignalId, Signals},
-    AccessError, AsyncResult,
+    AccessError, AccessResult,
 };
 use bevy_core::Name;
 use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};
+use rustc_hash::FxHashMap;
 use std::borrow::Borrow;
 
 impl AsyncEntityMut {
@@ -109,7 +111,7 @@ impl AsyncEntityMut {
     /// let child = entity.spawn_child(Str("bevy"));
     /// # });
     /// ```
-    pub fn spawn_child(&self, bundle: impl Bundle) -> AsyncResult<AsyncEntityMut> {
+    pub fn spawn_child(&self, bundle: impl Bundle) -> AccessResult<AsyncEntityMut> {
         let entity = self.0;
         let entity = with_world_mut(move |world: &mut World| {
             world
@@ -135,7 +137,7 @@ impl AsyncEntityMut {
     /// entity.add_child(child);
     /// # });
     /// ```
-    pub fn add_child(&self, child: Entity) -> AsyncResult<()> {
+    pub fn add_child(&self, child: Entity) -> AccessResult<()> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -182,7 +184,7 @@ impl AsyncEntityMut {
     /// Send data through a signal on this entity.
     ///
     /// Returns `true` if the signal exists.
-    pub fn send<S: SignalId>(&self, data: S::Data) -> AsyncResult<bool> {
+    pub fn send<S: SignalId>(&self, data: S::Data) -> AccessResult<bool> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
@@ -196,7 +198,7 @@ impl AsyncEntityMut {
     }
 
     /// Borrow a sender from an entity with shared read tick.
-    pub fn sender<S: SignalId>(&self) -> AsyncResult<SignalBorrow<S::Data>> {
+    pub fn sender<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
@@ -212,7 +214,7 @@ impl AsyncEntityMut {
     }
 
     /// Borrow a receiver from an entity with shared read tick.
-    pub fn receiver<S: SignalId>(&self) -> AsyncResult<SignalBorrow<S::Data>> {
+    pub fn receiver<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
@@ -225,31 +227,6 @@ impl AsyncEntityMut {
                 .borrow_receiver::<S>()
                 .ok_or(AccessError::SignalNotFound)
         })
-    }
-
-    /// Obtain a child entity by [`Name`].
-    pub fn child_by_name(
-        &self,
-        name: impl Into<String> + Borrow<str>,
-    ) -> AsyncResult<AsyncEntityMut> {
-        fn find_name(world: &World, parent: Entity, name: &str) -> Option<Entity> {
-            let entity = world.get_entity(parent)?;
-            if entity.get::<Name>().map(|x| x.as_str() == name) == Some(true) {
-                return Some(parent);
-            }
-            if let Some(children) = entity.get::<Children>() {
-                let children: Vec<_> = children.iter().cloned().collect();
-                children.into_iter().find_map(|e| find_name(world, e, name))
-            } else {
-                None
-            }
-        }
-        let entity = self.0;
-
-        match with_world_ref(|world| find_name(world, entity, name.borrow())) {
-            Some(entity) => Ok(AsyncEntityMut(entity)),
-            None => Err(AccessError::EntityNotFound),
-        }
     }
 
     /// Obtain all descendent entities in the hierarchy.
@@ -276,5 +253,66 @@ impl AsyncEntityMut {
 
         with_world_ref(|world| get_children(world, entity, &mut result));
         result
+    }
+
+    /// Obtain a child entity by [`Name`].
+    pub fn child_by_name(
+        &self,
+        name: impl Into<String> + Borrow<str>,
+    ) -> AccessResult<AsyncEntityMut> {
+        fn find_name(world: &World, parent: Entity, name: &str) -> Option<Entity> {
+            let entity = world.get_entity(parent)?;
+            if entity.get::<Name>().map(|x| x.as_str() == name) == Some(true) {
+                return Some(parent);
+            }
+            if let Some(children) = entity.get::<Children>() {
+                let children: Vec<_> = children.iter().cloned().collect();
+                children.into_iter().find_map(|e| find_name(world, e, name))
+            } else {
+                None
+            }
+        }
+        let entity = self.0;
+
+        match with_world_ref(|world| find_name(world, entity, name.borrow())) {
+            Some(entity) => Ok(AsyncEntityMut(entity)),
+            None => Err(AccessError::EntityNotFound),
+        }
+    }
+
+    /// Obtain a child entity by [`Name`].
+    pub fn children_by_names<I: IntoIterator>(&self, names: I) -> NameEntityMap
+    where
+        I::Item: Into<String>,
+    {
+        let descendants = self.descendants();
+        let mut result = NameEntityMap(names.into_iter().map(|n| (n.into(), None)).collect());
+        AsyncWorld.run(|world| {
+            let mut query_state = OwnedQueryState::<(Entity, &Name), ()>::new(world);
+            for (entity, name) in query_state.iter_many(descendants) {
+                if let Some(item) = result.0.get_mut(name.as_str()) {
+                    *item = Some(entity);
+                }
+            }
+        });
+        result
+    }
+}
+
+/// A map of names to entities.
+#[derive(Debug, Default, Clone)]
+pub struct NameEntityMap(FxHashMap<String, Option<Entity>>);
+
+impl NameEntityMap {
+    pub fn get(&self, name: impl Borrow<str>) -> AccessResult<Entity> {
+        self.0
+            .get(name.borrow())
+            .copied()
+            .flatten()
+            .ok_or(AccessError::EntityNotFound)
+    }
+
+    pub fn into_map(self) -> impl IntoIterator<Item = (String, Entity)> {
+        self.0.into_iter().filter_map(|(s, e)| Some((s, e?)))
     }
 }

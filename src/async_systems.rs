@@ -7,7 +7,9 @@ use crate::{
     signals::{Receiver, Sender},
     SystemError,
 };
-use crate::{executor::REACTORS, reactors::Reactors, signals::Signals, AsyncExecutor, AsyncResult};
+use crate::{
+    executor::REACTORS, reactors::Reactors, signals::Signals, AccessResult, AsyncExecutor,
+};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -167,7 +169,7 @@ impl AsyncSystem {
         mut f: impl FnMut(Entity, &Reactors, &Signals, &[Entity]) -> Option<F> + Send + Sync + 'static,
     ) -> Self
     where
-        F: Future<Output = AsyncResult> + 'static,
+        F: Future<Output = AccessResult> + 'static,
     {
         AsyncSystem {
             function: Box::new(move |entity, reactors, signals, children| {

@@ -2,7 +2,7 @@ use crate::access::AsyncWorld;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::{with_world_mut, REACTORS};
 use crate::reactors::Reactors;
-use crate::{AccessError, AsyncResult};
+use crate::{AccessError, AccessResult};
 use bevy_core::FrameCount;
 use bevy_ecs::event::{Event, EventId, EventReader};
 use bevy_ecs::system::{Local, Res};
@@ -17,7 +17,7 @@ use std::task::{Context, Poll, Waker};
 
 impl AsyncWorld {
     /// Send an [`Event`].
-    pub fn send_event<E: Event>(&self, event: E) -> AsyncResult<EventId<E>> {
+    pub fn send_event<E: Event>(&self, event: E) -> AccessResult<EventId<E>> {
         with_world_mut(move |world: &mut World| {
             world
                 .send_event(event)

@@ -11,7 +11,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use crate::{AsyncResult, CHANNEL_CLOSED};
+use crate::{AccessResult, CHANNEL_CLOSED};
 
 /// Sender for a `!Send` oneshot channel.
 #[derive(Debug)]
@@ -265,10 +265,10 @@ pub type MaybeChannelOut<T> = Either<ChannelOut<T>, Ready<T>>;
 /// Channel output with cancellation as `None`.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct InterpolateOut(pub(crate) Receiver<AsyncResult<()>>);
+pub struct InterpolateOut(pub(crate) Receiver<AccessResult<()>>);
 
 impl Future for InterpolateOut {
-    type Output = AsyncResult<()>;
+    type Output = AccessResult<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.0 .0.recv(cx).map(|x| match x {
@@ -284,7 +284,7 @@ impl FusedFuture for InterpolateOut {
     }
 }
 
-impl ChannelOutOrCancel<AsyncResult<()>> {
+impl ChannelOutOrCancel<AccessResult<()>> {
     pub(crate) fn into_interpolate_out(self) -> InterpolateOut {
         InterpolateOut(self.0)
     }

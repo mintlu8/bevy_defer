@@ -1,7 +1,7 @@
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
-use crate::{AccessError, AsyncResult};
+use crate::{AccessError, AccessResult};
 use bevy_asset::meta::Settings;
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
@@ -56,7 +56,6 @@ impl AsyncWorld {
         AsyncAsset(ASSET_SERVER.with(|s| s.load::<A>(path)))
     }
 
-
     pub fn load_asset_with_settings<A: Asset, S: Settings>(
         &self,
         path: impl Into<AssetPath<'static>> + Send + 'static,
@@ -69,7 +68,7 @@ impl AsyncWorld {
     }
 
     /// Add an asset and obtain its handle.
-    pub fn add_asset<A: Asset + 'static>(&self, item: A) -> AsyncResult<Handle<A>> {
+    pub fn add_asset<A: Asset + 'static>(&self, item: A) -> AccessResult<Handle<A>> {
         with_world_mut(|w| {
             Ok(w.get_resource_mut::<Assets<A>>()
                 .ok_or(AccessError::ResourceNotFound)?

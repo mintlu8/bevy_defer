@@ -47,7 +47,7 @@ fn import_crate() -> TokenStream {
 ///
 /// * `#[async_access(must_exist)]`
 ///
-///     This will unwrap the results instead of returning `AsyncResult`.
+///     This will unwrap the results instead of returning `AccessResult`.
 ///     Useful on resources that should always be available.
 #[proc_macro_attribute]
 pub fn async_access(args: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
@@ -111,11 +111,11 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
             match item_fn.sig.output {
                 ReturnType::Default => {
                     item_fn.sig.output =
-                        ReturnType::Type(RArrow::default(), parse_quote!(#bevy_defer::AsyncResult))
+                        ReturnType::Type(RArrow::default(), parse_quote!(#bevy_defer::AccessResult))
                 }
                 ReturnType::Type(arrow, ty) => {
                     item_fn.sig.output =
-                        ReturnType::Type(arrow, parse_quote!(#bevy_defer::AsyncResult<#ty>))
+                        ReturnType::Type(arrow, parse_quote!(#bevy_defer::AccessResult<#ty>))
                 }
             }
             quote! {}

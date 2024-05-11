@@ -6,7 +6,7 @@ use crate::{
     sync::oneshot::{channel, ChannelOut, MaybeChannelOut},
     tween::AsSeconds,
 };
-use crate::{access::AsyncWorld, AccessError, AsyncResult};
+use crate::{access::AsyncWorld, AccessError, AccessResult};
 use bevy_app::AppExit;
 use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
 use bevy_ecs::{
@@ -116,7 +116,7 @@ impl AsyncWorld {
     /// world().run_schedule(Update)
     /// # );
     /// ```
-    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> AsyncResult {
+    pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> AccessResult {
         with_world_mut(move |world: &mut World| {
             world
                 .try_run_schedule(schedule)
@@ -150,7 +150,7 @@ impl AsyncWorld {
     /// world().run_system(id).unwrap();
     /// # });
     /// ```
-    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> AsyncResult<O> {
+    pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> AccessResult<O> {
         self.run_system_with_input(system, ())
     }
 
@@ -168,7 +168,7 @@ impl AsyncWorld {
         &self,
         system: SystemId<I, O>,
         input: I,
-    ) -> AsyncResult<O> {
+    ) -> AccessResult<O> {
         with_world_mut(move |world: &mut World| {
             world
                 .run_system_with_input(system, input)
@@ -192,7 +192,7 @@ impl AsyncWorld {
     pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
         &self,
         system: S,
-    ) -> AsyncResult<O> {
+    ) -> AccessResult<O> {
         self.run_cached_system_with_input(system, ())
     }
 
@@ -218,7 +218,7 @@ impl AsyncWorld {
         &self,
         system: S,
         input: I,
-    ) -> AsyncResult<O> {
+    ) -> AccessResult<O> {
         #[derive(Debug, Resource, Default)]
         struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
 
@@ -286,7 +286,7 @@ impl AsyncWorld {
     /// world().set_state(MyState::A)
     /// # });
     /// ```
-    pub fn set_state<S: States>(&self, state: S) -> AsyncResult<()> {
+    pub fn set_state<S: States>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
             world
                 .get_resource_mut::<NextState<S>>()
@@ -304,7 +304,7 @@ impl AsyncWorld {
     /// world().get_state::<MyState>()
     /// # });
     /// ```
-    pub fn get_state<S: States>(&self) -> AsyncResult<S> {
+    pub fn get_state<S: States>(&self) -> AccessResult<S> {
         with_world_ref(|world| {
             world
                 .get_resource::<State<S>>()

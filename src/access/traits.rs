@@ -10,7 +10,7 @@ use crate::{
     cancellation::TaskCancellation,
     executor::{with_world_mut, with_world_ref},
     sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut},
-    AccessError, AsyncResult,
+    AccessError, AccessResult,
 };
 use bevy_asset::{Asset, Assets, Handle};
 use bevy_ecs::{
@@ -25,7 +25,7 @@ use std::{borrow::BorrowMut, cell::OnceCell};
 
 /// Obtain readonly access from a readonly `&World`.
 pub trait AsyncReadonlyAccess: AsyncAccess {
-    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AsyncResult<Self::Ref<'t>>;
+    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>>;
 }
 
 /// Async access that derefs to a concrete type.
@@ -38,7 +38,7 @@ pub trait AsyncAccessRef:
 
 /// Allows the `take` method
 pub trait AsyncTake: AsyncAccessRef {
-    fn take(world: &mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic>;
+    fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic>;
 }
 
 /// Allows the `on_load` method family.
@@ -61,15 +61,15 @@ pub trait AsyncAccess {
     fn as_cx(&self) -> Self::Cx;
 
     /// Obtain a borrow guard.
-    fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>>;
+    fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>>;
     /// Obtain a mutable reference from the borrow guard.
     fn from_mut_cx<'t>(
         cx: &'t mut Self::RefMutCx<'_>,
         cx: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>>;
+    ) -> AccessResult<Self::RefMut<'t>>;
 
     /// Remove and obtain the item from the world.
-    fn take(&self) -> AsyncResult<Self::Generic>
+    fn take(&self) -> AccessResult<Self::Generic>
     where
         Self: AsyncTake,
     {
@@ -78,7 +78,7 @@ pub trait AsyncAccess {
     }
 
     /// Remove and obtain the item from the world once loaded.
-    fn take_on_load(&self) -> ChannelOut<AsyncResult<Self::Generic>>
+    fn take_on_load(&self) -> ChannelOut<AccessResult<Self::Generic>>
     where
         Self: AsyncTake + AsyncLoad,
     {
@@ -91,7 +91,7 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result.
-    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AsyncResult<T> {
+    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
         let cx = self.as_cx();
         with_world_mut(|w| {
             let mut mut_cx = Self::from_mut_world(w, &cx)?;
@@ -104,7 +104,7 @@ pub trait AsyncAccess {
     fn set_on_load<T: 'static>(
         &self,
         mut f: impl FnMut(Self::RefMut<'_>) -> T + 'static,
-    ) -> ChannelOut<AsyncResult<T>>
+    ) -> ChannelOut<AccessResult<T>>
     where
         Self: AsyncLoad,
     {
@@ -124,7 +124,7 @@ pub trait AsyncAccess {
     fn watch<T: 'static>(
         &self,
         mut f: impl FnMut(Self::RefMut<'_>) -> Option<T> + 'static,
-    ) -> ChannelOut<AsyncResult<T>> {
+    ) -> ChannelOut<AccessResult<T>> {
         let cx = self.as_cx();
         AsyncWorld.watch(move |w| match Self::from_mut_world(w, &cx) {
             Ok(mut mut_cx) => match Self::from_mut_cx(&mut mut_cx, &cx) {
@@ -170,7 +170,7 @@ pub trait AsyncAccess {
     /// Run a function on a readonly reference to this item and obtain the result.
     ///
     /// Completes immediately if `&World` access is available.
-    fn get<T>(&self, f: impl FnOnce(Self::Ref<'_>) -> T) -> AsyncResult<T>
+    fn get<T>(&self, f: impl FnOnce(Self::Ref<'_>) -> T) -> AccessResult<T>
     where
         Self: AsyncReadonlyAccess,
     {
@@ -185,7 +185,7 @@ pub trait AsyncAccess {
     fn get_on_load<T: 'static>(
         &self,
         f: impl FnOnce(Self::Ref<'_>) -> T + 'static,
-    ) -> MaybeChannelOut<AsyncResult<T>>
+    ) -> MaybeChannelOut<AccessResult<T>>
     where
         Self: AsyncReadonlyAccess + AsyncLoad,
     {
@@ -213,7 +213,7 @@ pub trait AsyncAccess {
     }
 
     /// Clone the item.
-    fn cloned(&self) -> AsyncResult<Self::Generic>
+    fn cloned(&self) -> AccessResult<Self::Generic>
     where
         Self: AsyncAccessRef,
         Self::Generic: Clone,
@@ -222,7 +222,7 @@ pub trait AsyncAccess {
     }
 
     /// Clone the item, repeat until the item is loaded.
-    fn clone_on_load(&self) -> MaybeChannelOut<AsyncResult<Self::Generic>>
+    fn clone_on_load(&self) -> MaybeChannelOut<AccessResult<Self::Generic>>
     where
         Self: AsyncAccessRef + AsyncLoad,
         Self::Generic: Clone,
@@ -344,7 +344,7 @@ impl<C: Component> AsyncAccess for AsyncComponent<C> {
         self.entity
     }
 
-    fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AsyncResult<Self::RefMut<'t>> {
+    fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AccessResult<Self::RefMut<'t>> {
         world
             .get_mut::<C>(*cx)
             .ok_or(AccessError::ComponentNotFound)
@@ -354,13 +354,13 @@ impl<C: Component> AsyncAccess for AsyncComponent<C> {
     fn from_mut_cx<'t>(
         mut_cx: &'t mut Self::RefMutCx<'_>,
         _: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         Ok(mut_cx)
     }
 }
 
 impl<C: Component> AsyncReadonlyAccess for AsyncComponent<C> {
-    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
+    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
         world
             .get_entity(*cx)
             .ok_or(AccessError::EntityNotFound)?
@@ -374,7 +374,7 @@ impl<C: Component> AsyncAccessRef for AsyncComponent<C> {
 }
 
 impl<C: Component> AsyncTake for AsyncComponent<C> {
-    fn take(world: &mut World, cx: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic> {
         world
             .get_entity_mut(*cx)
             .ok_or(AccessError::EntityNotFound)?
@@ -395,7 +395,7 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
         err == AccessError::ResourceNotFound
     }
 
-    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMut<'t>> {
+    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AccessResult<Self::RefMut<'t>> {
         world
             .get_resource_mut::<R>()
             .ok_or(AccessError::ResourceNotFound)
@@ -405,13 +405,13 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
     fn from_mut_cx<'t>(
         mut_cx: &'t mut Self::RefMutCx<'_>,
         _: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         Ok(mut_cx)
     }
 }
 
 impl<R: Resource> AsyncReadonlyAccess for AsyncResource<R> {
-    fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
+    fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
         world.get_resource().ok_or(AccessError::ResourceNotFound)
     }
 }
@@ -421,7 +421,7 @@ impl<R: Resource> AsyncAccessRef for AsyncResource<R> {
 }
 
 impl<R: Resource> AsyncTake for AsyncResource<R> {
-    fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, _: &Self::Cx) -> AccessResult<Self::Generic> {
         world.remove_resource().ok_or(AccessError::ResourceNotFound)
     }
 }
@@ -440,7 +440,7 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
 
     fn as_cx(&self) -> Self::Cx {}
 
-    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMut<'t>> {
+    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AccessResult<Self::RefMut<'t>> {
         world
             .get_non_send_resource_mut::<R>()
             .ok_or(AccessError::ResourceNotFound)
@@ -450,13 +450,13 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
     fn from_mut_cx<'t>(
         mut_cx: &'t mut Self::RefMutCx<'_>,
         _: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         Ok(mut_cx)
     }
 }
 
 impl<R: 'static> AsyncReadonlyAccess for AsyncNonSend<R> {
-    fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
+    fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
         world
             .get_non_send_resource()
             .ok_or(AccessError::ResourceNotFound)
@@ -470,7 +470,7 @@ impl<R: 'static> AsyncAccessRef for AsyncNonSend<R> {
 impl<R: 'static> AsyncLoad for AsyncNonSend<R> {}
 
 impl<R: 'static> AsyncTake for AsyncNonSend<R> {
-    fn take(world: &mut World, _: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, _: &Self::Cx) -> AccessResult<Self::Generic> {
         world
             .remove_non_send_resource()
             .ok_or(AccessError::ResourceNotFound)
@@ -494,7 +494,7 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
     fn from_mut_world<'t>(
         world: &'t mut World,
         handle: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         world
             .get_resource_mut::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound)?
@@ -506,13 +506,13 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
     fn from_mut_cx<'t>(
         mut_cx: &'t mut Self::RefMutCx<'_>,
         _: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         Ok(mut_cx)
     }
 }
 
 impl<A: Asset> AsyncReadonlyAccess for AsyncAsset<A> {
-    fn from_ref_world<'t>(world: &'t World, handle: &Self::Cx) -> AsyncResult<Self::Ref<'t>> {
+    fn from_ref_world<'t>(world: &'t World, handle: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
         world
             .get_resource::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound)?
@@ -526,7 +526,7 @@ impl<A: Asset> AsyncAccessRef for AsyncAsset<A> {
 }
 
 impl<A: Asset> AsyncTake for AsyncAsset<A> {
-    fn take(world: &mut World, handle: &Self::Cx) -> AsyncResult<Self::Generic> {
+    fn take(world: &mut World, handle: &Self::Cx) -> AccessResult<Self::Generic> {
         world
             .get_resource_mut::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound)?
@@ -545,14 +545,14 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncQuer
 
     fn as_cx(&self) -> Self::Cx {}
 
-    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>> {
+    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>> {
         Ok(Some(OwnedQueryState::new(world)))
     }
 
     fn from_mut_cx<'t>(
         mut_cx: &'t mut Self::RefMutCx<'_>,
         _: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         Ok(mut_cx.take().unwrap())
     }
 }
@@ -565,14 +565,14 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncQuer
 
     fn as_cx(&self) -> Self::Cx {}
 
-    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>> {
+    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>> {
         Ok(OwnedQueryState::new(world))
     }
 
     fn from_mut_cx<'t>(
         cx: &'t mut Self::RefMutCx<'_>,
         _: &Self::Cx,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         cx.single_mut()
     }
 }
@@ -587,14 +587,14 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         self.entity
     }
 
-    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AsyncResult<Self::RefMutCx<'t>> {
+    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>> {
         Ok(OwnedQueryState::new(world))
     }
 
     fn from_mut_cx<'t>(
         cx: &'t mut Self::RefMutCx<'_>,
         entity: &Entity,
-    ) -> AsyncResult<Self::RefMut<'t>> {
+    ) -> AccessResult<Self::RefMut<'t>> {
         cx.get_mut(*entity).map_err(|_| AccessError::EntityNotFound)
     }
 }

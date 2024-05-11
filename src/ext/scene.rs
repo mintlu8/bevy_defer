@@ -1,5 +1,5 @@
 use crate::access::{AsyncEntityMut, AsyncWorld};
-use crate::AsyncResult;
+use crate::AccessResult;
 use bevy_ecs::component::Component;
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Commands, Query};
@@ -37,7 +37,7 @@ impl AsyncWorld {
 
 impl AsyncEntityMut {
     /// Obtain a child by name, alias for `child_by_name`.
-    pub fn spawned(&self, name: impl Into<String> + Borrow<str>) -> AsyncResult<AsyncEntityMut> {
+    pub fn spawned(&self, name: impl Into<String> + Borrow<str>) -> AccessResult<AsyncEntityMut> {
         self.child_by_name(name)
     }
 }

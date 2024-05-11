@@ -77,8 +77,14 @@ use signals::{Signal, SignalId, Signals};
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
 
-/// Result type of spawned tasks.
+#[deprecated = "Use AccessError instead."]
+pub type AsyncFailure = AccessError;
+
+#[deprecated = "Use AccessResult instead."]
 pub type AsyncResult<T = ()> = Result<T, AccessError>;
+
+/// Result type of spawned tasks.
+pub type AccessResult<T = ()> = Result<T, AccessError>;
 
 #[derive(Debug, Default, Clone, Copy)]
 
@@ -196,7 +202,7 @@ impl Plugin for AsyncPlugin {
 /// Extension for [`World`] and [`App`].
 pub trait AsyncExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self;
+    fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self;
 
     /// Obtain a named signal.
     fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data>;
@@ -209,7 +215,7 @@ pub trait AsyncExtension {
 }
 
 impl AsyncExtension for World {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self {
+    fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
         self.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
@@ -234,7 +240,7 @@ impl AsyncExtension for World {
 }
 
 impl AsyncExtension for App {
-    fn spawn_task(&mut self, f: impl Future<Output = AsyncResult> + 'static) -> &mut Self {
+    fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
         self.world
             .non_send_resource::<AsyncExecutor>()
             .spawn(async move {
@@ -265,13 +271,13 @@ impl AsyncExtension for App {
 /// Extension for [`Commands`].
 pub trait AsyncCommandsExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
-    fn spawn_task<F: Future<Output = AsyncResult> + 'static>(
+    fn spawn_task<F: Future<Output = AccessResult> + 'static>(
         &mut self,
         f: impl FnOnce() -> F + Send + 'static,
     ) -> &mut Self;
 }
 impl AsyncCommandsExtension for Commands<'_, '_> {
-    fn spawn_task<F: Future<Output = AsyncResult> + 'static>(
+    fn spawn_task<F: Future<Output = AccessResult> + 'static>(
         &mut self,
         f: impl (FnOnce() -> F) + Send + 'static,
     ) -> &mut Self {
@@ -282,11 +288,11 @@ impl AsyncCommandsExtension for Commands<'_, '_> {
 
 /// [`Command`] for spawning a task.
 pub struct SpawnFn(
-    Box<dyn (FnOnce() -> Pin<Box<dyn Future<Output = AsyncResult>>>) + Send + 'static>,
+    Box<dyn (FnOnce() -> Pin<Box<dyn Future<Output = AccessResult>>>) + Send + 'static>,
 );
 
 impl SpawnFn {
-    fn new<F: Future<Output = AsyncResult> + 'static>(
+    fn new<F: Future<Output = AccessResult> + 'static>(
         f: impl (FnOnce() -> F) + Send + 'static,
     ) -> Self {
         Self(Box::new(move || Box::pin(f())))
