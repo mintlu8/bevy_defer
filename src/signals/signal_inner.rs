@@ -2,12 +2,15 @@ use std::convert::Infallible;
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Waker};
+use std::task::Context;
 use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 
-use futures::future::FusedFuture;
-use futures::{Future, Sink, Stream};
-use parking_lot::{Mutex, RwLock};
+use event_listener::{Event, EventListener};
+use event_listener_strategy::{EventListenerFuture, FutureWrapper, NonBlocking, Strategy};
+use futures::future::{Fuse, FusedFuture};
+use futures::stream::FusedStream;
+use futures::{Future, FutureExt, Sink, Stream};
+use parking_lot::RwLock;
 use std::sync::atomic::Ordering;
 
 /// The data component of a signal.
@@ -15,13 +18,10 @@ use std::sync::atomic::Ordering;
 pub(crate) struct SignalData<T> {
     pub(crate) data: RwLock<T>,
     pub(crate) tick: AtomicU32,
-    pub(crate) wakers: Mutex<Vec<Waker>>,
+    pub(crate) event: Event,
 }
 
 /// The shared component of a signal.
-///
-/// `Arc<SignalInner<T>>` is a clone of a [`Signal`] that shares the read tick,
-/// compared to calling `clone` on a signal.
 #[derive(Debug, Default)]
 pub struct SignalInner<T> {
     pub(crate) inner: Arc<SignalData<T>>,
@@ -33,13 +33,21 @@ pub struct SignalInner<T> {
 #[repr(transparent)]
 pub struct Signal<T>(Arc<SignalInner<T>>);
 
-/// A piece of shared data that can be read once per write.
-#[derive(Debug, Default, Clone)]
+/// A borrowed signal that shares its read tick.
+#[derive(Debug, Default)]
 #[repr(transparent)]
-pub struct SignalBorrow<T>(Arc<SignalInner<T>>);
+pub struct SignalBorrow<T>(Signal<T>);
+
+impl<T> Deref for Signal<T> {
+    type Target = Arc<SignalInner<T>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<T> Deref for SignalBorrow<T> {
-    type Target = Arc<SignalInner<T>>;
+    type Target = Signal<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -55,6 +63,12 @@ impl<T> Clone for Signal<T> {
     }
 }
 
+impl<T> Clone for SignalBorrow<T> {
+    fn clone(&self) -> Self {
+        SignalBorrow(Signal(self.0.0.clone()))
+    }
+}
+
 impl<T: Send + Sync + 'static> Signal<T> {
     /// Create a new signal.
     pub fn new(value: T) -> Self {
@@ -62,7 +76,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
             inner: Arc::new(SignalData {
                 data: RwLock::new(value),
                 tick: AtomicU32::new(0),
-                wakers: Default::default(),
+                event: Event::new(),
             }),
             tick: AtomicU32::new(0),
         }))
@@ -70,7 +84,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
 
     /// Borrow the inner value with shared read tick.
     pub fn borrow_inner(&self) -> SignalBorrow<T> {
-        SignalBorrow(self.0.clone())
+        SignalBorrow(Signal(self.0.clone()))
     }
 
     /// Rewind the read tick and allow the current value to be read.
@@ -82,22 +96,31 @@ impl<T: Send + Sync + 'static> Signal<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> Deref for Signal<T> {
-    type Target = Arc<SignalInner<T>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl<T: Clone + Send + Sync + 'static> Signal<T> {
+    pub fn into_stream(self) -> SignalStream<T> {
+        SignalStream {
+            signal: self,
+            listener: None,
+        }
     }
 }
 
-impl<T: Send + Sync + 'static> SignalInner<T> {
+impl<T: Clone + Send + Sync + 'static> SignalBorrow<T> {
+    pub fn into_stream(self) -> SignalStream<T> {
+        SignalStream {
+            signal: self.0,
+            listener: None,
+        }
+    }
+}
+
+impl<T: Send + Sync + 'static> Signal<T> {
     /// Send a value, does not increment the read tick.
     pub fn send(&self, value: T) {
         let mut lock = self.inner.data.write();
         *lock = value;
         self.inner.tick.fetch_add(1, Ordering::Relaxed);
-        let mut wakers = self.inner.wakers.lock();
-        wakers.drain(..).for_each(|x| x.wake());
+        self.inner.event.notify(usize::MAX);
     }
 
     /// Send a value if changed, does not increment the read tick.
@@ -108,9 +131,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         let mut lock = self.inner.data.write();
         if *lock != value {
             *lock = value;
-            let mut wakers = self.inner.wakers.lock();
-            wakers.drain(..).for_each(|x| x.wake());
             self.inner.tick.fetch_add(1, Ordering::Relaxed);
+            self.inner.event.notify(usize::MAX);
         }
     }
 
@@ -118,9 +140,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
     pub fn broadcast(&self, value: T) {
         let mut lock = self.inner.data.write();
         *lock = value;
-        let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
-        let mut wakers = self.inner.wakers.lock();
-        wakers.drain(..).for_each(|x| x.wake());
+        let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);        
+        self.inner.event.notify(usize::MAX);
         self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
     }
 
@@ -132,9 +153,8 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
         let mut lock = self.inner.data.write();
         if *lock != value {
             *lock = value;
-            let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
-            let mut wakers = self.inner.wakers.lock();
-            wakers.drain(..).for_each(|x| x.wake());
+            let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);        
+            self.inner.event.notify(usize::MAX);
             self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
         }
     }
@@ -164,22 +184,21 @@ impl<T: Send + Sync + 'static> SignalInner<T> {
 
     /// Poll the signal value asynchronously.
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub fn poll(self: &Arc<Self>) -> SignalFuture<T>
+    pub fn poll(&self) -> SignalFuture<T>
     where
         T: Clone,
     {
-        SignalFuture {
-            signal: self.clone(),
-            is_terminated: false,
-        }
+        SignalFuture(FutureWrapper::new(SignalFutureInner {
+            signal: self.0.clone(),
+            listener: Some(self.inner.event.listen()),
+        }).fuse())
     }
 }
 
-/// Future for polling a [`Signal`] once.
-pub struct SignalFuture<T: Clone> {
-    signal: Arc<SignalInner<T>>,
-    is_terminated: bool,
-}
+/// A [`FusedFuture`] that polls a single value from a signal.
+pub struct SignalFuture<T: Clone>(
+    Fuse<FutureWrapper<SignalFutureInner<T>>>
+);
 
 impl<T: Clone> Unpin for SignalFuture<T> {}
 
@@ -187,60 +206,85 @@ impl<T: Clone> Future for SignalFuture<T> {
     type Output = T;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let tick = self.signal.inner.tick.load(Ordering::Relaxed);
-        if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
-            self.is_terminated = true;
-            Poll::Ready(self.signal.inner.data.read().clone())
-        } else {
-            let mut lock = self.signal.inner.wakers.lock();
-            lock.push(cx.waker().clone());
-            Poll::Pending
-        }
+        self.0.poll_unpin(cx)
     }
 }
 
 impl<T: Clone> FusedFuture for SignalFuture<T> {
     fn is_terminated(&self) -> bool {
-        self.is_terminated
+        self.0.is_terminated()
+    }
+}
+
+/// Future for polling a [`Signal`] once.
+pub struct SignalFutureInner<T: Clone> {
+    signal: Arc<SignalInner<T>>,
+    listener: Option<EventListener>,
+}
+
+impl<T: Clone> Unpin for SignalFutureInner<T> {}
+
+impl<T: Clone> EventListenerFuture for SignalFutureInner<T> {
+    type Output = T;
+
+    fn poll_with_strategy<'a, S: event_listener_strategy::Strategy<'a>>(
+        mut self: Pin<&mut Self>,
+        strategy: &mut S,
+        cx: &mut S::Context,
+    ) -> Poll<Self::Output> {
+        let tick = self.signal.inner.tick.load(Ordering::Relaxed);
+        loop {
+            if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
+                return Poll::Ready(self.signal.inner.data.read().clone())
+            } else {
+                match strategy.poll(&mut self.listener, cx) {
+                    Poll::Ready(_) => (),
+                    Poll::Pending => return Poll::Pending,
+                };
+            }
+        }
     }
 }
 
 impl<T> Unpin for Signal<T> {}
 impl<T> Unpin for SignalBorrow<T> {}
 
-impl<T: Clone + Send + Sync + 'static> Stream for Signal<T> {
+
+/// A [`Stream`] that polls values continuously from a signal.
+pub struct SignalStream<T: Clone> {
+    signal: Signal<T>,
+    listener: Option<EventListener>,
+}
+
+impl<T: Clone> Unpin for SignalStream<T> {}
+
+impl<T: Clone + Send + Sync + 'static> Stream for SignalStream<T> {
     type Item = T;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        match self.0.try_read() {
-            Some(result) => Poll::Ready(Some(result)),
-            None => {
-                let mut lock = self.0.inner.wakers.lock();
-                lock.push(cx.waker().clone());
-                Poll::Pending
+        loop {
+            match self.signal.try_read() {
+                Some(result) => return Poll::Ready(Some(result)),
+                None => {
+                    if self.listener.is_none() {
+                        self.listener = Some(self.signal.inner.event.listen());
+                    }
+                    match NonBlocking::default().poll(&mut self.listener, cx) {
+                        Poll::Ready(()) => (),
+                        Poll::Pending => return Poll::Pending,
+                    }
+                }
             }
         }
     }
 }
 
-impl<T: Clone + Send + Sync + 'static> Stream for SignalBorrow<T> {
-    type Item = T;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        match self.0.try_read() {
-            Some(result) => Poll::Ready(Some(result)),
-            None => {
-                let mut lock = self.0.inner.wakers.lock();
-                lock.push(cx.waker().clone());
-                Poll::Pending
-            }
-        }
+impl<T: Clone + Send + Sync + 'static> FusedStream for SignalStream<T> {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 

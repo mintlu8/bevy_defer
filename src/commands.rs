@@ -1,4 +1,5 @@
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS};
+use crate::signals::SignalStream;
 use crate::{
     access::AsyncEntityMut,
     reactors::StateSignal,
@@ -17,7 +18,7 @@ use bevy_ecs::{
 };
 use bevy_utils::Duration;
 use futures::future::Either;
-use futures::{future::ready, Stream};
+use futures::future::ready;
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
@@ -334,10 +335,10 @@ impl AsyncWorld {
     /// Obtain a [`Stream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
-    pub fn state_stream<S: States + Clone + Default>(&self) -> impl Stream<Item = S> + 'static {
+    pub fn state_stream<S: States + Clone + Default>(&self) -> SignalStream<S> {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.rewind();
-        signal
+        signal.into_stream()
     }
 
     /// Pause the future for the duration, according to the `Time` resource.
