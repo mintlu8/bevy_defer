@@ -17,8 +17,8 @@ use bevy_ecs::{
     world::World,
 };
 use bevy_utils::Duration;
-use futures::future::Either;
 use futures::future::ready;
+use futures::future::Either;
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},

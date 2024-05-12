@@ -65,7 +65,7 @@ impl<T> Clone for Signal<T> {
 
 impl<T> Clone for SignalBorrow<T> {
     fn clone(&self) -> Self {
-        SignalBorrow(Signal(self.0.0.clone()))
+        SignalBorrow(Signal(self.0 .0.clone()))
     }
 }
 
@@ -140,7 +140,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     pub fn broadcast(&self, value: T) {
         let mut lock = self.inner.data.write();
         *lock = value;
-        let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);        
+        let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
         self.inner.event.notify(usize::MAX);
         self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
     }
@@ -153,7 +153,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
         let mut lock = self.inner.data.write();
         if *lock != value {
             *lock = value;
-            let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);        
+            let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
             self.inner.event.notify(usize::MAX);
             self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
         }
@@ -188,17 +188,18 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: Clone,
     {
-        SignalFuture(FutureWrapper::new(SignalFutureInner {
-            signal: self.0.clone(),
-            listener: Some(self.inner.event.listen()),
-        }).fuse())
+        SignalFuture(
+            FutureWrapper::new(SignalFutureInner {
+                signal: self.0.clone(),
+                listener: Some(self.inner.event.listen()),
+            })
+            .fuse(),
+        )
     }
 }
 
 /// A [`FusedFuture`] that polls a single value from a signal.
-pub struct SignalFuture<T: Clone>(
-    Fuse<FutureWrapper<SignalFutureInner<T>>>
-);
+pub struct SignalFuture<T: Clone>(Fuse<FutureWrapper<SignalFutureInner<T>>>);
 
 impl<T: Clone> Unpin for SignalFuture<T> {}
 
@@ -235,7 +236,7 @@ impl<T: Clone> EventListenerFuture for SignalFutureInner<T> {
         let tick = self.signal.inner.tick.load(Ordering::Relaxed);
         loop {
             if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
-                return Poll::Ready(self.signal.inner.data.read().clone())
+                return Poll::Ready(self.signal.inner.data.read().clone());
             } else {
                 match strategy.poll(&mut self.listener, cx) {
                     Poll::Ready(_) => (),
@@ -248,7 +249,6 @@ impl<T: Clone> EventListenerFuture for SignalFutureInner<T> {
 
 impl<T> Unpin for Signal<T> {}
 impl<T> Unpin for SignalBorrow<T> {}
-
 
 /// A [`Stream`] that polls values continuously from a signal.
 pub struct SignalStream<T: Clone> {

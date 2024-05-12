@@ -172,6 +172,18 @@ macro_rules! format_error {
     };
 }
 
+/// Try run a potentially async block of arguments with result type [`AccessError`],
+/// always discard the result and does not log the error.
+#[macro_export]
+macro_rules! attempt {
+    ($($tt:tt)*) => {
+        let _: $crate::AccessResult<()> = async {
+            let _ = {$($tt)*};
+            Ok(())
+        }.await;
+    };
+}
+
 #[cfg(test)]
 mod test {
     use crate::AccessError;

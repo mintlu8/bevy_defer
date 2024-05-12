@@ -55,7 +55,8 @@ impl Reactors {
     /// Obtain a typed signal.
     #[allow(clippy::box_default)]
     pub fn get_typed<T: SignalId>(&self) -> Signal<T::Data> {
-        self.0.typed
+        self.0
+            .typed
             .lock()
             .entry(TypeId::of::<T>())
             .or_insert(Box::new(Signal::<T::Data>::default()))
