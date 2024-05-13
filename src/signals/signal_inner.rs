@@ -106,6 +106,10 @@ impl<T: Clone + Send + Sync + 'static> Signal<T> {
 }
 
 impl<T: Clone + Send + Sync + 'static> SignalBorrow<T> {
+    pub fn cloned(self) -> Signal<T> {
+        self.0.clone()
+    }
+
     pub fn into_stream(self) -> SignalStream<T> {
         SignalStream {
             signal: self.0,

@@ -91,13 +91,13 @@ impl AsyncEntityMut {
     /// entity.take::<Int>();
     /// # });
     /// ```
-    pub fn take<T: Bundle>(&self) -> Result<Option<T>, AccessError> {
+    pub fn take<T: Bundle>(&self) -> Result<T, AccessError> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
-                .map(|mut e| e.take::<T>())
                 .ok_or(AccessError::EntityNotFound)
+                .and_then(|mut e| e.take::<T>().ok_or(AccessError::ComponentNotFound))
         })
     }
 
@@ -226,6 +226,36 @@ impl AsyncEntityMut {
             signals
                 .borrow_receiver::<S>()
                 .ok_or(AccessError::SignalNotFound)
+        })
+    }
+
+    /// Init or borrow a sender from an entity with shared read tick.
+    pub fn init_sender<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            let Some(mut entity) = world.get_entity_mut(entity) else {
+                return Err(AccessError::EntityNotFound);
+            };
+            let mut signals = match entity.get_mut::<Signals>() {
+                Some(sender) => sender,
+                None => entity.insert(Signals::new()).get_mut::<Signals>().unwrap(),
+            };
+            Ok(signals.init_sender::<S>())
+        })
+    }
+
+    /// Init or borrow a receiver from an entity with shared read tick.
+    pub fn init_receiver<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            let Some(mut entity) = world.get_entity_mut(entity) else {
+                return Err(AccessError::EntityNotFound);
+            };
+            let mut signals = match entity.get_mut::<Signals>() {
+                Some(sender) => sender,
+                None => entity.insert(Signals::new()).get_mut::<Signals>().unwrap(),
+            };
+            Ok(signals.init_receiver::<S>())
         })
     }
 

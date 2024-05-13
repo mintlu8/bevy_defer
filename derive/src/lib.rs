@@ -2,7 +2,7 @@ use proc_macro::TokenStream as TokenStream1;
 use proc_macro2::TokenStream;
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, token::RArrow, DeriveInput, FnArg, Ident, ItemImpl, ReturnType};
+use syn::{parse_quote, token::RArrow, DeriveInput, FnArg, Ident, ItemImpl, Pat, ReturnType};
 
 fn import_crate() -> TokenStream {
     let found_crate = crate_name("bevy_defer").expect("bevy_defer is not present in `Cargo.toml`");
@@ -28,7 +28,8 @@ fn import_crate() -> TokenStream {
 ///
 /// * Outputs must be `'static`.
 ///
-/// * Does not support `async` functions, return `impl Future + 'static` instead.
+/// * Does not support `async` functions, since it's currently difficult to get a static future
+/// with a `self` receiver. Return `impl Future + 'static` instead.
 ///
 /// ```
 /// use module::{Character, AsyncCharacter};
@@ -120,19 +121,24 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
             }
             quote! {}
         };
-        let Ok(args) = item_fn
+        let Ok(mut args) = item_fn
             .sig
             .inputs
             .iter()
             .skip(1)
             .map(|x| match x {
                 FnArg::Receiver(_) => Err(()),
-                FnArg::Typed(pat) => Ok(&pat.pat),
+                FnArg::Typed(pat) => Ok(pat.pat.clone()),
             })
             .collect::<Result<Vec<_>, _>>()
         else {
             parse_error!()
         };
+
+        for pat in &mut args {
+            de_mutify(pat)
+        }
+
         let sig = &item_fn.sig;
         functions.push(quote! {
             #(#attrs)*
@@ -145,6 +151,7 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
 
     quote! {
         #tokens
+        #[allow(unused_mut)]
         const _: () = {
             impl #impl_generics #async_ty #ty_generics #where_clause {
                 #(#functions)*
@@ -209,5 +216,33 @@ fn async_access_deref(tokens: TokenStream, ty: Ident, ty_deref: Ident) -> TokenS
                 #async_name::ref_cast(this)
             }
         }
+    }
+}
+
+fn de_mutify(pat: &mut Pat) {
+    match pat {
+        Pat::Ident(ident) => ident.mutability = None,
+        Pat::Slice(slice) => {
+            for elem in slice.elems.iter_mut() {
+                de_mutify(elem)
+            }
+        }
+        Pat::Struct(s) => {
+            for elem in s.fields.iter_mut() {
+                de_mutify(elem.pat.as_mut());
+            }
+        }
+        Pat::Tuple(t) => {
+            for elem in t.elems.iter_mut() {
+                de_mutify(elem);
+            }
+        }
+        Pat::TupleStruct(t) => {
+            for elem in t.elems.iter_mut() {
+                de_mutify(elem);
+            }
+        }
+        // Might be incomplete? Make an issue if needed.
+        _ => (),
     }
 }

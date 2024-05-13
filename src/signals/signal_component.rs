@@ -131,6 +131,26 @@ impl Signals {
             .map(|x| x.borrow_inner())
     }
 
+    /// Borrow a sender's inner, this shares read tick compared to `clone`.
+    pub fn init_sender<T: SignalId>(&mut self) -> SignalBorrow<T::Data> {
+        self.senders
+            .entry(TypeId::of::<T>())
+            .or_insert(Box::new(Signal::<T::Data>::default()))
+            .downcast_ref::<Signal<T::Data>>()
+            .unwrap()
+            .borrow_inner()
+    }
+
+    /// Borrow a receiver's inner, this shares read tick compared to `clone`.
+    pub fn init_receiver<T: SignalId>(&mut self) -> SignalBorrow<T::Data> {
+        self.receivers
+            .entry(TypeId::of::<T>())
+            .or_insert(Box::new(Signal::<T::Data>::default()))
+            .downcast_ref::<Signal<T::Data>>()
+            .unwrap()
+            .borrow_inner()
+    }
+
     pub fn add_sender<T: SignalId>(&mut self, signal: Signal<T::Data>) {
         self.senders
             .insert(TypeId::of::<T>(), Box::new(signal.clone()));
