@@ -132,6 +132,7 @@ impl Signals {
     }
 
     /// Borrow a sender's inner, this shares read tick compared to `clone`.
+    #[allow(clippy::box_default)]
     pub fn init_sender<T: SignalId>(&mut self) -> SignalBorrow<T::Data> {
         self.senders
             .entry(TypeId::of::<T>())
@@ -142,6 +143,7 @@ impl Signals {
     }
 
     /// Borrow a receiver's inner, this shares read tick compared to `clone`.
+    #[allow(clippy::box_default)]
     pub fn init_receiver<T: SignalId>(&mut self) -> SignalBorrow<T::Data> {
         self.receivers
             .entry(TypeId::of::<T>())
