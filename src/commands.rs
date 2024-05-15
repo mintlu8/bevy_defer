@@ -181,7 +181,8 @@ impl AsyncWorld {
     ///
     /// # Note
     ///
-    /// The system is disambiguated by [`IntoSystem::system_type_id`].
+    /// The system is disambiguated by the type ID of the closure.
+    /// Be careful not to pass in a `fn`.
     ///
     /// # Example
     ///
@@ -201,7 +202,8 @@ impl AsyncWorld {
     ///
     /// # Note
     ///
-    /// The system is disambiguated by [`IntoSystem::system_type_id`]s.
+    /// The system is disambiguated by the type ID of the closure.
+    /// Be careful not to pass in a `fn`.
     ///
     /// # Example
     ///
@@ -225,7 +227,7 @@ impl AsyncWorld {
 
         with_world_mut(move |world: &mut World| {
             let res = world.get_resource_or_insert_with::<SystemCache>(Default::default);
-            let type_id = IntoSystem::system_type_id(&system);
+            let type_id = TypeId::of::<S>();
             if let Some(id) = res
                 .0
                 .get(&type_id)
