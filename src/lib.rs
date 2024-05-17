@@ -3,7 +3,7 @@
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_time::TimeSystem;
 use bevy_utils::intern::Interned;
-use std::{borrow::Borrow, pin::Pin};
+use std::pin::Pin;
 
 pub mod access;
 pub mod async_systems;
@@ -20,6 +20,7 @@ pub mod sync;
 pub mod tween;
 #[allow(deprecated)]
 pub use crate::executor::world;
+#[allow(deprecated)]
 pub use crate::executor::{in_async_context, spawn, spawn_scoped};
 pub use access::async_event::DoubleBufferedEvent;
 pub use access::async_query::OwnedQueryState;
@@ -208,10 +209,7 @@ pub trait AsyncExtension {
     fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data>;
 
     /// Obtain a named signal.
-    fn named_signal<T: SignalId>(
-        &mut self,
-        name: impl Borrow<str> + Into<String>,
-    ) -> Signal<T::Data>;
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -230,10 +228,7 @@ impl AsyncExtension for World {
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(
-        &mut self,
-        name: impl Borrow<str> + Into<String>,
-    ) -> Signal<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
     }
@@ -258,10 +253,7 @@ impl AsyncExtension for App {
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(
-        &mut self,
-        name: impl Borrow<str> + Into<String>,
-    ) -> Signal<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data> {
         self.world
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)

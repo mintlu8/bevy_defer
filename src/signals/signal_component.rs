@@ -3,22 +3,38 @@ use super::{Signal, SignalId};
 use bevy_ecs::component::Component;
 use bevy_reflect::Reflect;
 use rustc_hash::FxHashMap;
-use std::any::{Any, TypeId};
+use std::fmt::Debug;
+use ty_map_gen::type_map;
+
+type_map! {
+    /// A type map of signals.
+    #[derive(Clone)]
+    pub SignalMap where T [SignalId] => Signal<T::Data> [Clone + Send + Sync] as FxHashMap
+}
 
 /// A composable component that contains type-erased signals on an `Entity`.
-#[derive(Debug, Component, Default, Reflect)]
+#[derive(Component, Default, Reflect)]
 pub struct Signals {
     #[reflect(ignore)]
-    pub senders: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    pub senders: SignalMap,
     #[reflect(ignore)]
-    pub receivers: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    pub receivers: SignalMap,
+}
+
+impl Debug for Signals {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Signals")
+            .field("senders", &self.senders.len())
+            .field("receivers", &self.receivers.len())
+            .finish()
+    }
 }
 
 impl Signals {
     pub fn new() -> Self {
         Self {
-            senders: FxHashMap::default(),
-            receivers: FxHashMap::default(),
+            senders: SignalMap::new(),
+            receivers: SignalMap::new(),
         }
     }
 
@@ -52,11 +68,7 @@ impl Signals {
     ///
     /// Returns `true` if the signal exists.
     pub fn send<T: SignalId>(&self, item: T::Data) -> bool {
-        if let Some(sig) = self
-            .senders
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-        {
+        if let Some(sig) = self.senders.get::<T>() {
             sig.send(item);
             true
         } else {
@@ -71,11 +83,7 @@ impl Signals {
     where
         T::Data: PartialEq,
     {
-        if let Some(sig) = self
-            .senders
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-        {
+        if let Some(sig) = self.senders.get::<T>() {
             sig.send_if_changed(item);
             true
         } else {
@@ -87,11 +95,7 @@ impl Signals {
     ///
     /// Returns `true` if the signal exists.
     pub fn broadcast<T: SignalId>(&self, item: T::Data) -> bool {
-        if let Some(sig) = self
-            .senders
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-        {
+        if let Some(sig) = self.senders.get::<T>() {
             sig.broadcast(item);
             true
         } else {
@@ -101,79 +105,71 @@ impl Signals {
 
     /// Poll a signal from a receiver or an adaptor.
     pub fn poll_once<T: SignalId>(&self) -> Option<T::Data> {
-        self.receivers
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-            .and_then(|x| x.try_read())
+        self.receivers.get::<T>().and_then(|x| x.try_read())
     }
 
     /// Poll a signal from a sender.
     pub fn poll_sender_once<T: SignalId>(&self) -> Option<T::Data> {
-        self.senders
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-            .and_then(|x| x.try_read())
+        self.senders.get::<T>().and_then(|x| x.try_read())
     }
 
     /// Borrow a sender's inner, this shares read tick compared to `clone`.
     pub fn borrow_sender<T: SignalId>(&self) -> Option<SignalBorrow<T::Data>> {
-        self.senders
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-            .map(|x| x.borrow_inner())
+        self.senders.get::<T>().map(|x| x.borrow_inner())
     }
 
     /// Borrow a receiver's inner, this shares read tick compared to `clone`.
     pub fn borrow_receiver<T: SignalId>(&self) -> Option<SignalBorrow<T::Data>> {
-        self.receivers
-            .get(&TypeId::of::<T>())
-            .and_then(|x| x.downcast_ref::<Signal<T::Data>>())
-            .map(|x| x.borrow_inner())
+        self.receivers.get::<T>().map(|x| x.borrow_inner())
     }
 
     /// Borrow a sender's inner, this shares read tick compared to `clone`.
     #[allow(clippy::box_default)]
     pub fn init_sender<T: SignalId>(&mut self) -> SignalBorrow<T::Data> {
-        self.senders
-            .entry(TypeId::of::<T>())
-            .or_insert(Box::new(Signal::<T::Data>::default()))
-            .downcast_ref::<Signal<T::Data>>()
-            .unwrap()
-            .borrow_inner()
+        match self.borrow_sender::<T>() {
+            Some(borrow) => borrow,
+            None => {
+                let signal = Signal::<T::Data>::default();
+                self.senders.insert::<T>(signal.clone());
+                signal.into_borrow()
+            }
+        }
     }
 
     /// Borrow a receiver's inner, this shares read tick compared to `clone`.
     #[allow(clippy::box_default)]
     pub fn init_receiver<T: SignalId>(&mut self) -> SignalBorrow<T::Data> {
-        self.receivers
-            .entry(TypeId::of::<T>())
-            .or_insert(Box::new(Signal::<T::Data>::default()))
-            .downcast_ref::<Signal<T::Data>>()
-            .unwrap()
-            .borrow_inner()
+        match self.borrow_receiver::<T>() {
+            Some(borrow) => borrow,
+            None => {
+                let signal = Signal::<T::Data>::default();
+                self.receivers.insert::<T>(signal.clone());
+                signal.into_borrow()
+            }
+        }
     }
 
     pub fn add_sender<T: SignalId>(&mut self, signal: Signal<T::Data>) {
-        self.senders
-            .insert(TypeId::of::<T>(), Box::new(signal.clone()));
+        self.senders.insert::<T>(signal);
     }
+
     pub fn add_receiver<T: SignalId>(&mut self, signal: Signal<T::Data>) {
-        self.receivers
-            .insert(TypeId::of::<T>(), Box::new(signal.clone()));
+        self.receivers.insert::<T>(signal);
     }
 
     pub fn remove_sender<T: SignalId>(&mut self) {
-        self.senders.remove(&TypeId::of::<T>());
+        self.senders.remove::<T>();
     }
+
     pub fn remove_receiver<T: SignalId>(&mut self) {
-        self.receivers.remove(&TypeId::of::<T>());
+        self.receivers.remove::<T>();
     }
 
     pub fn has_sender<T: SignalId>(&self) -> bool {
-        self.senders.contains_key(&TypeId::of::<T>())
+        self.senders.contains::<T>()
     }
     pub fn has_receiver<T: SignalId>(&self) -> bool {
-        self.receivers.contains_key(&TypeId::of::<T>())
+        self.receivers.contains::<T>()
     }
 
     pub fn extend(mut self, other: Signals) -> Signals {

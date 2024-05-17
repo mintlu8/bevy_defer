@@ -49,6 +49,7 @@ pub fn main() {
     app.update();
     app.update();
     app.update();
+    app.update();
     assert!(LOCK.load(Ordering::SeqCst))
 }
 
@@ -72,7 +73,7 @@ pub fn init(mut commands: Commands) {
 fn update(mut i: Local<usize>, q: Query<SignalSender<SigText>, With<Marker1>>) {
     let s = ["hello", "rust", "and", "bevy"];
     if let Some(s) = s.get(*i) {
-        q.single().send(*s);
+        dbg!(q.single().send(*s));
     }
     *i += 1;
 }

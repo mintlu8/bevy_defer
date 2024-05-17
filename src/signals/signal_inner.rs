@@ -82,6 +82,11 @@ impl<T: Send + Sync + 'static> Signal<T> {
         }))
     }
 
+    /// Convert into a [`SignalBorrow`].
+    pub fn into_borrow(self) -> SignalBorrow<T> {
+        SignalBorrow(Signal(self.0))
+    }
+
     /// Borrow the inner value with shared read tick.
     pub fn borrow_inner(&self) -> SignalBorrow<T> {
         SignalBorrow(Signal(self.0.clone()))

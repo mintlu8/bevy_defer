@@ -41,11 +41,9 @@ scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
 /// # Panics
 ///
 /// If used outside a `bevy_defer` future.
+#[deprecated = "Use AsyncWorldMut::spawn_scoped instead."]
 pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
-    if !SPAWNER.is_set() {
-        panic!("bevy_defer::spawn_scoped can only be used in a bevy_defer future.")
-    }
-    SPAWNER.with(|s| s.spawn(fut))
+    AsyncWorld::spawn_scoped(fut)
 }
 
 /// Spawn a `bevy_defer` compatible future.
@@ -55,11 +53,9 @@ pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl 
 /// # Panics
 ///
 /// If used outside a `bevy_defer` future.
+#[deprecated = "Use AsyncWorldMut::spawn instead."]
 pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
-    if !SPAWNER.is_set() {
-        panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
-    }
-    SPAWNER.with(|s| s.spawn(fut).detach());
+    AsyncWorld::spawn(fut)
 }
 
 /// Obtain the [`AsyncWorld`] of the currently running `bevy_defer` executor.

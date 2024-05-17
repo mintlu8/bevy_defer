@@ -10,17 +10,11 @@ use bevy_ecs::{
 };
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
-use std::{
-    any::{Any, TypeId},
-    borrow::Borrow,
-    cell::OnceCell,
-    convert::Infallible,
-    marker::PhantomData,
-    sync::Arc,
-};
+use std::{cell::OnceCell, convert::Infallible, marker::PhantomData, sync::Arc};
+use ty_map_gen::type_map;
 
-use crate::access::async_event::DoubleBufferedEvent;
 use crate::signals::{Receiver, Signal, SignalId, SignalSender, Signals};
+use crate::{access::async_event::DoubleBufferedEvent, signals::SignalMap};
 
 /// Signal that sends changed values of a [`States`].
 #[derive(Debug, Clone, Copy)]
@@ -34,12 +28,24 @@ impl<T: States + Clone + Default> SignalId for StateSignal<T> {
 #[derive(Resource, Default, Clone)]
 pub struct Reactors(Arc<ReactorsInner>);
 
+type_map!(
+    /// A type map of signals.
+    #[derive(Clone)]
+    pub NamedSignalMap where (T, String) [SignalId] => Signal<T::Data> [Clone + Send + Sync] as FxHashMap
+);
+
+type_map!(
+    /// A type map of signals.
+    #[derive(Clone)]
+    pub EventBufferMap where E [Event] => Arc<DoubleBufferedEvent<E>> [Clone + Send + Sync] as FxHashMap
+);
+
 /// Named or typed synchronization primitives of `bevy_defer`.
 #[derive(Default)]
 pub(crate) struct ReactorsInner {
-    typed: Mutex<FxHashMap<TypeId, Box<dyn Any + Send + Sync>>>,
-    named: Mutex<FxHashMap<(String, TypeId), Box<dyn Any + Send + Sync>>>,
-    event_buffers: Mutex<FxHashMap<TypeId, Box<dyn Any + Send + Sync>>>,
+    typed: Mutex<SignalMap>,
+    named: Mutex<NamedSignalMap>,
+    event_buffers: Mutex<EventBufferMap>,
 }
 
 impl std::fmt::Debug for ReactorsInner {
@@ -55,26 +61,24 @@ impl Reactors {
     /// Obtain a typed signal.
     #[allow(clippy::box_default)]
     pub fn get_typed<T: SignalId>(&self) -> Signal<T::Data> {
-        self.0
-            .typed
-            .lock()
-            .entry(TypeId::of::<T>())
-            .or_insert(Box::new(Signal::<T::Data>::default()))
-            .downcast_ref::<Signal<T::Data>>()
-            .expect("Unexpected signal type.")
-            .clone()
+        let mut lock = self.0.typed.lock();
+        if let Some(data) = lock.get::<T>() {
+            data.clone()
+        } else {
+            let signal = Signal::<T::Data>::default();
+            lock.insert::<T>(signal.clone());
+            signal
+        }
     }
 
     /// Obtain a named signal.
-    pub fn get_named<T: SignalId>(&self, name: impl Borrow<str> + Into<String>) -> Signal<T::Data> {
+    pub fn get_named<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
         let mut lock = self.0.named.lock();
-        if let Some(data) = lock.get(&(name.borrow(), TypeId::of::<T>()) as &dyn NameAndType) {
-            data.downcast_ref::<Signal<T::Data>>()
-                .expect("Unexpected signal type.")
-                .clone()
+        if let Some(data) = lock.get::<T, _>(name) {
+            data.clone()
         } else {
             let signal = Signal::<T::Data>::default();
-            lock.insert((name.into(), TypeId::of::<T>()), Box::new(signal.clone()));
+            lock.insert::<T>(name.to_owned(), signal.clone());
             signal
         }
     }
@@ -82,13 +86,11 @@ impl Reactors {
     /// Obtain an event buffer by event type.
     pub fn get_event<E: Event + Clone>(&self) -> Arc<DoubleBufferedEvent<E>> {
         let mut lock = self.0.event_buffers.lock();
-        if let Some(data) = lock.get(&TypeId::of::<E>()) {
-            data.downcast_ref::<Arc<DoubleBufferedEvent<E>>>()
-                .expect("Unexpected event buffer type.")
-                .clone()
+        if let Some(data) = lock.get::<E>() {
+            data.clone()
         } else {
             let signal = <Arc<DoubleBufferedEvent<E>>>::default();
-            lock.insert(TypeId::of::<E>(), Box::new(signal.clone()));
+            lock.insert::<E>(signal.clone());
             signal
         }
     }
@@ -146,48 +148,3 @@ pub fn react_to_component_change<M: Component + Clone + Default + PartialEq>(
 ///
 /// Requires corresponding [`react_to_component_change`] system.
 pub type StateMachine<T> = Receiver<Change<T>>;
-
-trait NameAndType {
-    fn str(&self) -> &str;
-    fn id(&self) -> &TypeId;
-}
-
-impl<'a> Borrow<dyn NameAndType + 'a> for (String, TypeId) {
-    fn borrow(&self) -> &(dyn NameAndType + 'a) {
-        self
-    }
-}
-
-impl std::hash::Hash for dyn NameAndType + '_ {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.str().hash(state);
-        self.id().hash(state);
-    }
-}
-
-impl PartialEq for dyn NameAndType + '_ {
-    fn eq(&self, other: &Self) -> bool {
-        self.str() == other.str() && self.id() == other.id()
-    }
-}
-
-impl Eq for dyn NameAndType + '_ {}
-
-impl NameAndType for (String, TypeId) {
-    fn str(&self) -> &str {
-        &self.0
-    }
-
-    fn id(&self) -> &TypeId {
-        &self.1
-    }
-}
-impl NameAndType for (&str, TypeId) {
-    fn str(&self) -> &str {
-        self.0
-    }
-
-    fn id(&self) -> &TypeId {
-        &self.1
-    }
-}
