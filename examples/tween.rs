@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_defer::{
-    access::AsyncWorld, cancellation::Cancellation, spawn, tween::Playback, AsyncAccess,
+    access::AsyncWorld, cancellation::Cancellation, tween::Playback, AsyncAccess,
     AsyncExtension, AsyncPlugin,
 };
 
@@ -84,7 +84,7 @@ fn main() {
             });
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
-            spawn(comp.interpolate(
+            AsyncWorld::spawn(comp.interpolate(
                 |x| Vec3::new(0.0, 200.0, 0.0).lerp(Vec3::new(0.0, -200.0, 0.0), x),
                 |t, v| t.translation = v,
                 |x| x * x,
@@ -107,7 +107,7 @@ fn main() {
 
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
-            spawn(comp.interpolate(
+            AsyncWorld::spawn(comp.interpolate(
                 |x| Vec3::new(0.0, 0.0, 0.0).lerp(Vec3::new(200.0, 0.0, 0.0), x),
                 |t, v| t.translation = v,
                 |x| x,

@@ -14,7 +14,6 @@
 
 use async_io::Async;
 use bevy_defer::access::AsyncWorld;
-use bevy_defer::spawn;
 use smol_hyper::rt::FuturesIo;
 use std::{future::Future, net::TcpStream};
 
@@ -47,7 +46,7 @@ where
     F::Output: Send + 'static,
 {
     fn execute(&self, fut: F) {
-        bevy_defer::spawn(fut);
+        AsyncWorld::spawn(fut);
     }
 }
 
@@ -76,7 +75,7 @@ impl HyperHttpClientExt for AsyncWorld {
         let (mut sender, conn) = handshake::<_, String>(FuturesIo::new(stream))
             .await
             .unwrap();
-        spawn(async move {
+        AsyncWorld::spawn(async move {
             if let Err(err) = conn.await {
                 println!("Connection failed: {:?}", err);
             }
@@ -116,7 +115,7 @@ impl HyperHttpClientExt for AsyncWorld {
         let address = format!("{}:{}", host, port);
         let stream = Async::<TcpStream>::new(TcpStream::connect(address)?)?;
         let (mut sender, conn) = handshake::<_, T>(FuturesIo::new(stream)).await?;
-        spawn(async move {
+        AsyncWorld::spawn(async move {
             if let Err(err) = conn.await {
                 println!("Connection failed: {:?}", err);
             }
