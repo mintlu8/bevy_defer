@@ -27,7 +27,7 @@ impl AsyncWorld {
     }
 
     /// Create a stream to an [`Event`], requires the corresponding [`react_to_event`] system.
-    /// 
+    ///
     /// This requires [`Clone`] and duplicates all events sent in bevy.
     pub fn event_stream<E: Event + Clone>(&self) -> EventStream<E> {
         if !REACTORS.is_set() {
@@ -91,10 +91,11 @@ impl<E: Event + Clone> Stream for EventStream<E> {
             }
             let lock = this.event.buffer.read();
             let value = lock.get(this.index).cloned();
-            this.listener.get_or_insert_with(||this.event.notify.listen());
+            this.listener
+                .get_or_insert_with(|| this.event.notify.listen());
             if let Some(event) = value {
                 this.index += 1;
-                return Poll::Ready(Some(event))
+                return Poll::Ready(Some(event));
             } else {
                 drop(lock);
                 match NonBlocking::default().poll(&mut this.listener, cx) {
@@ -111,13 +112,13 @@ impl<E: Event> Default for EventBuffer<E> {
         Self {
             notify: Default::default(),
             tick: Default::default(),
-            buffer: Default::default()
+            buffer: Default::default(),
         }
     }
 }
 
 /// React to an event.
-/// 
+///
 /// Consecutive calls will flush the stream, make sure to order this against the executor correctly.
 pub fn react_to_event<E: Event + Clone>(
     cached: Local<OnceCell<Arc<EventBuffer<E>>>>,

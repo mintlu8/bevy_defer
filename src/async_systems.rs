@@ -2,16 +2,16 @@
 //!
 //! [`AsyncSystem`] is a system-like async function on a specific entity.
 //! The component [`AsyncSystems`] is a collection of `AsyncSystem`s that runs independently.
-//! 
+//!
 //! Generally `AsyncSystems` is useful for providing reactivity with UI when combined with signals.
-//! 
+//!
 //! # Example
-//! 
+//!
 //! To create an [`AsyncSystem`], use the [`async_system!`] macro:
-//! 
+//!
 //! ```
 //! # /*
-//! // Scale up for a second when clicked. 
+//! // Scale up for a second when clicked.
 //! let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<Transform>|{
 //!     let pos: Vec3 = recv.recv().await;
 //!     transform.set(|transform| transform.scale = Vec3::splat(2.0)).await?;
@@ -20,19 +20,19 @@
 //! })
 //! # */
 //! ```
-//! 
+//!
 //! The parameters must implement [`AsyncEntityParam`].
-//! 
+//!
 //! # How an `AsyncSystem` executes
-//! 
+//!
 //! Think of an `AsyncSystem` like a loop:
-//! 
+//!
 //! * if this `Future` is not running at the start of this frame, run it.
 //! * If the function finishes, rerun on the next frame.
 //! * If the entity is dropped, the `Future` will be cancelled.
-//! 
+//!
 //! So this is similar to
-//! 
+//!
 //! ```
 //! # /*
 //! spawn(async {
@@ -45,10 +45,10 @@
 //! })
 //! # */
 //! ```
-//! 
+//!
 //! If you want some state to persist, for example keeping a handle alive or using a
 //! `AsyncEventReader`, you might want to implement the async system as a loop:
-//! 
+//!
 //! ```
 //! # /*
 //! let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventReader<Input<MouseWheel>>|{
@@ -61,13 +61,12 @@
 //! })
 //! # */
 //! ```
-//! 
+//!
 use super::AccessError;
 #[allow(unused)]
 use crate::{
     access::AsyncComponent,
     signals::{Receiver, Sender},
-    SystemError,
 };
 use crate::{
     executor::REACTORS, reactors::Reactors, signals::Signals, AccessResult, AsyncExecutor,
@@ -90,35 +89,6 @@ use std::{
     sync::Arc,
     task::{Poll, Waker},
 };
-
-/// Construct a [`Future`] via [`AsyncSystem`] semantics.
-///
-/// The future repeats forever, unless [`SystemError::ManuallyKilled`] is returned.
-///
-/// This function uses [`AsyncWorldParam`] as parameters, as there is no active entity.
-///
-/// See [`async_system!`](crate::async_system) for syntax.
-#[macro_export]
-macro_rules! system_future {
-    (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
-        async move {
-            use $crate::access::*;
-            loop {
-                $(let $field = <$ty as $crate::async_systems::AsyncWorldParam>::build_in_async().ok_or($crate::AccessError::WorldParamNotFound)?;)*
-                match async {
-                    let _ = $body;
-                    Result::<(), $crate::SystemError>::Ok(())
-                }.await {
-                    Ok(_) => (),
-                    Err($crate::SystemError::ManuallyKilled) => return Ok(()),
-                    Err($crate::SystemError::AccessError(e)) => {
-                        $crate::error!("{}", e);
-                    },
-                }
-            }
-        }
-    };
-}
 
 /// Construct an async system via the [`AsyncEntityParam`] abstraction.
 ///

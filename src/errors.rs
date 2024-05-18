@@ -109,25 +109,6 @@ impl AccessError {
     }
 }
 
-/// Error that has a `ManuallyKilled` component.
-#[derive(Debug, thiserror::Error)]
-pub enum SystemError {
-    #[error("{0}")]
-    AccessError(#[from] AccessError),
-    /// Return `Err(ManuallyKilled)` to terminate a `system_future!` future.
-    #[error("Manually killed.")]
-    ManuallyKilled,
-}
-
-impl From<SystemError> for AccessError {
-    fn from(value: SystemError) -> Self {
-        match value {
-            SystemError::AccessError(e) => e,
-            SystemError::ManuallyKilled => AccessError::ShouldNotHappen,
-        }
-    }
-}
-
 /// Construct a [`CustomError`] from a [`AccessError`] and [`format!`] syntax.
 #[macro_export]
 macro_rules! format_error {

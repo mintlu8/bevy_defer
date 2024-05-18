@@ -32,9 +32,9 @@ use std::{
 use bevy_ecs::entity::Entity;
 
 impl AsyncWorld {
-    /// Apply a command, does not wait for it to complete.
+    /// Apply a command.
     ///
-    /// Use [`AsyncWorld::run`] to wait and obtain a result.
+    /// Use [`AsyncWorld::run`] to obtain a result instead.
     ///
     /// # Example
     ///
@@ -47,7 +47,7 @@ impl AsyncWorld {
         with_world_mut(|w| command.apply(w))
     }
 
-    /// Apply a [`CommandQueue`], does not wait for it to complete.
+    /// Apply a [`CommandQueue`].
     ///
     /// # Example
     ///
@@ -63,10 +63,6 @@ impl AsyncWorld {
     }
 
     /// Apply a function on the [`World`] and obtain the result.
-    ///
-    /// ## Note
-    ///
-    /// Dropping the future will stop the task.
     ///
     /// # Example
     ///
@@ -101,6 +97,7 @@ impl AsyncWorld {
         receiver.into_out()
     }
 
+    /// Watch as [`Either::Left`].
     pub(crate) fn watch_left<T: 'static, R: Future>(
         &self,
         f: impl FnMut(&mut World) -> Option<T> + 'static,

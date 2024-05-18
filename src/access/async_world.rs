@@ -1,6 +1,4 @@
-use crate::access::{
-    AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource,
-};
+use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
 use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::executor::QUERY_QUEUE;
@@ -24,13 +22,13 @@ use bevy_ecs::{system::Commands, world::World};
 use crate::{AsyncExecutor, QueryQueue};
 
 /// Async version of [`World`] or [`Commands`].
-/// 
+///
 /// This type only works inside a `bevy_defer` future,
-/// calling any function outside of a `bevy_defer` future 
+/// calling any function outside of a `bevy_defer` future
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
-/// 
-/// If you need the functionalities defined here in sync code, see non-send resources 
+///
+/// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
 #[derive(Debug, Copy, Clone)]
 pub struct AsyncWorld;
@@ -102,13 +100,13 @@ impl AsyncWorld {
 }
 
 /// Async version of `EntityMut` or `EntityCommands`.
-/// 
+///
 /// This type only works inside a `bevy_defer` future,
-/// calling any function outside of a `bevy_defer` future 
+/// calling any function outside of a `bevy_defer` future
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
-/// 
-/// If you need the functionalities defined here in sync code, see non-send resources 
+///
+/// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
 #[derive(Debug, Clone)]
 pub struct AsyncEntityMut(pub(crate) Entity);

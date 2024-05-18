@@ -1,19 +1,9 @@
-use bevy::{
-    sprite::{Sprite, SpriteBundle},
-    transform::components::{GlobalTransform, Transform},
-    MinimalPlugins,
-};
 use bevy_app::App;
 use bevy_core::FrameCountPlugin;
-use bevy_defer::{
-    access::AsyncWorld, system_future, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin,
-};
-use bevy_ecs::{component::Component, query::With};
+use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
+use bevy_ecs::component::Component;
 use bevy_time::TimePlugin;
-use std::sync::{
-    atomic::{AtomicBool, AtomicI64, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Component)]
 pub struct Int(i32);
@@ -84,32 +74,4 @@ pub fn main() {
     // With world access can resolve in one frame.
     app.update();
     assert!(LOCK.load(Ordering::SeqCst))
-}
-
-#[test]
-pub fn system_future() {
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins(AsyncPlugin::default_settings());
-    let lock = Arc::new(AtomicI64::new(0));
-    let lock2 = lock.clone();
-    app.spawn_task(system_future!(|w: AsyncWorld,
-                                   q: AsyncQuery<
-        (&mut Transform, &Sprite),
-        With<GlobalTransform>,
-    >| {
-        let cloned = lock.clone();
-        w.spawn_bundle(SpriteBundle::default());
-        q.for_each(move |_| {
-            cloned.fetch_add(1, Ordering::Relaxed);
-        });
-        if lock.load(Ordering::Relaxed) > 10 {
-            w.quit();
-        }
-        w.yield_now().await;
-        // Uses AsyncSystem semantics so failure does not cancel the system.
-        Err(AccessError::ComponentNotFound)?;
-    }));
-    app.run();
-    assert!(lock2.load(Ordering::Relaxed) > 10);
 }

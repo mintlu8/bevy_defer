@@ -3,8 +3,8 @@ use crate::async_systems::AsyncWorldParam;
 use crate::reactors::Reactors;
 use crate::signals::Signals;
 use bevy_ecs::component::Component;
-use bevy_ecs::system::Resource;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::system::Resource;
 use std::marker::PhantomData;
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.

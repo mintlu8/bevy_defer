@@ -25,13 +25,14 @@ pub use crate::executor::{in_async_context, spawn, spawn_scoped};
 pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
+pub use access::AsyncWorld;
 use bevy_ecs::{
     schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
     system::{Command, Commands},
     world::World,
 };
 use bevy_reflect::std_traits::ReflectDefault;
-pub use errors::{AccessError, CustomError, SystemError};
+pub use errors::{AccessError, CustomError};
 pub use executor::AsyncExecutor;
 pub use queue::QueryQueue;
 use reactors::Reactors;
