@@ -38,37 +38,43 @@ futures::join! {
 swing_animation().await;
 ```
 
-* Why not `bevy_tasks`?
+## Why not `bevy_tasks`?
 
-`bevy_defer` provides mutable world access.
-All `bevy_defer` futures can access the currently
-running bevy `World` as a in memory database.
-The user can schedule tasks and mutate the world at the same time.
+`bevy_tasks` has no direct world access, which makes it difficult to write game
+logic in it.
 
-## Bridging Sync and Async
+The core idea behind `bevy_defer` is straightforward:
 
-Communicating between sync and async in notoriously difficult. See
-this amazing tokio article: <https://tokio.rs/tokio/topics/bridging>.
+```rust, ignore
+// Pseudocode
+static WORLD_CELL: Mutex<&mut World>;
 
-Fortunately we are running in lock step with bevy, so a lot of those headache
-can be mitigated by using proper communication methods.
+fn run_async_executor_system(world: &mut World) {
+    let executor = world.get_executor();
+    WORLD_CELL.set(world);
+    executor.run();
+    WORLD_CELL.remove(world);
+}
+```
 
-Communicating from sync to async is simple, async code can hand out channels
-and `await` on them, pausing the task.
-Once sync code sends data through the channel, it will
-wake and resume the corresponding task.
+Futures spawned onto the executor can access the `World`
+via access functions, similar to how database transaction works:
 
-Communicating from async to sync usually requires mutating the world in an async
-function, then a system can listen for that particular change in sync code.
-This is seamless with regular bevy workflow.
+```rust, ignore
+WORLD_CELL.with(|world: &mut World| {
+    world.entity(entity).get::<Transform>().clone()
+})
+```
 
-## Spawning
+As long as no references can be borrowed from the world,
+and the executor is single threaded, this is perfectly sound!
 
-Spawning is a straightforward way to run some logic immediately.
+## Spawning a Task
 
-You can spawn a coroutine to schedule some tasks.
-The main benefit is this function can take as long as it needs
-to complete, instead of a single frame like a normal system.
+You can spawn a task onto `bevy_defer`
+from `World`, `App`, `Commands`, `AsyncWorld` or `AsyncExecutor`.
+
+Here is an example:
 
 ```rust, ignore
 commands.spawn_task(|| async move {
@@ -109,8 +115,7 @@ commands.spawn_task(|| async move {
 
 ## World Accessors
 
-`bevy_defer` holds the world as a thread local reference.
-We provide types mimicking bevy's types:
+`bevy_defer` provides types mimicking bevy's types:
 
 | Query Type | Corresponding Bevy/Sync Type |
 | ---- | ----- |
@@ -118,7 +123,7 @@ We provide types mimicking bevy's types:
 | `AsyncEntityMut` | `EntityMut` / `EntityCommands` |
 | `AsyncQuery` | `WorldQuery` |
 | `AsyncEntityQuery` | `WorldQuery` on `Entity` |
-| `AsyncSystemParam` | `SystemParam` |
+| `AsyncQuerySingle` | `WorldQuery` with `single()` |
 | `AsyncComponent` | `Component` |
 | `AsyncResource` | `Resource` |
 | `AsyncNonSend` | `NonSend` |
@@ -129,96 +134,46 @@ We provide types mimicking bevy's types:
 for example a `Component` can be accessed by
 
 ```rust, ignore
-world().entity(entity).component::<Transform>()
+let translation = world()
+    .entity(entity)
+    .component::<Transform>()
+    .get(|t| {
+        t.translation
+    }
+)
 ```
 
 See the `access` module and the `AsyncAccess` trait for more detail.
 
 You can add extension methods to these accessors via `Deref` if you own the
-underlying types. See the `access::deref` module for more detail.
+underlying types. See the `access::deref` module for more detail. The
+`async_access` derive macro can be useful for adding method to
+async accessors.
 
-## Signals
+We do not provide a `AsyncSystemParam`, since the one-shot system based API on `AsyncWorld`
+can cover all cases where you need to running systems in `bevy_defer`.
 
-Signals are the cornerstone of reactive programming in `bevy_defer`
-that bridges the sync and async world.
-The `Signals` component can be added to an entity,
-and the `NamedSignals` resource can be used to
-provide matching signals when needed.
+## Bridging Sync and Async
 
-The implementation is similar to tokio's `Watch` channel and here are the guarantees:
+Communicating between sync and async can be daunting for new users. See
+this amazing tokio article: <https://tokio.rs/tokio/topics/bridging>.
 
-* A `Signal` can hold only one value.
-* A `Signal` is read at most once per write for every reader.
-* Values are not guaranteed to be read if updated in rapid succession.
-* Value prior to reader creation will not be read by a new reader.
+Fortunately we are running in lock step with bevy, so a lot of those headache
+can be mitigated by using proper communication methods.
 
-`Signals` erases the underlying types and utilizes the `SignalId` trait to disambiguate signals,
-this ensures no archetype fragmentation.
+Communicating from sync to async is simple, async code can provide channels
+to sync code and `await` on them, pausing the task.
+Once sync code sends data through the channel, it will
+wake and resume the corresponding task.
 
-In systems, you can use `SignalSender` and `SignalReceiver` just like you would in async,
-you can build "reactors" this way by sending message to the async world through signals.
-A common pattern is `react_to_component_change`, where you build a state machine like
-`bevy_ui::Interaction` in bevy code, add `react_to_component_change` as a system,
-then listen to the signal `Change<T>` as a `Stream` in async.
+Communicating from async to sync usually requires mutating the world in an async
+function, then a system can listen for that particular change in sync code.
+This is seamless with regular bevy workflow.
 
-Keep in mind these `SignalSender` and `SignalReceiver` do not filter archetypes,
-if you only care about sending signals, make sure to add `With<Signals>` for better performance.
+## Signals and AsyncSystems
 
-## AsyncSystems
-
-`AsyncSystem` is a system-like async function on a specific entity.
-The component `AsyncSystems` is a collection of `AsyncSystem`s that runs independently.
-
-### Example
-
-To create an `AsyncSystem`, use a macro:
-
-```rust, ignore
-// Scale up for a second when clicked. 
-let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<Transform>|{
-    let pos: Vec3 = recv.recv().await;
-    transform.set(|transform| transform.scale = Vec3::splat(2.0)).await?;
-    world().sleep(1.0).await;
-    transform.set(|transform| transform.scale = Vec3::ONE).await?;
-})
-```
-
-The parameters implement `AsyncEntityParam`.
-
-### How an `AsyncSystem` executes
-
-Think of an `AsyncSystem` like a loop:
-
-* if this `Future` is not running at the start of this frame, run it.
-* If the function finishes, rerun on the next frame.
-* If the entity is dropped, the `Future` will be cancelled.
-
-So this is similar to
-
-```rust, ignore
-spawn(async {
-    loop {
-        futures::select! {
-            _ = async_system => (),
-            _ = cancel => break,
-        }
-    }
-})
-```
-
-If you want some state to persist, for example keeping a handle alive or using a
-`AsyncEventReader`, you might want to implement the async system as a loop:
-
-```rust, ignore
-let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventReader<Input<MouseWheel>>|{
-    loop {
-        futures::select! {
-            _ = recv.recv().fused() => ..,
-            pos = mouse_wheel.poll().fused() => ..
-        }
-    }
-})
-```
+`AsyncSystems` and `Signals` provides per-entity reactivity for user interfaces.
+Checkout their respective modules for more information.
 
 ## Implementation Details
 

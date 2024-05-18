@@ -1,5 +1,67 @@
 //! Per-entity repeatable async functions.
-
+//!
+//! [`AsyncSystem`] is a system-like async function on a specific entity.
+//! The component [`AsyncSystems`] is a collection of `AsyncSystem`s that runs independently.
+//! 
+//! Generally `AsyncSystems` is useful for providing reactivity with UI when combined with signals.
+//! 
+//! # Example
+//! 
+//! To create an [`AsyncSystem`], use the [`async_system!`] macro:
+//! 
+//! ```
+//! # /*
+//! // Scale up for a second when clicked. 
+//! let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<Transform>|{
+//!     let pos: Vec3 = recv.recv().await;
+//!     transform.set(|transform| transform.scale = Vec3::splat(2.0)).await?;
+//!     world().sleep(1.0).await;
+//!     transform.set(|transform| transform.scale = Vec3::ONE).await?;
+//! })
+//! # */
+//! ```
+//! 
+//! The parameters must implement [`AsyncEntityParam`].
+//! 
+//! # How an `AsyncSystem` executes
+//! 
+//! Think of an `AsyncSystem` like a loop:
+//! 
+//! * if this `Future` is not running at the start of this frame, run it.
+//! * If the function finishes, rerun on the next frame.
+//! * If the entity is dropped, the `Future` will be cancelled.
+//! 
+//! So this is similar to
+//! 
+//! ```
+//! # /*
+//! spawn(async {
+//!     loop {
+//!         futures::select! {
+//!             _ = async_system => (),
+//!             _ = cancel => break,
+//!         }
+//!     }
+//! })
+//! # */
+//! ```
+//! 
+//! If you want some state to persist, for example keeping a handle alive or using a
+//! `AsyncEventReader`, you might want to implement the async system as a loop:
+//! 
+//! ```
+//! # /*
+//! let system = async_system!(|recv: Receiver<OnClick>, mouse_wheel: AsyncEventReader<Input<MouseWheel>>|{
+//!     loop {
+//!         futures::select! {
+//!             _ = recv.recv().fused() => ..,
+//!             pos = mouse_wheel.poll().fused() => ..
+//!         }
+//!     }
+//! })
+//! # */
+//! ```
+//! 
 use super::AccessError;
 #[allow(unused)]
 use crate::{
