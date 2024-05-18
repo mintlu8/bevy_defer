@@ -471,7 +471,9 @@ impl AsyncWorld {
     /// # Panics
     ///
     /// If used outside a `bevy_defer` future.
-    pub fn spawn_scoped<T: 'static>(fut: impl Future<Output = T> + 'static) -> impl Future<Output = T> {
+    pub fn spawn_scoped<T: 'static>(
+        fut: impl Future<Output = T> + 'static,
+    ) -> impl Future<Output = T> {
         if !SPAWNER.is_set() {
             panic!("bevy_defer::spawn_scoped can only be used in a bevy_defer future.")
         }
@@ -499,13 +501,20 @@ impl AsyncWorld {
     /// # Panics
     ///
     /// If used outside a `bevy_defer` future.
-    pub fn spawn_log<T: 'static, E: Display + 'static>(fut: impl Future<Output = Result<T, E>> + 'static) {
+    pub fn spawn_log<T: 'static, E: Display + 'static>(
+        fut: impl Future<Output = Result<T, E>> + 'static,
+    ) {
         use futures::FutureExt;
         if !SPAWNER.is_set() {
             panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
         }
-        SPAWNER.with(|s| s.spawn(fut.map(|r| if let Err(e) = r {
-            error!("{e}");
-        })).detach());
+        SPAWNER.with(|s| {
+            s.spawn(fut.map(|r| {
+                if let Err(e) = r {
+                    error!("{e}");
+                }
+            }))
+            .detach()
+        });
     }
 }

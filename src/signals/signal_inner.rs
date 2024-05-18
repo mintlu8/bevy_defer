@@ -23,7 +23,7 @@ pub(crate) struct SignalData<T> {
 
 /// The shared component of a signal.
 #[derive(Debug, Default)]
-pub struct SignalInner<T> {
+pub(crate) struct SignalInner<T> {
     pub(crate) inner: Arc<SignalData<T>>,
     pub(crate) tick: AtomicU32,
 }
@@ -37,14 +37,6 @@ pub struct Signal<T>(Arc<SignalInner<T>>);
 #[derive(Debug, Default)]
 #[repr(transparent)]
 pub struct SignalBorrow<T>(Signal<T>);
-
-impl<T> Deref for Signal<T> {
-    type Target = Arc<SignalInner<T>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 impl<T> Deref for SignalBorrow<T> {
     type Target = Signal<T>;
@@ -94,8 +86,9 @@ impl<T: Send + Sync + 'static> Signal<T> {
 
     /// Rewind the read tick and allow the current value to be read.
     pub fn rewind(&self) {
-        let tick = self.inner.tick.load(Ordering::Relaxed);
-        self.inner
+        let tick = self.0.inner.tick.load(Ordering::Relaxed);
+        self.0
+            .inner
             .tick
             .store(tick.wrapping_sub(1), Ordering::Relaxed);
     }
@@ -126,10 +119,10 @@ impl<T: Clone + Send + Sync + 'static> SignalBorrow<T> {
 impl<T: Send + Sync + 'static> Signal<T> {
     /// Send a value, does not increment the read tick.
     pub fn send(&self, value: T) {
-        let mut lock = self.inner.data.write();
+        let mut lock = self.0.inner.data.write();
         *lock = value;
-        self.inner.tick.fetch_add(1, Ordering::Relaxed);
-        self.inner.event.notify(usize::MAX);
+        self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
+        self.0.inner.event.notify(usize::MAX);
     }
 
     /// Send a value if changed, does not increment the read tick.
@@ -137,21 +130,23 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: PartialEq,
     {
-        let mut lock = self.inner.data.write();
+        let mut lock = self.0.inner.data.write();
         if *lock != value {
             *lock = value;
-            self.inner.tick.fetch_add(1, Ordering::Relaxed);
-            self.inner.event.notify(usize::MAX);
+            self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
+            self.0.inner.event.notify(usize::MAX);
         }
     }
 
     /// Send a value and increment the read tick.
     pub fn broadcast(&self, value: T) {
-        let mut lock = self.inner.data.write();
+        let mut lock = self.0.inner.data.write();
         *lock = value;
-        let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
-        self.inner.event.notify(usize::MAX);
-        self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
+        let version = self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
+        self.0.inner.event.notify(usize::MAX);
+        self.0
+            .tick
+            .store(version.wrapping_add(1), Ordering::Relaxed)
     }
 
     /// Send a value and increment the read tick.
@@ -159,12 +154,14 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: PartialEq,
     {
-        let mut lock = self.inner.data.write();
+        let mut lock = self.0.inner.data.write();
         if *lock != value {
             *lock = value;
-            let version = self.inner.tick.fetch_add(1, Ordering::Relaxed);
-            self.inner.event.notify(usize::MAX);
-            self.tick.store(version.wrapping_add(1), Ordering::Relaxed)
+            let version = self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
+            self.0.inner.event.notify(usize::MAX);
+            self.0
+                .tick
+                .store(version.wrapping_add(1), Ordering::Relaxed)
         }
     }
 
@@ -173,9 +170,9 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: Clone,
     {
-        let version = self.inner.tick.load(Ordering::Relaxed);
-        if self.tick.swap(version, Ordering::Relaxed) != version {
-            Some(self.inner.data.read().clone())
+        let version = self.0.inner.tick.load(Ordering::Relaxed);
+        if self.0.tick.swap(version, Ordering::Relaxed) != version {
+            Some(self.0.inner.data.read().clone())
         } else {
             None
         }
@@ -186,9 +183,9 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: Clone,
     {
-        let version = self.inner.tick.load(Ordering::Relaxed);
-        self.tick.swap(version, Ordering::Relaxed);
-        self.inner.data.read().clone()
+        let version = self.0.inner.tick.load(Ordering::Relaxed);
+        self.0.tick.swap(version, Ordering::Relaxed);
+        self.0.inner.data.read().clone()
     }
 
     /// Poll the signal value asynchronously.
@@ -200,7 +197,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
         SignalFuture(
             FutureWrapper::new(SignalFutureInner {
                 signal: self.0.clone(),
-                listener: Some(self.inner.event.listen()),
+                listener: Some(self.0.inner.event.listen()),
             })
             .fuse(),
         )
@@ -279,7 +276,7 @@ impl<T: Clone + Send + Sync + 'static> Stream for SignalStream<T> {
                 Some(result) => return Poll::Ready(Some(result)),
                 None => {
                     if self.listener.is_none() {
-                        self.listener = Some(self.signal.inner.event.listen());
+                        self.listener = Some(self.signal.0.inner.event.listen());
                     }
                     match NonBlocking::default().poll(&mut self.listener, cx) {
                         Poll::Ready(()) => (),
