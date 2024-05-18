@@ -78,37 +78,34 @@ Here is an example:
 
 ```rust, ignore
 commands.spawn_task(|| async move {
-    // This is an `AsyncWorld`.
-    // like tokio::spawn() this only works in the async context.
-    let world = world();
     // Wait for state to be `GameState::Animating`.
-    world.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await;
+    AsyncWorld.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await;
     // Obtain info from a resource.
     // Since the `World` stored as a thread local, 
     // a closure is the preferable syntax to access it.
-    let richard_entity = world.resource::<NamedEntities>()
+    let richard_entity = AsyncWorld.resource::<NamedEntities>()
         .get(|res| *res.get("Richard").unwrap())?;
     // Move to an entity's scope, does not verify the entity exists.
-    let richard = world.entity(richard_entity);
+    let richard = AsyncWorld.entity(richard_entity);
     // We can also mutate the world directly.
     richard.component::<HP>().set(|hp| hp.set(500))?;
     // Move to a component's scope, does not verify the entity or component exists.
-    let animator = richard.component::<Animator>();
+    let animator = AsyncWorld.component::<Animator>();
     // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
     animator.animate("Wave").await?;
     // Spawn another future on the executor.
-    let audio = spawn(sound_routine(richard_entity));
+    let audio = AsyncWorld.spawn(sound_routine(richard_entity));
     // Dance for 5 seconds with `select`.
     futures::select!(
         _ = animator.animate("Dance").fuse() => (),
-        _ = world.sleep(Duration::from_secs(5)) => println!("Dance cancelled"),
+        _ = AsyncWorld.sleep(Duration::from_secs(5)) => println!("Dance cancelled"),
     );
     // animate back to idle
     richard.component::<Animator>().animate("Idle").await?;
     // Wait for spawned future to complete
     audio.await?;
     // Tell the bevy App to quit.
-    world.quit();
+    AsyncWorld.quit();
     Ok(())
 });
 ```

@@ -148,7 +148,7 @@ pub fn main() {
         // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
         let animator = richard.component::<Animator>();
         animator.animate("Wave").await?;
-        let audio = AsyncWorld::spawn_scoped(sound_routine(richard_entity));
+        let audio = AsyncWorld.spawn_scoped(sound_routine(richard_entity));
         // Dance for 5 seconds with `select`.
         futures::select!(
             _ = animator.animate("Dance").fuse() => (),

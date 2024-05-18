@@ -27,8 +27,14 @@ fn test() {
     let mut app = App::new();
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_plugins(MinimalPlugins);
+    app.insert_resource(Unit {
+        name: "".to_owned(),
+    });
     app.spawn_task(async {
         AsyncWorld.resource::<Unit>().set_name("Name")?;
+        assert_eq!(AsyncWorld.resource::<Unit>().name().unwrap(), "Name");
+        AsyncWorld.quit();
         Ok(())
     });
+    app.run();
 }
