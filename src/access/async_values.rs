@@ -1,62 +1,11 @@
 use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
-use crate::executor::with_world_mut;
 use crate::reactors::Reactors;
 use crate::signals::Signals;
-use crate::{AccessError, AccessResult};
 use bevy_ecs::component::Component;
-use bevy_ecs::system::{In, Resource, StaticSystemParam, SystemId, SystemParam};
-use bevy_ecs::{entity::Entity, world::World};
+use bevy_ecs::system::Resource;
+use bevy_ecs::entity::Entity;
 use std::marker::PhantomData;
-
-/// Async version of [`SystemParam`].
-#[derive(Debug)]
-pub struct AsyncSystemParam<P: SystemParam>(pub(crate) PhantomData<P>);
-
-impl<P: SystemParam> Copy for AsyncSystemParam<P> {}
-
-impl<P: SystemParam> Clone for AsyncSystemParam<P> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<P: SystemParam> AsyncWorldParam for AsyncSystemParam<P> {
-    fn from_async_context(_: &Reactors) -> Option<Self> {
-        Some(AsyncSystemParam(PhantomData))
-    }
-}
-
-type SysParamFn<Q, T> = dyn Fn(StaticSystemParam<Q>) -> T + Send + Sync + 'static;
-
-#[derive(Debug, Resource)]
-struct ResSysParamId<P: SystemParam, T>(SystemId<Box<SysParamFn<P, T>>, T>);
-
-impl<Q: SystemParam + 'static> AsyncSystemParam<Q> {
-    /// Run a function on the [`SystemParam`] and obtain the result.
-    pub fn run<T: Send + Sync + 'static>(
-        &self,
-        f: impl (Fn(StaticSystemParam<Q>) -> T) + Send + Sync + 'static,
-    ) -> AccessResult<T> {
-        with_world_mut(move |world: &mut World| {
-            let id = match world.get_resource::<ResSysParamId<Q, T>>() {
-                Some(res) => res.0,
-                None => {
-                    let id = world.register_system(
-                        |input: In<Box<SysParamFn<Q, T>>>, query: StaticSystemParam<Q>| -> T {
-                            (input.0)(query)
-                        },
-                    );
-                    world.insert_resource(ResSysParamId(id));
-                    id
-                }
-            };
-            world
-                .run_system_with_input(id, Box::new(f))
-                .map_err(|_| AccessError::SystemParamError)
-        })
-    }
-}
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
 #[derive(Debug)]

@@ -4,13 +4,12 @@ use bevy_asset::Asset;
 use bevy_ecs::{
     component::Component,
     query::{QueryData, QueryFilter},
-    system::{Resource, SystemParam},
+    system::Resource,
 };
 use std::ops::Deref;
 
 use super::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource,
-    AsyncSystemParam,
 };
 
 /// Add method to [`AsyncComponent`] through deref.
@@ -67,25 +66,6 @@ where
 
     fn deref(&self) -> &Self::Target {
         AsyncNonSendDeref::async_deref(self)
-    }
-}
-
-/// Add method to [`AsyncSystemParam`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncSystemParamDeref: SystemParam + Sized {
-    type Target;
-    fn async_deref(this: &AsyncSystemParam<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncSystemParam<C>
-where
-    C: AsyncSystemParamDeref,
-{
-    type Target = <C as AsyncSystemParamDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncSystemParamDeref::async_deref(self)
     }
 }
 

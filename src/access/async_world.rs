@@ -1,5 +1,5 @@
 use crate::access::{
-    AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource, AsyncSystemParam,
+    AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource,
 };
 use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
@@ -10,7 +10,7 @@ use bevy_ecs::{
     component::Component,
     entity::Entity,
     query::{QueryData, QueryFilter},
-    system::{Resource, SystemParam},
+    system::Resource,
 };
 use bevy_utils::Duration;
 use ref_cast::RefCast;
@@ -77,11 +77,6 @@ impl AsyncWorld {
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
         AsyncQuery(PhantomData)
-    }
-
-    /// Obtain an [`AsyncSystemParam`].
-    pub fn system<P: SystemParam>(&self) -> AsyncSystemParam<P> {
-        AsyncSystemParam(PhantomData)
     }
 
     /// Obtain duration from `init`, according to the executor.
