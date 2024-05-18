@@ -59,4 +59,5 @@ ty_map_gen = "0.1.4"
 
 [dev-dependencies]
 bevy = { version = "0.13.0" }
+fastrand = "2.1.0"
 futures = { version = "0.3.30" }

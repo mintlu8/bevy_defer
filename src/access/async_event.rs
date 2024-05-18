@@ -7,13 +7,14 @@ use bevy_core::FrameCount;
 use bevy_ecs::event::{Event, EventId, EventReader};
 use bevy_ecs::system::{Local, Res};
 use bevy_ecs::world::World;
-use futures::Stream;
-use parking_lot::{Mutex, RwLock};
+use event_listener::EventListener;
+use futures::{Future, Stream};
+use parking_lot::RwLock;
 use std::cell::OnceCell;
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Poll};
 
 impl AsyncWorld {
     /// Send an [`Event`].
@@ -26,6 +27,8 @@ impl AsyncWorld {
     }
 
     /// Create a stream to an [`Event`], requires the corresponding [`react_to_event`] system.
+    /// 
+    /// This requires [`Clone`] and duplicates all events sent in bevy.
     pub fn event_stream<E: Event + Clone>(&self) -> EventStream<E> {
         if !REACTORS.is_set() {
             panic!("Can only be used within a `bevy_defer` future.")
@@ -39,7 +42,7 @@ impl AsyncWorld {
 pub struct DoubleBufferedEvent<E: Event> {
     last: RwLock<Vec<E>>,
     this: RwLock<Vec<E>>,
-    wakers: Mutex<Vec<Waker>>,
+    wakers: event_listener::Event,
     current_frame: AtomicU32,
 }
 
@@ -48,6 +51,7 @@ impl<E: Event + Clone> DoubleBufferedEvent<E> {
         EventStream {
             frame: self.current_frame.load(Ordering::Relaxed).wrapping_sub(1),
             index: 0,
+            listener: None,
             event: self,
         }
     }
@@ -60,6 +64,7 @@ impl<E: Event + Clone> DoubleBufferedEvent<E> {
 pub struct EventStream<E: Event + Clone> {
     frame: u32,
     index: usize,
+    listener: Option<EventListener>,
     event: Arc<DoubleBufferedEvent<E>>,
 }
 
@@ -68,6 +73,7 @@ impl<E: Event + Clone> Clone for EventStream<E> {
         Self {
             frame: self.frame,
             index: self.index,
+            listener: None,
             event: self.event.clone(),
         }
     }
@@ -81,27 +87,34 @@ impl<E: Event + Clone> Stream for EventStream<E> {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
         let current_frame = this.event.current_frame.load(Ordering::Relaxed);
-        if current_frame != this.frame {
-            if this.frame != current_frame.wrapping_sub(1) {
-                this.frame = current_frame.wrapping_sub(1);
-                this.index = 0;
+        let listener = this.listener.get_or_insert_with(||this.event.wakers.listen());
+        loop {
+            if current_frame != this.frame {
+                if this.frame != current_frame.wrapping_sub(1) {
+                    this.frame = current_frame.wrapping_sub(1);
+                    this.index = 0;
+                }
+                let lock = this.event.last.read();
+                if let Some(event) = lock.get(this.index).cloned() {
+                    this.index += 1;
+                    this.listener = None;
+                    return Poll::Ready(Some(event));
+                } else {
+                    this.frame = current_frame;
+                    this.index = 0;
+                }
             }
-            let lock = this.event.last.read();
+            let lock = this.event.this.read();
             if let Some(event) = lock.get(this.index).cloned() {
                 this.index += 1;
-                return Poll::Ready(Some(event));
+                this.listener = None;
+                return Poll::Ready(Some(event))
             } else {
-                this.frame = current_frame;
-                this.index = 0;
+                match pin!(&mut *listener).poll(cx) {
+                    Poll::Ready(()) => (),
+                    Poll::Pending => return Poll::Pending,
+                }
             }
-        }
-        let lock = this.event.this.read();
-        if let Some(event) = lock.get(this.index).cloned() {
-            this.index += 1;
-            Poll::Ready(Some(event))
-        } else {
-            this.event.wakers.lock().push(cx.waker().clone());
-            Poll::Pending
         }
     }
 }
@@ -126,7 +139,7 @@ pub fn react_to_event<E: Event + Clone>(
 ) {
     let buffers = cached.get_or_init(|| reactors.get_event::<E>());
     if !reader.is_empty() {
-        buffers.wakers.lock().drain(..).for_each(|x| x.wake())
+        buffers.wakers.notify(usize::MAX);
     }
     if buffers.current_frame.swap(frame.0, Ordering::Relaxed) == frame.0 {
         buffers.this.write().extend(reader.read().cloned());

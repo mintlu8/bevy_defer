@@ -1,10 +1,10 @@
 use std::{
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU32, Ordering},
     time::Duration,
 };
 
 use bevy::MinimalPlugins;
-use bevy_app::{App, Startup, Update};
+use bevy_app::{App, PostUpdate, PreUpdate, Startup, Update};
 use bevy_core::FrameCountPlugin;
 use bevy_defer::{
     access::AsyncWorld,
@@ -238,4 +238,39 @@ pub fn stream() {
 
     app.run();
     assert!(DONE.load(Ordering::SeqCst));
+}
+
+#[derive(Debug, Event, Clone)]
+struct IntegerEvent(u32);
+
+static CELL: AtomicU32 = AtomicU32::new(0);
+#[test]
+pub fn event_stream() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins(AsyncPlugin::default_settings());
+    app.spawn_task(async {
+        let mut i = 0;
+        let mut stream = AsyncWorld.event_stream::<IntegerEvent>();
+        while let Some(val) = stream.next().await {
+            assert_eq!(val.0, i);
+            i += 1;
+            if i > 100 {
+                break;
+            }
+        }
+        AsyncWorld.quit();
+        Ok(())
+    });
+    app.add_systems(Update, sys_update);
+    app.add_systems(Update, sys_update);
+    app.add_systems(Update, sys_update);
+    app.add_systems(PreUpdate, sys_update);
+    app.add_systems(PostUpdate, sys_update);
+}
+
+fn sys_update(mut event: EventWriter<IntegerEvent>) {
+    for _ in 0..fastrand::usize(0..5) {
+        event.send(IntegerEvent(CELL.fetch_add(1, Ordering::SeqCst)));
+    }
 }
