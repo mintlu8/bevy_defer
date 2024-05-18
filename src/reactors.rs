@@ -14,7 +14,7 @@ use std::{cell::OnceCell, convert::Infallible, marker::PhantomData, sync::Arc};
 use ty_map_gen::type_map;
 
 use crate::signals::{Receiver, Signal, SignalId, SignalSender, Signals};
-use crate::{access::async_event::DoubleBufferedEvent, signals::SignalMap};
+use crate::{access::async_event::EventBuffer, signals::SignalMap};
 
 /// Signal that sends changed values of a [`States`].
 #[derive(Debug, Clone, Copy)]
@@ -37,7 +37,7 @@ type_map!(
 type_map!(
     /// A type map of signals.
     #[derive(Clone)]
-    pub EventBufferMap where E [Event] => Arc<DoubleBufferedEvent<E>> [Clone + Send + Sync] as FxHashMap
+    pub EventBufferMap where E [Event] => Arc<EventBuffer<E>> [Clone + Send + Sync] as FxHashMap
 );
 
 /// Named or typed synchronization primitives of `bevy_defer`.
@@ -84,12 +84,12 @@ impl Reactors {
     }
 
     /// Obtain an event buffer by event type.
-    pub fn get_event<E: Event + Clone>(&self) -> Arc<DoubleBufferedEvent<E>> {
+    pub fn get_event<E: Event + Clone>(&self) -> Arc<EventBuffer<E>> {
         let mut lock = self.0.event_buffers.lock();
         if let Some(data) = lock.get::<E>() {
             data.clone()
         } else {
-            let signal = <Arc<DoubleBufferedEvent<E>>>::default();
+            let signal = <Arc<EventBuffer<E>>>::default();
             lock.insert::<E>(signal.clone());
             signal
         }

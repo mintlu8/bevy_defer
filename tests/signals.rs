@@ -140,8 +140,8 @@ pub fn events() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_event::<AliceChat>();
     app.add_event::<BobChat>();
-    app.add_systems(Update, react_to_event::<AliceChat>);
-    app.add_systems(Update, react_to_event::<BobChat>);
+    app.add_systems(PreUpdate, react_to_event::<AliceChat>);
+    app.add_systems(PreUpdate, react_to_event::<BobChat>);
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = AsyncWorld;
@@ -183,13 +183,12 @@ pub struct Chat(char);
 pub fn stream() {
     static DONE: AtomicBool = AtomicBool::new(false);
     let mut app = App::new();
-    app.add_plugins(AsyncPlugin::default_settings());
     app.add_event::<Chat>();
     app.add_plugins(MinimalPlugins);
-    app.add_systems(Update, react_to_event::<Chat>);
+    app.add_plugins(AsyncPlugin::default_settings());
+    app.add_systems(PreUpdate, react_to_event::<Chat>);
     app.spawn_task(async {
-        let world = AsyncWorld;
-        let mut stream = world.event_stream::<Chat>();
+        let mut stream = AsyncWorld.event_stream::<Chat>();
         assert_eq!(stream.next().await, Some(Chat('r')));
         assert_eq!(stream.next().await, Some(Chat('u')));
         assert_eq!(stream.next().await, Some(Chat('s')));
@@ -202,13 +201,12 @@ pub fn stream() {
         assert_eq!(stream.next().await, Some(Chat('v')));
         assert_eq!(stream.next().await, Some(Chat('y')));
         if DONE.swap(true, Ordering::Relaxed) {
-            world.quit();
+            AsyncWorld.quit();
         }
         Ok(())
     });
     app.spawn_task(async {
-        let world = AsyncWorld;
-        let mut stream = world
+        let mut stream = AsyncWorld
             .event_stream::<Chat>()
             .map(|c| c.0.to_ascii_uppercase());
         assert_eq!(stream.next().await, Some('R'));
@@ -223,7 +221,7 @@ pub fn stream() {
         assert_eq!(stream.next().await, Some('V'));
         assert_eq!(stream.next().await, Some('Y'));
         if DONE.swap(true, Ordering::Relaxed) {
-            world.quit();
+            AsyncWorld.quit();
         }
         Ok(())
     });
@@ -248,6 +246,7 @@ static CELL: AtomicU32 = AtomicU32::new(0);
 pub fn event_stream() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
+    app.add_event::<IntegerEvent>();
     app.add_plugins(AsyncPlugin::default_settings());
     app.spawn_task(async {
         let mut i = 0;
@@ -262,11 +261,13 @@ pub fn event_stream() {
         AsyncWorld.quit();
         Ok(())
     });
+    app.add_systems(PreUpdate, react_to_event::<IntegerEvent>);
     app.add_systems(Update, sys_update);
     app.add_systems(Update, sys_update);
     app.add_systems(Update, sys_update);
     app.add_systems(PreUpdate, sys_update);
     app.add_systems(PostUpdate, sys_update);
+    app.run()
 }
 
 fn sys_update(mut event: EventWriter<IntegerEvent>) {

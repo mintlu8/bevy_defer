@@ -3,15 +3,15 @@ use crate::async_systems::AsyncWorldParam;
 use crate::executor::{with_world_mut, REACTORS};
 use crate::reactors::Reactors;
 use crate::{AccessError, AccessResult};
-use bevy_core::FrameCount;
 use bevy_ecs::event::{Event, EventId, EventReader};
 use bevy_ecs::system::{Local, Res};
 use bevy_ecs::world::World;
 use event_listener::EventListener;
-use futures::{Future, Stream};
+use event_listener_strategy::{NonBlocking, Strategy};
+use futures::Stream;
 use parking_lot::RwLock;
 use std::cell::OnceCell;
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -39,17 +39,16 @@ impl AsyncWorld {
 
 /// A double buffered [`Stream`] of [`Event`]s.
 #[derive(Debug)]
-pub struct DoubleBufferedEvent<E: Event> {
-    last: RwLock<Vec<E>>,
-    this: RwLock<Vec<E>>,
-    wakers: event_listener::Event,
-    current_frame: AtomicU32,
+pub struct EventBuffer<E: Event> {
+    buffer: RwLock<Vec<E>>,
+    notify: event_listener::Event,
+    tick: AtomicU32,
 }
 
-impl<E: Event + Clone> DoubleBufferedEvent<E> {
+impl<E: Event + Clone> EventBuffer<E> {
     pub fn into_stream(self: Arc<Self>) -> EventStream<E> {
         EventStream {
-            frame: self.current_frame.load(Ordering::Relaxed).wrapping_sub(1),
+            tick: self.tick.load(Ordering::Acquire).wrapping_sub(1),
             index: 0,
             listener: None,
             event: self,
@@ -58,20 +57,18 @@ impl<E: Event + Clone> DoubleBufferedEvent<E> {
 }
 
 /// A [`Stream`] of [`Event`]s, requires system [`react_to_event`] to function.
-///
-/// This follows bevy's double buffering semantics.
 #[derive(Debug)]
 pub struct EventStream<E: Event + Clone> {
-    frame: u32,
+    tick: u32,
     index: usize,
     listener: Option<EventListener>,
-    event: Arc<DoubleBufferedEvent<E>>,
+    event: Arc<EventBuffer<E>>,
 }
 
 impl<E: Event + Clone> Clone for EventStream<E> {
     fn clone(&self) -> Self {
         Self {
-            frame: self.frame,
+            tick: self.tick,
             index: self.index,
             listener: None,
             event: self.event.clone(),
@@ -86,31 +83,21 @@ impl<E: Event + Clone> Stream for EventStream<E> {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
-        let current_frame = this.event.current_frame.load(Ordering::Relaxed);
-        let listener = this.listener.get_or_insert_with(||this.event.wakers.listen());
         loop {
-            if current_frame != this.frame {
-                if this.frame != current_frame.wrapping_sub(1) {
-                    this.frame = current_frame.wrapping_sub(1);
-                    this.index = 0;
-                }
-                let lock = this.event.last.read();
-                if let Some(event) = lock.get(this.index).cloned() {
-                    this.index += 1;
-                    this.listener = None;
-                    return Poll::Ready(Some(event));
-                } else {
-                    this.frame = current_frame;
-                    this.index = 0;
-                }
+            let current_tick = this.event.tick.load(Ordering::Acquire);
+            if current_tick != this.tick {
+                this.tick = current_tick;
+                this.index = 0;
             }
-            let lock = this.event.this.read();
-            if let Some(event) = lock.get(this.index).cloned() {
+            let lock = this.event.buffer.read();
+            let value = lock.get(this.index).cloned();
+            this.listener.get_or_insert_with(||this.event.notify.listen());
+            if let Some(event) = value {
                 this.index += 1;
-                this.listener = None;
                 return Poll::Ready(Some(event))
             } else {
-                match pin!(&mut *listener).poll(cx) {
+                drop(lock);
+                match NonBlocking::default().poll(&mut this.listener, cx) {
                     Poll::Ready(()) => (),
                     Poll::Pending => return Poll::Pending,
                 }
@@ -119,37 +106,32 @@ impl<E: Event + Clone> Stream for EventStream<E> {
     }
 }
 
-impl<E: Event> Default for DoubleBufferedEvent<E> {
+impl<E: Event> Default for EventBuffer<E> {
     fn default() -> Self {
         Self {
-            last: Default::default(),
-            this: Default::default(),
-            wakers: Default::default(),
-            current_frame: Default::default(),
+            notify: Default::default(),
+            tick: Default::default(),
+            buffer: Default::default()
         }
     }
 }
 
-/// React to an event, this system is safe to be repeated in the schedule.
+/// React to an event.
+/// 
+/// Consecutive calls will flush the stream, make sure to order this against the executor correctly.
 pub fn react_to_event<E: Event + Clone>(
-    cached: Local<OnceCell<Arc<DoubleBufferedEvent<E>>>>,
-    frame: Res<FrameCount>,
+    cached: Local<OnceCell<Arc<EventBuffer<E>>>>,
     reactors: Res<Reactors>,
     mut reader: EventReader<E>,
 ) {
     let buffers = cached.get_or_init(|| reactors.get_event::<E>());
+    buffers.tick.fetch_add(1, Ordering::AcqRel);
     if !reader.is_empty() {
-        buffers.wakers.notify(usize::MAX);
-    }
-    if buffers.current_frame.swap(frame.0, Ordering::Relaxed) == frame.0 {
-        buffers.this.write().extend(reader.read().cloned());
-    } else {
-        let mut this = buffers.this.write();
-        let mut last = buffers.last.write();
-        std::mem::swap::<Vec<_>>(this.as_mut(), last.as_mut());
-        this.clear();
-        this.extend(reader.read().cloned());
-    }
+        buffers.notify.notify(usize::MAX);
+        let mut lock = buffers.buffer.write();
+        lock.drain(..);
+        lock.extend(reader.read().cloned());
+    };
 }
 
 impl<E: Event + Clone> AsyncWorldParam for EventStream<E> {
