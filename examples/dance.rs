@@ -1,9 +1,8 @@
 use bevy::MinimalPlugins;
-use bevy_app::{App, First};
+use bevy_app::App;
 use bevy_defer::{
     access::{deref::AsyncComponentDeref, AsyncComponent, AsyncWorld},
-    reactors::react_to_state,
-    signal_ids, AccessError, AsyncAccess, AsyncExtension, AsyncPlugin,
+    signal_ids, AccessError, AppReactorExtension, AsyncAccess, AsyncExtension, AsyncPlugin,
 };
 use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
 use bevy_tasks::futures_lite::StreamExt;
@@ -106,7 +105,7 @@ pub fn main() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AsyncPlugin::default_settings());
-    app.add_systems(First, react_to_state::<GameState>);
+    app.react_to_state::<GameState>();
 
     let e1 = app.world.spawn((HP(0), Animator("Idle".to_owned()))).id();
     let e2 = app.world.spawn((HP(0), Animator("Idle".to_owned()))).id();

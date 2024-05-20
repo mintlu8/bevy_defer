@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 use bevy::prelude::*;
 use bevy_defer::ext::picking::{
-    react_to_ui, ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
+    ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
 };
 use bevy_defer::reactors::StateMachine;
 use bevy_defer::signals::Signal;
@@ -16,7 +16,6 @@ fn main() {
         .add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, setup)
         .add_systems(Update, button_system)
-        .add_systems(Update, react_to_ui)
         .run();
 }
 

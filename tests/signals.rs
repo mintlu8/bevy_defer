@@ -12,8 +12,7 @@ use bevy_defer::{
     async_systems::AsyncSystems,
     signal_ids,
     signals::{Signal, SignalSender},
-    systems::react_to_event,
-    AsyncExtension, AsyncPlugin,
+    AppReactorExtension, AsyncExtension, AsyncPlugin,
 };
 use bevy_defer::{signals::Signals, systems::run_async_executor};
 use bevy_ecs::{
@@ -140,8 +139,8 @@ pub fn events() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.add_event::<AliceChat>();
     app.add_event::<BobChat>();
-    app.add_systems(PreUpdate, react_to_event::<AliceChat>);
-    app.add_systems(PreUpdate, react_to_event::<BobChat>);
+    app.react_to_event::<AliceChat>();
+    app.react_to_event::<BobChat>();
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = AsyncWorld;
@@ -186,7 +185,7 @@ pub fn stream() {
     app.add_event::<Chat>();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AsyncPlugin::default_settings());
-    app.add_systems(PreUpdate, react_to_event::<Chat>);
+    app.react_to_event::<Chat>();
     app.spawn_task(async {
         let mut stream = AsyncWorld.event_stream::<Chat>();
         assert_eq!(stream.next().await, Some(Chat('r')));
@@ -246,8 +245,9 @@ static CELL: AtomicU32 = AtomicU32::new(0);
 pub fn event_stream() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.add_event::<IntegerEvent>();
     app.add_plugins(AsyncPlugin::default_settings());
+    app.add_event::<IntegerEvent>();
+    app.react_to_event::<IntegerEvent>();
     app.spawn_task(async {
         let mut i = 0;
         let mut stream = AsyncWorld.event_stream::<IntegerEvent>();
@@ -261,7 +261,6 @@ pub fn event_stream() {
         AsyncWorld.quit();
         Ok(())
     });
-    app.add_systems(PreUpdate, react_to_event::<IntegerEvent>);
     app.add_systems(Update, sys_update);
     app.add_systems(Update, sys_update);
     app.add_systems(Update, sys_update);

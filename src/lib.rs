@@ -1,6 +1,9 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
+use bevy_ecs::component::Component;
+use bevy_ecs::event::Event;
+use bevy_ecs::schedule::States;
 use bevy_time::TimeSystem;
 use bevy_utils::intern::Interned;
 use std::pin::Pin;
@@ -44,13 +47,11 @@ pub mod systems {
     pub use crate::access::async_event::react_to_event;
     pub use crate::async_systems::push_async_systems;
     pub use crate::executor::run_async_executor;
-    pub use crate::queue::{run_async_queries, run_fixed_queue, run_time_series};
+    pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
     pub use crate::reactors::{react_to_component_change, react_to_state};
 
     #[cfg(feature = "bevy_animation")]
     pub use crate::ext::anim::react_to_animation;
-    #[cfg(feature = "bevy_mod_picking")]
-    pub use crate::ext::picking::react_to_picking;
     #[cfg(feature = "bevy_ui")]
     pub use crate::ext::picking::react_to_ui;
     #[cfg(feature = "bevy_scene")]
@@ -106,10 +107,32 @@ impl Plugin for CoreAsyncPlugin {
             .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
+            .init_schedule(BeforeAsyncExecutor)
             .add_systems(First, systems::run_time_series.after(TimeSystem))
             .add_systems(First, systems::push_async_systems)
-            .add_systems(Update, run_fixed_queue);
+            .add_systems(Update, run_fixed_queue)
+            .add_systems(BeforeAsyncExecutor, systems::run_watch_queries);
+
+        #[cfg(feature = "bevy_scene")]
+        app.add_systems(BeforeAsyncExecutor, systems::react_to_scene_load);
+        #[cfg(feature = "bevy_ui")]
+        app.add_systems(BeforeAsyncExecutor, systems::react_to_ui);
+        #[cfg(feature = "bevy_animation")]
+        app.add_systems(BeforeAsyncExecutor, systems::react_to_animation);
     }
+}
+
+/// A schedule that runs before [`run_async_executor`](systems::run_async_executor).
+///
+/// By default this runs `watch` queries and reactors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ScheduleLabel)]
+pub struct BeforeAsyncExecutor;
+
+/// Runs the [`BeforeAsyncExecutor`] schedule.
+///
+/// By default this runs `watch` queries and reactors.
+pub fn run_before_async_executor(world: &mut World) {
+    world.run_schedule(BeforeAsyncExecutor)
 }
 
 /// An `bevy_defer` plugin that can run the executor through user configuration.
@@ -181,7 +204,7 @@ impl Plugin for AsyncPlugin {
                 app.add_systems(
                     *schedule,
                     (
-                        run_async_queries.before(run_async_executor),
+                        run_before_async_executor.before(run_async_executor),
                         run_async_executor,
                     )
                         .in_set(*set),
@@ -190,7 +213,7 @@ impl Plugin for AsyncPlugin {
                 app.add_systems(
                     *schedule,
                     (
-                        run_async_queries.before(run_async_executor),
+                        run_before_async_executor.before(run_async_executor),
                         run_async_executor,
                     ),
                 );
@@ -263,6 +286,35 @@ impl AsyncExtension for App {
     }
 }
 
+/// Extension for [`App`] to add reactors.
+pub trait AppReactorExtension {
+    /// React to changes in a [`Event`].
+    fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self;
+
+    /// React to changes in a [`States`].
+    fn react_to_state<S: States + Default>(&mut self) -> &mut Self;
+
+    /// React to changes in a [`Component`].
+    fn react_to_component_change<C: Component + Eq + Clone + Default>(&mut self) -> &mut Self;
+}
+
+impl AppReactorExtension for App {
+    fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self {
+        self.add_systems(BeforeAsyncExecutor, systems::react_to_event::<E>);
+        self
+    }
+
+    fn react_to_state<S: States + Default>(&mut self) -> &mut Self {
+        self.add_systems(BeforeAsyncExecutor, systems::react_to_state::<S>);
+        self
+    }
+
+    fn react_to_component_change<C: Component + Eq + Clone + Default>(&mut self) -> &mut Self {
+        self.add_systems(BeforeAsyncExecutor, systems::react_to_component_change::<C>);
+        self
+    }
+}
+
 /// Extension for [`Commands`].
 pub trait AsyncCommandsExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
@@ -271,6 +323,7 @@ pub trait AsyncCommandsExtension {
         f: impl FnOnce() -> F + Send + 'static,
     ) -> &mut Self;
 }
+
 impl AsyncCommandsExtension for Commands<'_, '_> {
     fn spawn_task<F: Future<Output = AccessResult> + 'static>(
         &mut self,

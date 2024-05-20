@@ -163,7 +163,7 @@ impl QueryQueue {
 }
 
 /// System that tries to resolve queries sent to the queue.
-pub fn run_async_queries(world: &mut World) {
+pub fn run_watch_queries(world: &mut World) {
     let query_queue = world.remove_non_send_resource::<QueryQueue>().unwrap();
     query_queue
         .repeat_queue
