@@ -4,6 +4,8 @@ use crate::reactors::Reactors;
 use async_executor::{LocalExecutor, Task};
 use bevy_asset::AssetServer;
 use bevy_ecs::world::World;
+use bevy_log::error;
+use std::fmt::Display;
 use std::future::Future;
 use std::rc::Rc;
 
@@ -82,12 +84,28 @@ pub fn in_async_context() -> bool {
 pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
 
 impl AsyncExecutor {
+    /// Spawn a future, does not wait for it to complete.
     pub fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) {
         self.0.spawn(future).detach();
     }
 
+    /// Spawn a future and return a handle.
     pub fn spawn_scoped<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.0.spawn(future)
+    }
+
+    /// Spawn a future, logs errors but does not wait for it to complete.
+    pub fn spawn_log<T: 'static, E: Display>(
+        &self,
+        future: impl Future<Output = Result<T, E>> + 'static,
+    ) {
+        self.0
+            .spawn(async {
+                if let Err(e) = future.await {
+                    error!("{e}")
+                }
+            })
+            .detach();
     }
 }
 
