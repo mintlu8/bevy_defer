@@ -43,13 +43,13 @@ swing_animation().await;
 `bevy_tasks` has no direct world access, which makes it difficult to write game
 logic in it.
 
-The core idea behind `bevy_defer` is straightforward:
+The core idea behind `bevy_defer` is simple:
 
 ```rust, ignore
 // Pseudocode
 static WORLD_CELL: Mutex<&mut World>;
 
-fn run_async_executor_system(world: &mut World) {
+fn run_async_executor(world: &mut World) {
     let executor = world.get_executor();
     WORLD_CELL.set(world);
     executor.run();
