@@ -116,7 +116,7 @@ The entry point of all world access is `AsyncWorld`,
 for example a `Component` can be accessed by
 
 ```rust, ignore
-let translation = world()
+let translation = AsyncWorld
     .entity(entity)
     .component::<Transform>()
     .get(|t| {
