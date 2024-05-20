@@ -12,7 +12,7 @@ use super::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource,
 };
 
-/// Add method to [`AsyncComponent`] through deref.
+/// Add method to [`struct@AsyncComponent`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncComponentDeref: Component + Sized {
@@ -31,7 +31,7 @@ where
     }
 }
 
-/// Add method to [`AsyncResource`] through deref.
+/// Add method to [`struct@AsyncResource`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncResourceDeref: Resource + Sized {
@@ -50,7 +50,7 @@ where
     }
 }
 
-/// Add method to [`AsyncNonSend`] through deref.
+/// Add method to [`struct@AsyncNonSend`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
 pub trait AsyncNonSendDeref: 'static + Sized {

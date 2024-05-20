@@ -7,7 +7,7 @@
 //!
 //! # Example
 //!
-//! To create an [`AsyncSystem`], use the [`async_system!`] macro:
+//! To create an [`AsyncSystem`], use the [`async_system!`](crate::async_system) macro:
 //!
 //! ```
 //! # /*
@@ -95,8 +95,8 @@ use std::{
 /// # Syntax
 ///
 /// * Expects an async closure with [`AsyncEntityParam`]s as parameters and returns `()`.
-/// * `?` can be used to propagate [`AsyncFailure`]s.
-/// * Most of this crate's [`AsyncEntityParam`]s, like [`Sender`], [`Receiver`] and [`AsyncComponent`] are automatically
+/// * `?` can be used to propagate [`AccessError`]s.
+/// * Most of this crate's [`AsyncEntityParam`]s, like [`Sender`], [`Receiver`] and [`struct@AsyncComponent`] are automatically
 /// imported and may shadow external names.
 ///
 /// # Example

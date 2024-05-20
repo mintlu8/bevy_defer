@@ -155,17 +155,29 @@ can cover all cases where you need to running systems in `bevy_defer`.
 Communicating between sync and async can be daunting for new users. See
 this amazing tokio article: <https://tokio.rs/tokio/topics/bridging>.
 
-Fortunately we are running in lock step with bevy, so a lot of those headache
-can be mitigated by using proper communication methods.
-
 Communicating from sync to async is simple, async code can provide channels
 to sync code and `await` on them, pausing the task.
 Once sync code sends data through the channel, it will
 wake and resume the corresponding task.
 
-Communicating from async to sync usually requires mutating the world in an async
-function, then a system can listen for that particular change in sync code.
-This is seamless with regular bevy workflow.
+Communicating from async to sync require more thought.
+This usually means mutating the world in an async function,
+then a system can listen for that particular change in sync code.
+
+```rust,ignore
+async {
+    entity.component::<IsJumping>().set(|j| *j == true);
+}
+
+pub fn jump_system(query: Query<Name, Changed<IsJumping>>) {
+    for name in &query {
+        println!("{} is jumping!", name);
+    }
+}
+```
+
+The core principle is async code should help sync code to
+do less work, and vice versa!
 
 ## Signals and AsyncSystems
 

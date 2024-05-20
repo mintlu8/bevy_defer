@@ -333,7 +333,7 @@ impl AsyncWorld {
         })
     }
 
-    /// Obtain a [`Stream`] that reacts to changes of a [`States`].
+    /// Obtain a [`SignalStream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
     pub fn state_stream<S: States + Clone + Default>(&self) -> SignalStream<S> {

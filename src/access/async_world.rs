@@ -60,7 +60,7 @@ impl AsyncWorld {
         AsyncEntityMut(entity)
     }
 
-    /// Obtain an [`AsyncResource`].
+    /// Obtain an [`struct@AsyncResource`].
     ///
     /// # Note
     ///
@@ -69,7 +69,7 @@ impl AsyncWorld {
         AsyncResource(PhantomData)
     }
 
-    /// Obtain an [`AsyncNonSend`].
+    /// Obtain an [`struct@AsyncNonSend`].
     ///
     /// # Note
     ///
@@ -122,7 +122,7 @@ impl AsyncEntityMut {
         AsyncWorld
     }
 
-    /// Get an [`AsyncComponent`] on this entity.
+    /// Get an [`struct@AsyncComponent`] on this entity.
     ///
     /// # Note
     ///
