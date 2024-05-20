@@ -46,6 +46,7 @@ pub struct EventBuffer<E: Event> {
 }
 
 impl<E: Event + Clone> EventBuffer<E> {
+    /// Convert to an [`EventStream`].
     pub fn into_stream(self: Arc<Self>) -> EventStream<E> {
         EventStream {
             tick: self.tick.load(Ordering::Acquire).wrapping_sub(1),

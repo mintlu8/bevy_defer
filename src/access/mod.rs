@@ -13,6 +13,7 @@ pub use async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle};
 pub use async_values::{AsyncComponent, AsyncNonSend, AsyncResource};
 pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld};
 
+/// Deprecated, Async version of World or Commands.
 #[deprecated = "Use `AsyncWorld` instead."]
 pub type AsyncWorldMut = AsyncWorld;
 

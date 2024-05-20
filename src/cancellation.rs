@@ -78,6 +78,7 @@ pub enum TaskCancellation {
 }
 
 impl TaskCancellation {
+    /// Returns `true` if cancelled.
     pub fn cancelled(&self) -> bool {
         match self {
             TaskCancellation::Unsync(cell) => cell.0.get(),

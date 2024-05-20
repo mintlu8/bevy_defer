@@ -79,9 +79,11 @@ use signals::{Signal, SignalId, Signals};
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
 
+/// Deprecated access error.
 #[deprecated = "Use AccessError instead."]
 pub type AsyncFailure = AccessError;
 
+/// Deprecated access result.
 #[deprecated = "Use AccessResult instead."]
 pub type AsyncResult<T = ()> = Result<T, AccessError>;
 

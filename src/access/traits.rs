@@ -25,6 +25,7 @@ use std::{borrow::BorrowMut, cell::OnceCell};
 
 /// Obtain readonly access from a readonly `&World`.
 pub trait AsyncReadonlyAccess: AsyncAccess {
+    /// Obtain reference from a read only world.
     fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>>;
 }
 
@@ -38,6 +39,7 @@ pub trait AsyncAccessRef:
 
 /// Allows the `take` method
 pub trait AsyncTake: AsyncAccessRef {
+    /// Remove and obtain from the world.
     fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic>;
 }
 

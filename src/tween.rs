@@ -17,6 +17,7 @@ pub enum Playback {
 
 /// Types that can be linearly interpolated.
 pub trait Lerp: Clone + Send + 'static {
+    /// Linear interpolate.
     fn lerp(from: Self, to: Self, fac: f32) -> Self;
 }
 
@@ -42,8 +43,10 @@ impl Lerp for SLerp {
 
 /// [`f32`] or [`Duration`].
 pub trait AsSeconds {
+    /// Convert to seconds in [`f32`].
     fn as_secs(&self) -> f32;
 
+    /// Convert to [`Duration`].
     fn as_duration(&self) -> Duration;
 }
 

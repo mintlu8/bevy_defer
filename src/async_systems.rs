@@ -286,6 +286,7 @@ pub trait AsyncWorldParam: Sized {
     /// Obtain `Self` from the async context.
     fn from_async_context(queue: &Reactors) -> Option<Self>;
 
+    /// Construct inside a `bevy_defer` future.
     fn build_in_async() -> Option<Self> {
         REACTORS.with(|reactors| <Self as AsyncWorldParam>::from_async_context(reactors))
     }
@@ -293,6 +294,7 @@ pub trait AsyncWorldParam: Sized {
 
 /// A parameter of an [`AsyncSystem`].
 pub trait AsyncEntityParam: Sized {
+    /// Associated signal, or `()`.
     type Signal: Send + Sync + 'static;
 
     /// If not found, log what's missing and return None.

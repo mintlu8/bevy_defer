@@ -111,7 +111,7 @@ impl QueryCallback {
 }
 
 impl QueryQueue {
-    /// Spawn a `!Send` command and wait until it returns `Some`.
+    /// Run a repeatable routine before executor runs, returns if routine returns [`Some`].
     ///
     /// If receiver is dropped, the command will be cancelled.
     pub fn repeat<Out: 'static>(
@@ -124,16 +124,41 @@ impl QueryQueue {
             .push(QueryCallback::new(query, channel))
     }
 
+    /// Notify after a certain time.
     pub fn timed(&self, duration: Duration, channel: Sender<()>) {
         self.time_series
             .borrow_mut()
             .push(TimeIndex(self.now.get() + duration, channel))
     }
 
+    /// Notify after a certain frame.
     pub fn timed_frames(&self, duration: u32, channel: Sender<()>) {
         self.frame_series
             .borrow_mut()
             .push(TimeIndex(self.frame.get() + duration, channel))
+    }
+
+    /// Run a repeatable routine on [`Update`], with access to delta time.
+    pub fn timed_routine<T: 'static>(
+        &self,
+        mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
+        cancellation: impl Into<TaskCancellation>,
+    ) -> ChannelOutOrCancel<T> {
+        let (sender, receiver) = channel();
+        let mut sender = sender.by_ref();
+        let cancel = cancellation.into();
+        self.fixed_queue.borrow_mut().push(FixedTask {
+            task: Box::new(move |world, dt| {
+                if let Some(item) = f(world, dt) {
+                    sender.send(item);
+                    true
+                } else {
+                    false
+                }
+            }),
+            cancel,
+        });
+        receiver.into_option()
     }
 }
 
@@ -184,25 +209,9 @@ impl AsyncWorld {
     /// Run a repeatable routine on [`Update`], with access to delta time.
     pub fn timed_routine<T: 'static>(
         &self,
-        mut f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
+        f: impl FnMut(&mut World, Duration) -> Option<T> + 'static,
         cancellation: impl Into<TaskCancellation>,
     ) -> ChannelOutOrCancel<T> {
-        let (sender, receiver) = channel();
-        let mut sender = sender.by_ref();
-        let cancel = cancellation.into();
-        QUERY_QUEUE.with(|queue| {
-            queue.fixed_queue.borrow_mut().push(FixedTask {
-                task: Box::new(move |world, dt| {
-                    if let Some(item) = f(world, dt) {
-                        sender.send(item);
-                        true
-                    } else {
-                        false
-                    }
-                }),
-                cancel,
-            });
-        });
-        receiver.into_option()
+        QUERY_QUEUE.with(|queue| queue.timed_routine(f, cancellation))
     }
 }

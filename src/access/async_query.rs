@@ -142,6 +142,7 @@ pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static>
 }
 
 impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
+    /// Apply a command queue to world.
     pub fn apply_commands(&mut self, commands: &mut CommandQueue) {
         commands.apply(self.world)
     }

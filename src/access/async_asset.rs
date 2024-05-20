@@ -56,6 +56,8 @@ impl AsyncWorld {
         AsyncAsset(ASSET_SERVER.with(|s| s.load::<A>(path)))
     }
 
+    /// Begins loading an Asset of type `A` stored at path.
+    /// The given settings function will override the asset's AssetLoader settings.
     pub fn load_asset_with_settings<A: Asset, S: Settings>(
         &self,
         path: impl Into<AssetPath<'static>> + Send + 'static,
