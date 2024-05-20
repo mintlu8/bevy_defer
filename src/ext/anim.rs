@@ -168,8 +168,6 @@ impl AsyncAnimationPlayer {
 pub type AnimationChange = Change<Handle<AnimationClip>>;
 
 /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
-///
-/// Currently unused by [`AsyncAnimationPlayer`].
 pub fn react_to_animation(
     mut previous: Local<FxHashMap<Entity, Handle<AnimationClip>>>,
     query: Query<
@@ -181,7 +179,7 @@ pub fn react_to_animation(
         let last = previous.get(&entity);
         if last != Some(player.animation_clip()) {
             let change = AnimationChange {
-                from: last.map(|x| x.clone_weak()).unwrap_or_default(),
+                from: last.map(|x| x.clone_weak()),
                 to: player.animation_clip().clone_weak(),
             };
             previous.insert(entity, player.animation_clip().clone_weak());

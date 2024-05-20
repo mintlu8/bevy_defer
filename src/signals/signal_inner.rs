@@ -14,24 +14,49 @@ use parking_lot::RwLock;
 use std::sync::atomic::Ordering;
 
 /// The data component of a signal.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct SignalData<T> {
-    pub(crate) data: RwLock<T>,
+    pub(crate) data: RwLock<Option<T>>,
     pub(crate) tick: AtomicU32,
     pub(crate) event: Event,
 }
 
+impl<T> Default for SignalData<T> {
+    fn default() -> Self {
+        Self {
+            data: Default::default(),
+            tick: Default::default(),
+            event: Default::default(),
+        }
+    }
+}
+
 /// The shared component of a signal.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct SignalInner<T> {
     pub(crate) inner: Arc<SignalData<T>>,
     pub(crate) tick: AtomicU32,
 }
 
+impl<T> Default for SignalInner<T> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+            tick: Default::default(),
+        }
+    }
+}
+
 /// A piece of shared data that can be read once per write.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Signal<T>(Arc<SignalInner<T>>);
+
+impl<T> Default for Signal<T> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 /// A borrowed signal that shares its read tick.
 #[derive(Debug, Default)]
@@ -66,7 +91,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     pub fn new(value: T) -> Self {
         Self(Arc::new(SignalInner {
             inner: Arc::new(SignalData {
-                data: RwLock::new(value),
+                data: RwLock::new(Some(value)),
                 tick: AtomicU32::new(0),
                 event: Event::new(),
             }),
@@ -123,7 +148,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     /// Send a value, does not increment the read tick.
     pub fn send(&self, value: T) {
         let mut lock = self.0.inner.data.write();
-        *lock = value;
+        *lock = Some(value);
         self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
         self.0.inner.event.notify(usize::MAX);
     }
@@ -134,8 +159,8 @@ impl<T: Send + Sync + 'static> Signal<T> {
         T: PartialEq,
     {
         let mut lock = self.0.inner.data.write();
-        if *lock != value {
-            *lock = value;
+        if lock.as_ref() != Some(&value) {
+            *lock = Some(value);
             self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
             self.0.inner.event.notify(usize::MAX);
         }
@@ -144,7 +169,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     /// Send a value and increment the read tick.
     pub fn broadcast(&self, value: T) {
         let mut lock = self.0.inner.data.write();
-        *lock = value;
+        *lock = Some(value);
         let version = self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
         self.0.inner.event.notify(usize::MAX);
         self.0
@@ -158,8 +183,8 @@ impl<T: Send + Sync + 'static> Signal<T> {
         T: PartialEq,
     {
         let mut lock = self.0.inner.data.write();
-        if *lock != value {
-            *lock = value;
+        if lock.as_ref() != Some(&value) {
+            *lock = Some(value);
             let version = self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
             self.0.inner.event.notify(usize::MAX);
             self.0
@@ -175,14 +200,14 @@ impl<T: Send + Sync + 'static> Signal<T> {
     {
         let version = self.0.inner.tick.load(Ordering::Relaxed);
         if self.0.tick.swap(version, Ordering::Relaxed) != version {
-            Some(self.0.inner.data.read().clone())
+            self.0.inner.data.read().clone()
         } else {
             None
         }
     }
 
     /// Reads the underlying value synchronously regardless of change detection.
-    pub fn force_read(&self) -> T
+    pub fn force_read(&self) -> Option<T>
     where
         T: Clone,
     {
@@ -245,13 +270,14 @@ impl<T: Clone> EventListenerFuture for SignalFutureInner<T> {
         let tick = self.signal.inner.tick.load(Ordering::Relaxed);
         loop {
             if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
-                return Poll::Ready(self.signal.inner.data.read().clone());
-            } else {
-                match strategy.poll(&mut self.listener, cx) {
-                    Poll::Ready(_) => (),
-                    Poll::Pending => return Poll::Pending,
-                };
+                if let Some(result) = self.signal.inner.data.read().clone() {
+                    return Poll::Ready(result);
+                }
             }
+            match strategy.poll(&mut self.listener, cx) {
+                Poll::Ready(_) => (),
+                Poll::Pending => return Poll::Pending,
+            };
         }
     }
 }

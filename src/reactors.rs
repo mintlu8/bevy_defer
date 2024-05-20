@@ -18,9 +18,9 @@ use crate::{access::async_event::EventBuffer, signals::SignalMap};
 
 /// Signal that sends changed values of a [`States`].
 #[derive(Debug, Clone, Copy)]
-pub struct StateSignal<T: States + Clone + Default>(PhantomData<T>, Infallible);
+pub struct StateSignal<T: States + Clone>(PhantomData<T>, Infallible);
 
-impl<T: States + Clone + Default> SignalId for StateSignal<T> {
+impl<T: States + Clone> SignalId for StateSignal<T> {
     type Data = T;
 }
 
@@ -97,7 +97,7 @@ impl Reactors {
 }
 
 /// React to a [`States`] changing, signals can be subscribed from [`Reactors`] with [`StateSignal`].
-pub fn react_to_state<T: States + Clone + Default>(
+pub fn react_to_state<T: States + Clone>(
     signal: Local<OnceCell<Signal<T>>>,
     reactors: Res<Reactors>,
     state: Res<State<T>>,
@@ -113,11 +113,11 @@ pub fn react_to_state<T: States + Clone + Default>(
 /// [`SignalId`] and data for a change in a component state machine.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Change<T> {
-    pub from: T,
+    pub from: Option<T>,
     pub to: T,
 }
 
-impl<T: Send + Sync + 'static + Clone + Default> SignalId for Change<T> {
+impl<T: Send + Sync + 'static + Clone> SignalId for Change<T> {
     type Data = Change<T>;
 }
 
@@ -127,17 +127,17 @@ impl<T: Send + Sync + 'static + Clone + Default> SignalId for Change<T> {
 /// # Guarantee
 ///
 /// `from` and `to` are not equal.
-pub fn react_to_component_change<M: Component + Clone + Default + PartialEq>(
+pub fn react_to_component_change<M: Component + Clone + PartialEq>(
     mut prev: Local<FxHashMap<Entity, M>>,
     query: Query<(Entity, &M, SignalSender<Change<M>>), (Changed<M>, With<Signals>)>,
 ) {
     for (entity, state, sender) in query.iter() {
-        let previous = prev.get(&entity).cloned().unwrap_or_default();
-        if state == &previous {
+        let previous = prev.get(&entity);
+        if Some(state) == previous {
             continue;
         }
         sender.send(Change {
-            from: previous,
+            from: previous.cloned(),
             to: state.clone(),
         });
         prev.insert(entity, state.clone());

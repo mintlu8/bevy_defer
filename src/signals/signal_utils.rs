@@ -9,7 +9,7 @@ use std::{any::Any, marker::PhantomData};
 
 /// A marker type that indicates the type and purpose of a signal.
 pub trait SignalId: Any + Send + Sync + 'static {
-    type Data: Send + Sync + Default + Clone + 'static;
+    type Data: Send + Sync + Clone + 'static;
 }
 
 /// Quickly construct multiple marker [`SignalId`]s at once.

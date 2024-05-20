@@ -41,10 +41,8 @@ pub fn react_to_picking(
     selections: Query<(Entity, &Signals, &PickSelection), (Changed<PickSelection>, With<Signals>)>,
 ) {
     for (entity, signals, interaction, relative) in interactions.iter() {
-        let previous = prev
-            .insert(entity, *interaction)
-            .unwrap_or(PickingInteraction::None);
-        if interaction == &previous {
+        let previous = prev.insert(entity, *interaction);
+        if Some(*interaction) == previous {
             continue;
         }
         let position = relative
@@ -57,6 +55,7 @@ pub fn react_to_picking(
         if interaction == &PickingInteraction::Pressed {
             signals.send::<Pressed>(position);
         }
+        let previous = previous.unwrap_or(PickingInteraction::None);
         match (previous, interaction) {
             (PickingInteraction::Pressed, PickingInteraction::Hovered) => {
                 signals.send::<Clicked>(position)

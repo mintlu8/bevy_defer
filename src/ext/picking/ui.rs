@@ -14,7 +14,7 @@ use rustc_hash::FxHashMap;
 /// State machine [`Interaction`] changed to a different value.
 pub type UIInteractionChange = Change<Interaction>;
 
-/// System that provides reactivity for [`bevy_ui`], must be added manually.
+/// System that provides reactivity for [`bevy_ui`].
 ///
 /// This also acts as `react_to_component_change` for [`Interaction`].
 pub fn react_to_ui(
@@ -32,9 +32,10 @@ pub fn react_to_ui(
     use super::{ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed};
 
     for (entity, signals, interaction, relative) in query.iter() {
-        let previous = prev
-            .insert(entity, *interaction)
-            .unwrap_or(bevy_ui::Interaction::None);
+        let previous = prev.insert(entity, *interaction);
+        if Some(*interaction) == previous {
+            continue;
+        }
         let position = relative.and_then(|x| x.normalized).unwrap_or(Vec2::ZERO);
         signals.send::<UIInteractionChange>(Change {
             from: previous,
@@ -43,6 +44,7 @@ pub fn react_to_ui(
         if interaction == &Interaction::Pressed {
             signals.send::<Pressed>(position);
         }
+        let previous = previous.unwrap_or_default();
         match (previous, interaction) {
             (Interaction::Pressed, Interaction::Hovered) => signals.send::<Clicked>(position),
             (Interaction::Pressed, Interaction::None) => signals.send::<ClickCancelled>(position),
