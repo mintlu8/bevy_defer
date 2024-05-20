@@ -145,7 +145,7 @@ Here are some common utilities you might find useful from an async ecosystem.
 
 * `AsyncWorld.spawn_scoped()` spawns a future with a handle to get result from.
 
-* `AsyncWorld.yield_now()` yields executor for the current slot, similar to how coroutines work.
+* `AsyncWorld.yield_now()` yields execution for the current frame, similar to how coroutines work.
 
 * `AsyncWorld.sleep(4.0)` pauses the future for `4` seconds.
 
