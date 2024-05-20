@@ -112,22 +112,7 @@ commands.spawn_task(|| async move {
 
 ## World Accessors
 
-`bevy_defer` provides types mimicking bevy's types:
-
-| Query Type | Corresponding Bevy/Sync Type |
-| ---- | ----- |
-| `AsyncWorld` | `World` / `Commands` |
-| `AsyncEntityMut` | `EntityMut` / `EntityCommands` |
-| `AsyncQuery` | `WorldQuery` |
-| `AsyncEntityQuery` | `WorldQuery` on `Entity` |
-| `AsyncQuerySingle` | `WorldQuery` with `single()` |
-| `AsyncComponent` | `Component` |
-| `AsyncResource` | `Resource` |
-| `AsyncNonSend` | `NonSend` |
-| `EventStream` | `EventReader` |
-| `AsyncAsset` | `Handle` |
-
-`world` can be accessed by the `world()` method and
+The entry point of all world access is `AsyncWorld`,
 for example a `Component` can be accessed by
 
 ```rust, ignore
@@ -140,6 +125,7 @@ let translation = world()
 )
 ```
 
+This works for all the bevy things you expect, `Resource`, `Query`, etc.
 See the `access` module and the `AsyncAccess` trait for more detail.
 
 You can add extension methods to these accessors via `Deref` if you own the
@@ -147,8 +133,23 @@ underlying types. See the `access::deref` module for more detail. The
 `async_access` derive macro can be useful for adding method to
 async accessors.
 
-We do not provide a `AsyncSystemParam`, since the one-shot system based API on `AsyncWorld`
-can cover all cases where you need to running systems in `bevy_defer`.
+We do not provide a `AsyncSystemParam`, instead you should use
+one-shot system based API on `AsyncWorld`.
+They can cover all uses cases where you need to running systems in `bevy_defer`.
+
+## Async Basics
+
+Here are some common utilities you might find useful from an async ecosystem.
+
+* `AsyncWorld.spawn()` spawns a future.
+
+* `AsyncWorld.spawn_scoped()` spawns a future with a handle to get result from.
+
+* `AsyncWorld.yield_now()` yields executor for the current slot, similar to how coroutines work.
+
+* `AsyncWorld.sleep(4.0)` pauses the future for `4` seconds.
+
+* `AsyncWorld.sleep_frame(4)` pauses the future for `4` frames.
 
 ## Bridging Sync and Async
 
