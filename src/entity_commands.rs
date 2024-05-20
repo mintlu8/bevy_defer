@@ -19,7 +19,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// entity.insert(Str("bevy"));
     /// # });
     /// ```
@@ -41,7 +41,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// entity.remove::<Int>();
     /// # });
     /// ```
@@ -63,7 +63,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// entity.retain::<Int>();
     /// # });
     /// ```
@@ -87,7 +87,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// entity.take::<Int>();
     /// # });
     /// ```
@@ -107,7 +107,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// let child = entity.spawn_child(Str("bevy"));
     /// # });
     /// ```
@@ -132,8 +132,8 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
-    /// # let child = world().spawn_bundle(Int(1)).id();
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = AsyncWorld.spawn_bundle(Int(1)).id();
     /// entity.add_child(child);
     /// # });
     /// ```
@@ -155,7 +155,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// entity.despawn();
     /// # });
     /// ```
@@ -172,7 +172,7 @@ impl AsyncEntityMut {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// # let entity = world().spawn_bundle(Int(1));
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
     /// entity.despawn_descendants();
     /// # });
     /// ```

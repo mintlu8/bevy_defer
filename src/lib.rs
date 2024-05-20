@@ -388,7 +388,7 @@ macro_rules! test_spawn {
         app.insert_state(MyState::A);
         app.spawn_task(async move {
             $expr;
-            world().quit();
+            AsyncWorld.quit();
             Ok(())
         });
         app.run();

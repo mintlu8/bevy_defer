@@ -24,8 +24,8 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let square = world().load_asset::<Image>("square.png");
-    /// world().asset(square.into_handle());
+    /// let square = AsyncWorld.load_asset::<Image>("square.png");
+    /// AsyncWorld.asset(square.into_handle());
     /// # });
     /// ```
     pub fn asset<A: Asset>(&self, handle: Handle<A>) -> AsyncAsset<A> {
@@ -43,7 +43,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let square = world().load_asset::<Image>("square.png");
+    /// let square = AsyncWorld.load_asset::<Image>("square.png");
     /// # });
     /// ```
     pub fn load_asset<A: Asset>(

@@ -15,7 +15,7 @@
 //! let system = async_system!(|recv: Receiver<OnClick>, transform: AsyncComponent<Transform>|{
 //!     let pos: Vec3 = recv.recv().await;
 //!     transform.set(|transform| transform.scale = Vec3::splat(2.0)).await?;
-//!     world().sleep(1.0).await;
+//!     AsyncWorld.sleep(1.0).await;
 //!     transform.set(|transform| transform.scale = Vec3::ONE).await?;
 //! })
 //! # */

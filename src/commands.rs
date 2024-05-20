@@ -40,7 +40,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().apply_command(|w: &mut World| println!("{:?}", w))
+    /// AsyncWorld.apply_command(|w: &mut World| println!("{:?}", w))
     /// # );
     /// ```
     pub fn apply_command(&self, command: impl Command) {
@@ -55,7 +55,7 @@ impl AsyncWorld {
     /// # use bevy::ecs::system::CommandQueue;
     /// # bevy_defer::test_spawn!({
     /// let queue = CommandQueue::default();
-    /// world().apply_command_queue(queue);
+    /// AsyncWorld.apply_command_queue(queue);
     /// # });
     /// ```
     pub fn apply_command_queue(&self, mut commands: CommandQueue) {
@@ -68,7 +68,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().run(|w: &mut World| w.resource::<Int>().0)
+    /// AsyncWorld.run(|w: &mut World| w.resource::<Int>().0)
     /// # );
     /// ```
     pub fn run<T>(&self, f: impl FnOnce(&mut World) -> T) -> T {
@@ -85,7 +85,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0))
+    /// AsyncWorld.watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0))
     /// # );
     /// ```
     pub fn watch<T: 'static>(
@@ -113,7 +113,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().run_schedule(Update)
+    /// AsyncWorld.run_schedule(Update)
     /// # );
     /// ```
     pub fn run_schedule(&self, schedule: impl ScheduleLabel) -> AccessResult {
@@ -130,7 +130,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds()))
+    /// AsyncWorld.register_system(|time: Res<Time>| println!("{}", time.delta_seconds()))
     /// # );
     /// ```
     pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(
@@ -146,8 +146,8 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let id = world().register_system(|time: Res<Time>| println!("{}", time.delta_seconds()));
-    /// world().run_system(id).unwrap();
+    /// let id = AsyncWorld.register_system(|time: Res<Time>| println!("{}", time.delta_seconds()));
+    /// AsyncWorld.run_system(id).unwrap();
     /// # });
     /// ```
     pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> AccessResult<O> {
@@ -160,8 +160,8 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let id = world().register_system(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input);
-    /// world().run_system_with_input(id, 4.0).unwrap();
+    /// let id = AsyncWorld.register_system(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input);
+    /// AsyncWorld.run_system_with_input(id, 4.0).unwrap();
     /// # });
     /// ```
     pub fn run_system_with_input<I: 'static, O: 'static>(
@@ -187,7 +187,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).unwrap();
+    /// AsyncWorld.run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).unwrap();
     /// # });
     /// ```
     pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
@@ -208,7 +208,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).unwrap();
+    /// AsyncWorld.run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).unwrap();
     /// # });
     /// ```
     pub fn run_cached_system_with_input<
@@ -255,7 +255,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().spawn_empty()
+    /// AsyncWorld.spawn_empty()
     /// # );
     /// ```
     pub fn spawn_empty(&self) -> AsyncEntityMut {
@@ -270,7 +270,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// world().spawn_bundle(SpriteBundle::default())
+    /// AsyncWorld.spawn_bundle(SpriteBundle::default())
     /// # );
     /// ```
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMut {
@@ -285,7 +285,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().set_state(MyState::A)
+    /// AsyncWorld.set_state(MyState::A)
     /// # });
     /// ```
     pub fn set_state<S: States>(&self, state: S) -> AccessResult<()> {
@@ -303,7 +303,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().get_state::<MyState>()
+    /// AsyncWorld.get_state::<MyState>()
     /// # });
     /// ```
     pub fn get_state<S: States>(&self) -> AccessResult<S> {
@@ -321,7 +321,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().in_state(MyState::A)
+    /// AsyncWorld.in_state(MyState::A)
     /// # });
     /// ```
     #[deprecated = "Use `state_stream` instead."]
@@ -348,7 +348,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().sleep(5.4).await
+    /// AsyncWorld.sleep(5.4).await
     /// # });
     /// ```
     pub fn sleep(&self, duration: impl AsSeconds) -> MaybeChannelOut<()> {
@@ -367,7 +367,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().sleep_frames(12).await
+    /// AsyncWorld.sleep_frames(12).await
     /// # });
     /// ```
     pub fn sleep_frames(&self, frames: u32) -> MaybeChannelOut<()> {
@@ -401,7 +401,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// world().quit()
+    /// AsyncWorld.quit()
     /// # });
     /// ```
     pub fn quit(&self) {
@@ -422,7 +422,7 @@ impl AsyncWorld {
     /// # use bevy_defer::signal_ids;
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
-    /// let signal = world().typed_signal::<MySignal>();
+    /// let signal = AsyncWorld.typed_signal::<MySignal>();
     /// signal.send(3.14);
     /// signal.poll().await;
     /// # });
@@ -446,7 +446,7 @@ impl AsyncWorld {
     /// # use bevy_defer::signal_ids;
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
-    /// let signal = world().named_signal::<MySignal>("signal 1");
+    /// let signal = AsyncWorld.named_signal::<MySignal>("signal 1");
     /// signal.send(3.14);
     /// signal.poll().await;
     /// # });
