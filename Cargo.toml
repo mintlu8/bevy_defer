@@ -55,7 +55,7 @@ async-oneshot = "0.5.9"
 scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
-ty_map_gen = "0.1.4"
+ty_map_gen = "0.1.6"
 
 [dev-dependencies]
 bevy = { version = "0.13.0" }
