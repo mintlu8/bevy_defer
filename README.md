@@ -149,7 +149,7 @@ Here are some common utilities you might find useful from an async ecosystem.
 
 * `AsyncWorld.sleep(4.0)` pauses the future for `4` seconds.
 
-* `AsyncWorld.sleep_frame(4)` pauses the future for `4` frames.
+* `AsyncWorld.sleep_frames(4)` pauses the future for `4` frames.
 
 ## Bridging Sync and Async
 
