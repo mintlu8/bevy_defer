@@ -1,4 +1,4 @@
-use std::{borrow::Cow, error::Error, fmt::Display};
+use std::{any::Any, borrow::Cow, error::Error, fmt::Display};
 
 use bevy_log::error;
 
@@ -55,56 +55,117 @@ pub enum AccessError {
 }
 
 /// An alternative [`AccessError`] with a custom error message.
+/// All types implementing [`Error`] can propagate to [`CustomError`] via `?`.
+/// Use [`Error::source`] to specify the associated `AccessError`.
 /// If propagated to `AccessError` via `?`, will log the error message via `bevy_log`.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CustomError {
     pub error: AccessError,
-    pub message: Cow<'static, str>,
+    pub message: Option<Box<dyn Error>>,
 }
 
 impl Display for CustomError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.error {
-            AccessError::Custom => f.write_str(&self.message),
-            err => {
-                write!(f, "{}: {}", err, self.message)
+        match (self.error, &self.message) {
+            (AccessError::Custom, Some(message)) => Display::fmt(&message, f),
+            (err, None) => Display::fmt(&err, f),
+            (err, Some(message)) => {
+                write!(f, "{}: {}", err, message)
             }
         }
     }
 }
 
-impl Error for CustomError {}
-
-impl From<AccessError> for CustomError {
-    fn from(val: AccessError) -> Self {
-        CustomError {
-            error: val,
-            message: Cow::Owned(String::new()),
+impl<E: Error + 'static> From<E> for CustomError {
+    fn from(error: E) -> Self {
+        if let Some(error) = (&error as &dyn Any).downcast_ref::<AccessError>() {
+            CustomError {
+                error: *error,
+                message: None,
+            }
+        } else if let Some(e) = error.source().and_then(|e| e.downcast_ref::<AccessError>()) {
+            let e = *e;
+            CustomError {
+                error: e,
+                message: Some(Box::new(e)),
+            }
+        } else {
+            CustomError {
+                error: AccessError::Custom,
+                message: Some(Box::new(error)),
+            }
         }
     }
 }
 
 impl From<CustomError> for AccessError {
     fn from(val: CustomError) -> Self {
-        error!("{}", val);
+        if val.message.is_some() {
+            error!("{}", val);
+        }
         val.error
     }
 }
 
+/// A [`String`] error.
+#[derive(Debug, Clone)]
+pub struct MessageError(pub Cow<'static, str>);
+
+impl MessageError {
+    pub fn new(d: impl ToString) -> MessageError {
+        MessageError(Cow::Owned(d.to_string()))
+    }
+
+    pub fn new_static(d: &'static str) -> MessageError {
+        MessageError(Cow::Borrowed(d))
+    }
+}
+
+impl Display for MessageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0.as_ref())
+    }
+}
+
+impl Error for MessageError {}
+
 impl AccessError {
     /// Create a [`CustomError`] with a message.
-    pub fn with_message(&self, e: impl Display) -> CustomError {
+    pub fn with_message(&self, e: impl Error) -> CustomError {
         CustomError {
             error: *self,
-            message: Cow::Owned(e.to_string()),
+            message: Some(Box::new(MessageError(Cow::Owned(e.to_string())))),
         }
     }
 
     /// Create a [`CustomError`] with a static string message.
-    pub const fn with_message_static(&self, e: &'static str) -> CustomError {
+    pub fn with_message_static(&self, e: &'static str) -> CustomError {
         CustomError {
             error: *self,
-            message: Cow::Borrowed(e),
+            message: Some(Box::new(MessageError(Cow::Borrowed(e)))),
+        }
+    }
+}
+
+impl CustomError {
+    /// Returns true if is a specific [`AccessError`].
+    pub fn is(&self, error: AccessError) -> bool {
+        self.error == error
+    }
+
+    /// Create a [`CustomError`] with a message.
+    pub fn with_type(self, error: AccessError) -> CustomError {
+        CustomError {
+            error,
+            message: self.message,
+        }
+    }
+
+    /// Create a [`CustomError`] with a message.
+    pub fn with_message(&self, e: impl Error) -> CustomError {
+        CustomError {
+            error: self.error,
+            message: Some(Box::new(MessageError(Cow::Owned(e.to_string())))),
         }
     }
 }
@@ -115,16 +176,16 @@ macro_rules! format_error {
     ($str: literal $(,)?) => {
         $crate::CustomError {
             error: $crate::AccessError::Custom,
-            message: ::std::borrow::Cow::Borrowed($str),
+            message: Some(Box::new($crate::MessageError(::std::borrow::Cow::Borrowed($str)))),
         }
     };
 
     ($str: literal $(,$expr: expr)* $(,)?) => {
         $crate::CustomError {
             error: $crate::AccessError::Custom,
-            message: ::std::borrow::Cow::Owned(
+            message: Some(Box::new($crate::MessageError::new(
                 format!($str $(,$expr)*)
-            ),
+            ))),
         }
     };
     ($variant: expr, $str: literal $(,)?) => {
@@ -133,7 +194,7 @@ macro_rules! format_error {
             use $crate::AccessError::*;
             $crate::CustomError {
                 error: $variant,
-                message: ::std::borrow::Cow::Borrowed($str),
+                message: Some(Box::new($crate::MessageError::new_static($str))),
             }
         }
 
@@ -145,9 +206,21 @@ macro_rules! format_error {
             use $crate::AccessError::*;
             $crate::CustomError {
                 error: $variant,
-                message: ::std::borrow::Cow::Owned(
+                message: Some(Box::new($crate::MessageError::new(
                     format!($str $(,$expr)*)
-                ),
+                ))),
+            }
+        }
+    };
+
+
+    ($variant: expr, $expr: expr $(,)?) => {
+        #[allow(unused_imports)]
+        {
+            use $crate::AccessError::*;
+            $crate::CustomError {
+                error: $variant,
+                message: Some(Box::new($expr)),
             }
         }
     };
@@ -167,7 +240,7 @@ macro_rules! attempt {
 
 #[cfg(test)]
 mod test {
-    use crate::AccessError;
+    use crate::{AccessError, CustomError};
 
     #[test]
     fn test() {
@@ -180,5 +253,35 @@ mod test {
         format_error!(EntityNotFound, "{} is missing.", sword);
         let my_error = AccessError::EntityNotFound;
         format_error!(my_error, "{} is missing.", sword);
+        format_error!(
+            EntityNotFound,
+            std::io::Error::new(std::io::ErrorKind::NotFound, "No!")
+        );
+        format_error!(
+            my_error,
+            std::io::Error::new(std::io::ErrorKind::NotFound, "No!")
+        );
+    }
+
+    fn custom() -> Result<(), CustomError> {
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No!"))?;
+        Err(format_error!(EntityNotFound, "{} is missing.", 42))?;
+        Ok(())
+    }
+
+    fn main() -> Result<(), AccessError> {
+        custom()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test2() {
+        let err = (|| -> Result<(), CustomError> {
+            Err(AccessError::ChildNotFound)?;
+            Ok(())
+        })()
+        .unwrap_err();
+        assert!(err.is(AccessError::ChildNotFound));
+        assert!(err.message.is_none());
     }
 }

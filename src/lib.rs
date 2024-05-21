@@ -35,7 +35,7 @@ use bevy_ecs::{
     world::World,
 };
 use bevy_reflect::std_traits::ReflectDefault;
-pub use errors::{AccessError, CustomError};
+pub use errors::{AccessError, CustomError, MessageError};
 pub use executor::AsyncExecutor;
 pub use queue::QueryQueue;
 use reactors::Reactors;
