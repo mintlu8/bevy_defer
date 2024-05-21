@@ -35,7 +35,6 @@ pub trait HyperHttpClientExt {
         request: hyper::Request<T>,
     ) -> impl Future<Output = Result<Vec<u8>, HttpError>>
     where
-        T: Send,
         T::Data: Send,
         T::Error: std::error::Error + Send + Sync;
 }
@@ -106,7 +105,6 @@ impl HyperHttpClientExt for AsyncWorld {
         request: hyper::Request<T>,
     ) -> Result<Vec<u8>, HttpError>
     where
-        T: Send,
         T::Data: Send,
         T::Error: std::error::Error + Send + Sync,
     {

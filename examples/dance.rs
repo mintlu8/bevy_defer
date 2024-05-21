@@ -72,7 +72,7 @@ impl AsyncAnimator {
         let len = name.len();
         self.0.set(move |comp| {
             println!("Animating from {} to {}", &comp.0, name);
-            comp.0 = name.to_owned();
+            name.clone_into(&mut comp.0);
         })?;
         AsyncWorld.sleep(Duration::from_secs(len as u64)).await;
         println!("Animation {name} done!");
