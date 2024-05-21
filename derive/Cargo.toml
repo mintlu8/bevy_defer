@@ -3,6 +3,15 @@ name = "bevy_defer_derive"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+repository = "https://github.com/mintlu8/bevy_defer"
+description = """
+Derive macroes for bevy_defer.
+"""
+keywords = ["bevy", "async", "defer"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
