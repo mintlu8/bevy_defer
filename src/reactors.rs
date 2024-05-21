@@ -8,9 +8,13 @@ use bevy_ecs::{
     schedule::{State, States},
     system::{Local, Query, Res, Resource},
 };
-use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
-use std::{cell::OnceCell, convert::Infallible, marker::PhantomData, sync::Arc};
+use std::{
+    cell::OnceCell,
+    convert::Infallible,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 use ty_map_gen::type_map;
 
 use crate::signals::{Receiver, Signal, SignalId, SignalSender, Signals};
@@ -51,8 +55,8 @@ pub(crate) struct ReactorsInner {
 impl std::fmt::Debug for ReactorsInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Reactors")
-            .field("typed", &self.typed.lock().len())
-            .field("named", &self.named.lock().len())
+            .field("typed", &self.typed.lock().unwrap().len())
+            .field("named", &self.named.lock().unwrap().len())
             .finish()
     }
 }
@@ -61,7 +65,7 @@ impl Reactors {
     /// Obtain a typed signal.
     #[allow(clippy::box_default)]
     pub fn get_typed<T: SignalId>(&self) -> Signal<T::Data> {
-        let mut lock = self.0.typed.lock();
+        let mut lock = self.0.typed.lock().unwrap();
         if let Some(data) = lock.get::<T>() {
             data.clone()
         } else {
@@ -73,7 +77,7 @@ impl Reactors {
 
     /// Obtain a named signal.
     pub fn get_named<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
-        let mut lock = self.0.named.lock();
+        let mut lock = self.0.named.lock().unwrap();
         if let Some(data) = lock.get::<T, _>(name) {
             data.clone()
         } else {
@@ -85,7 +89,7 @@ impl Reactors {
 
     /// Obtain an event buffer by event type.
     pub fn get_event<E: Event + Clone>(&self) -> Arc<EventBuffer<E>> {
-        let mut lock = self.0.event_buffers.lock();
+        let mut lock = self.0.event_buffers.lock().unwrap();
         if let Some(data) = lock.get::<E>() {
             data.clone()
         } else {

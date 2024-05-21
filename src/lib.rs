@@ -71,8 +71,6 @@ pub use bevy_ecs::system::{NonSend, Res, SystemParam};
 pub use bevy_log::error;
 #[doc(hidden)]
 pub use ref_cast::RefCast;
-#[doc(hidden)]
-pub use scoped_tls::scoped_thread_local;
 
 use queue::run_fixed_queue;
 use signals::{Signal, SignalId, Signals};

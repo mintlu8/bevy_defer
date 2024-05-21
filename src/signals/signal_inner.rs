@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::task::Context;
 use std::{ops::Deref, sync::atomic::AtomicU32, task::Poll};
 
@@ -10,7 +10,6 @@ use event_listener_strategy::{EventListenerFuture, FutureWrapper, NonBlocking, S
 use futures::future::{Fuse, FusedFuture};
 use futures::stream::FusedStream;
 use futures::{Future, FutureExt, Sink, Stream};
-use parking_lot::RwLock;
 use std::sync::atomic::Ordering;
 
 /// The data component of a signal.
@@ -147,7 +146,7 @@ impl<T: Clone + Send + Sync + 'static> SignalBorrow<T> {
 impl<T: Send + Sync + 'static> Signal<T> {
     /// Send a value, does not increment the read tick.
     pub fn send(&self, value: T) {
-        let mut lock = self.0.inner.data.write();
+        let mut lock = self.0.inner.data.write().unwrap();
         *lock = Some(value);
         self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
         self.0.inner.event.notify(usize::MAX);
@@ -158,7 +157,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: PartialEq,
     {
-        let mut lock = self.0.inner.data.write();
+        let mut lock = self.0.inner.data.write().unwrap();
         if lock.as_ref() != Some(&value) {
             *lock = Some(value);
             self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
@@ -168,7 +167,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
 
     /// Send a value and increment the read tick.
     pub fn broadcast(&self, value: T) {
-        let mut lock = self.0.inner.data.write();
+        let mut lock = self.0.inner.data.write().unwrap();
         *lock = Some(value);
         let version = self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
         self.0.inner.event.notify(usize::MAX);
@@ -182,7 +181,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     where
         T: PartialEq,
     {
-        let mut lock = self.0.inner.data.write();
+        let mut lock = self.0.inner.data.write().unwrap();
         if lock.as_ref() != Some(&value) {
             *lock = Some(value);
             let version = self.0.inner.tick.fetch_add(1, Ordering::Relaxed);
@@ -200,7 +199,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     {
         let version = self.0.inner.tick.load(Ordering::Relaxed);
         if self.0.tick.swap(version, Ordering::Relaxed) != version {
-            self.0.inner.data.read().clone()
+            self.0.inner.data.read().unwrap().clone()
         } else {
             None
         }
@@ -213,7 +212,7 @@ impl<T: Send + Sync + 'static> Signal<T> {
     {
         let version = self.0.inner.tick.load(Ordering::Relaxed);
         self.0.tick.swap(version, Ordering::Relaxed);
-        self.0.inner.data.read().clone()
+        self.0.inner.data.read().unwrap().clone()
     }
 
     /// Poll the signal value asynchronously.
@@ -270,7 +269,7 @@ impl<T: Clone> EventListenerFuture for SignalFutureInner<T> {
         let tick = self.signal.inner.tick.load(Ordering::Relaxed);
         loop {
             if self.signal.tick.swap(tick, Ordering::Relaxed) != tick {
-                if let Some(result) = self.signal.inner.data.read().clone() {
+                if let Some(result) = self.signal.inner.data.read().unwrap().clone() {
                     return Poll::Ready(result);
                 }
             }

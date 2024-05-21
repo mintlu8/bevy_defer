@@ -9,11 +9,10 @@ use bevy_ecs::world::World;
 use event_listener::EventListener;
 use event_listener_strategy::{NonBlocking, Strategy};
 use futures::Stream;
-use parking_lot::RwLock;
 use std::cell::OnceCell;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 
 impl AsyncWorld {
@@ -90,7 +89,7 @@ impl<E: Event + Clone> Stream for EventStream<E> {
                 this.tick = current_tick;
                 this.index = 0;
             }
-            let lock = this.event.buffer.read();
+            let lock = this.event.buffer.read().unwrap();
             let value = lock.get(this.index).cloned();
             this.listener
                 .get_or_insert_with(|| this.event.notify.listen());
@@ -130,7 +129,7 @@ pub fn react_to_event<E: Event + Clone>(
     buffers.tick.fetch_add(1, Ordering::AcqRel);
     if !reader.is_empty() {
         buffers.notify.notify(usize::MAX);
-        let mut lock = buffers.buffer.write();
+        let mut lock = buffers.buffer.write().unwrap();
         lock.drain(..);
         lock.extend(reader.read().cloned());
     };

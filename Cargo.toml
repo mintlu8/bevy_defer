@@ -7,7 +7,7 @@ members = [
 
 [package]
 name = "bevy_defer"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -30,9 +30,7 @@ bevy_defer_derive = { version = "0.1", path = "./derive", optional = true }
 futures = { version = "0.3.30", default-features = false }
 async-executor = "1.10.0"
 
-parking_lot = "0.12"
 thiserror = "1"
-downcast-rs = "1.2"
 ref-cast = "1.0.22"
 bevy_ecs = "0.13.1"
 bevy_hierarchy = "0.13.1"
@@ -46,7 +44,6 @@ bevy_math = "0.13.1"
 bevy_core = "0.13.1"
 bevy_utils = "0.13.1"
 rustc-hash = "1.1.0"
-scoped-tls = "1.0.1"
 
 bevy_animation = { version = "0.13.1", optional = true }
 bevy_ui = { version = "0.13.1", optional = true }

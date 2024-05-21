@@ -79,9 +79,8 @@ use bevy_ecs::{
 use bevy_hierarchy::Children;
 use bevy_reflect::Reflect;
 use futures::FutureExt;
-use parking_lot::Mutex;
-use std::fmt::Debug;
 use std::pin::Pin;
+use std::{fmt::Debug, sync::Mutex};
 use std::{
     future::Future,
     num::NonZeroU32,
@@ -150,7 +149,7 @@ impl ParentAlive {
 
 impl Drop for ParentAlive {
     fn drop(&mut self) {
-        if let Some(waker) = self.0.lock().take() {
+        if let Some(waker) = self.0.lock().unwrap().take() {
             waker.wake()
         }
     }
@@ -172,7 +171,7 @@ impl Future for ChildAlive {
             Poll::Ready(())
         } else if !self.init {
             self.init = true;
-            *self.inner.lock() = Some(cx.waker().clone());
+            *self.inner.lock().unwrap() = Some(cx.waker().clone());
             Poll::Pending
         } else {
             Poll::Pending
@@ -182,7 +181,7 @@ impl Future for ChildAlive {
 
 impl Drop for ChildAlive {
     fn drop(&mut self) {
-        *self.inner.lock() = None
+        *self.inner.lock().unwrap() = None
     }
 }
 
