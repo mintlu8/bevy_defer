@@ -5,9 +5,9 @@ use bevy_ecs::{
     entity::Entity,
     event::Event,
     query::{Changed, With},
-    schedule::{State, States},
     system::{Local, Query, Res, Resource},
 };
+use bevy_state::state::{State, States};
 use rustc_hash::FxHashMap;
 use std::{
     cell::OnceCell,

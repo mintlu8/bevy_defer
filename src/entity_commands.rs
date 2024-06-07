@@ -7,7 +7,8 @@ use crate::{
     AccessError, AccessResult,
 };
 use bevy_core::Name;
-use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
+use bevy_ecs::world::Command;
+use bevy_ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};
 use rustc_hash::FxHashMap;
 use std::borrow::Borrow;

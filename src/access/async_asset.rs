@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
+
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
@@ -5,7 +8,64 @@ use crate::{AccessError, AccessResult};
 use bevy_asset::meta::Settings;
 use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
+use event_listener::Event;
 use futures::future::{ready, Either};
+use futures::Future;
+
+#[derive(Debug)]
+pub struct AssetBarrierInner {
+    pub count: AtomicI32,
+    pub notify: Event,
+}
+
+#[derive(Debug)]
+pub struct AssetBarrierGuard(Arc<AssetBarrierInner>);
+
+impl Clone for AssetBarrierGuard {
+    fn clone(&self) -> Self {
+        self.0.count.fetch_add(1, Ordering::AcqRel);
+        Self(self.0.clone())
+    }
+}
+
+impl Drop for AssetBarrierGuard {
+    fn drop(&mut self) {
+        let prev = self.0.count.fetch_sub(1, Ordering::AcqRel);
+        if prev <= 1 {
+            self.0.notify.notify(usize::MAX);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct AssetSet(Arc<AssetBarrierInner>);
+
+impl AssetSet {
+    pub fn load<A: Asset>(&self, path: impl Into<AssetPath<'static>>) -> Handle<A> {
+        if !ASSET_SERVER.is_set() {
+            panic!("AssetServer does not exist.")
+        }
+        self.0.count.fetch_add(1, Ordering::AcqRel);
+        ASSET_SERVER.with(|s| {
+            s.load_acquire::<A, _>(path, AssetBarrierGuard(self.0.clone()))
+        })
+    }
+
+    pub fn wait(&self) -> impl Future<Output = ()> + '_ {
+        if self.0.count.load(Ordering::Acquire) == 0 {
+            Either::Left(ready(()))
+        } else {
+            Either::Right(async {
+                loop {
+                    self.0.notify.listen().await;
+                    if self.0.count.load(Ordering::Acquire) == 0 {
+                        return;
+                    }
+                }
+            })
+        }
+    }
+}
 
 /// Async version of [`Handle`].
 #[derive(Debug)]
@@ -97,14 +157,14 @@ impl<A: Asset> AsyncAsset<A> {
         }
         match ASSET_SERVER.with(|server| server.load_state(&self.0)) {
             LoadState::Loaded => return Either::Right(ready(true)),
-            LoadState::Failed => return Either::Right(ready(false)),
+            LoadState::Failed(..) => return Either::Right(ready(false)),
             _ => (),
         };
         let handle = self.0.id();
         AsyncWorld.watch_left(move |world: &mut World| {
             match world.resource::<AssetServer>().load_state(handle) {
                 LoadState::Loaded => Some(true),
-                LoadState::Failed => Some(false),
+                LoadState::Failed(..) => Some(false),
                 _ => None,
             }
         })

@@ -14,6 +14,12 @@ pub struct AsyncComponent<C: Component> {
     pub(crate) p: PhantomData<C>,
 }
 
+impl<C: Component> AsyncComponent<C> {
+    pub(crate) fn entity(&self) -> Entity {
+        self.entity
+    }
+}
+
 impl<C: Component> Copy for AsyncComponent<C> {}
 
 impl<C: Component> Clone for AsyncComponent<C> {

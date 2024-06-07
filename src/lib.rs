@@ -3,9 +3,10 @@
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::event::Event;
-use bevy_ecs::schedule::States;
+use bevy_ecs::intern::Interned;
+use bevy_ecs::world::Command;
+use bevy_state::state::States;
 use bevy_time::TimeSystem;
-use bevy_utils::intern::Interned;
 use std::pin::Pin;
 
 pub mod access;
@@ -31,7 +32,7 @@ pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
 use bevy_ecs::{
     schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
-    system::{Command, Commands},
+    system::Commands,
     world::World,
 };
 use bevy_reflect::std_traits::ReflectDefault;
@@ -260,7 +261,7 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
-        self.world
+        self.world()
             .non_send_resource::<AsyncExecutor>()
             .spawn(async move {
                 match f.await {
@@ -272,13 +273,13 @@ impl AsyncExtension for App {
     }
 
     fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
-        self.world
+        self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
     fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data> {
-        self.world
+        self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
     }

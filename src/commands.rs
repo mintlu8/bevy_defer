@@ -1,3 +1,4 @@
+use crate::access::AsyncResource;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER};
 use crate::signals::SignalStream;
 use crate::{
@@ -8,11 +9,13 @@ use crate::{
     tween::AsSeconds,
 };
 use crate::{access::AsyncWorld, AccessError, AccessResult};
+use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use bevy_app::AppExit;
-use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
+use bevy_ecs::system::{IntoSystem, SystemId};
+use bevy_ecs::world::{Command, CommandQueue};
 use bevy_ecs::{
     bundle::Bundle,
-    schedule::{NextState, ScheduleLabel, State, States},
+    schedule::ScheduleLabel,
     system::Resource,
     world::World,
 };
@@ -279,6 +282,12 @@ impl AsyncWorld {
         }))
     }
 
+    /// Inserts a new resource with the given value.
+    pub fn insert_resource<R: Resource>(&self, resource: R) -> AsyncResource<R> {
+        with_world_mut(move |world: &mut World| world.insert_resource(resource));
+        self.resource()
+    }
+
     /// Transition to a new [`States`].
     ///
     /// # Example
@@ -288,7 +297,7 @@ impl AsyncWorld {
     /// AsyncWorld.set_state(MyState::A)
     /// # });
     /// ```
-    pub fn set_state<S: States>(&self, state: S) -> AccessResult<()> {
+    pub fn set_state<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
             world
                 .get_resource_mut::<NextState<S>>()
@@ -406,7 +415,7 @@ impl AsyncWorld {
     /// ```
     pub fn quit(&self) {
         with_world_mut(move |world: &mut World| {
-            world.send_event(AppExit);
+            world.send_event(AppExit::Success);
         })
     }
 

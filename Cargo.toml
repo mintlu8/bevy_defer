@@ -32,29 +32,31 @@ async-executor = "1.10.0"
 
 thiserror = "1"
 ref-cast = "1.0.22"
-bevy_ecs = "0.13.1"
-bevy_hierarchy = "0.13.1"
-bevy_app = "0.13.1"
-bevy_asset = "0.13.1"
-bevy_reflect = "0.13.1"
-bevy_log = "0.13.1"
-bevy_tasks = "0.13.1"
-bevy_time = "0.13.1"
-bevy_math = "0.13.1"
-bevy_core = "0.13.1"
-bevy_utils = "0.13.1"
 rustc-hash = "1.1.0"
-
-bevy_animation = { version = "0.13.1", optional = true }
-bevy_ui = { version = "0.13.1", optional = true }
-bevy_scene = { version = "0.13.1", optional = true }
 async-oneshot = "0.5.9"
 scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
+bevy_ecs = "0.14.0-rc.2"
+bevy_state = "0.14.0-rc.2"
+bevy_hierarchy = "0.14.0-rc.2"
+bevy_app = "0.14.0-rc.2"
+bevy_asset = "0.14.0-rc.2"
+bevy_reflect = "0.14.0-rc.2"
+bevy_log = "0.14.0-rc.2"
+bevy_tasks = "0.14.0-rc.2"
+bevy_time = "0.14.0-rc.2"
+bevy_math = "0.14.0-rc.2"
+bevy_core = "0.14.0-rc.2"
+bevy_utils = "0.14.0-rc.2"
+
+bevy_animation = { version = "0.14.0-rc.2", optional = true }
+bevy_ui = { version = "0.14.0-rc.2", optional = true }
+bevy_scene = { version = "0.14.0-rc.2", optional = true }
+
 [dev-dependencies]
-bevy = { version = "0.13.0" }
+bevy = { version = "0.14.0-rc.2" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }
