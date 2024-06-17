@@ -360,10 +360,10 @@ macro_rules! test_spawn {
         use ::bevy::prelude::*;
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
-        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct Int(i32);
 
-        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct Str(&'static str);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
@@ -378,8 +378,8 @@ macro_rules! test_spawn {
         app.add_plugins(AssetPlugin::default());
         app.init_asset::<Image>();
         app.add_plugins(bevy_defer::AsyncPlugin::default_settings());
-        app.world.spawn(Int(4));
-        app.world.spawn(Str("Ferris"));
+        app.world_mut().spawn(Int(4));
+        app.world_mut().spawn(Str("Ferris"));
         app.insert_resource(Int(4));
         app.insert_resource(Str("Ferris"));
         app.insert_non_send_resource(Int(4));

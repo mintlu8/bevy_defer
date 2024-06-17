@@ -15,7 +15,7 @@ pub struct AsyncComponent<C: Component> {
 }
 
 impl<C: Component> AsyncComponent<C> {
-    pub(crate) fn entity(&self) -> Entity {
+    pub fn entity(&self) -> Entity {
         self.entity
     }
 }

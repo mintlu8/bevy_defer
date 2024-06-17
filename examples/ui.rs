@@ -19,9 +19,9 @@ fn main() {
         .run();
 }
 
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 /// from the original
 fn button_system(
@@ -34,7 +34,7 @@ fn button_system(
         match *interaction {
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
-                border_color.0 = Color::RED;
+                border_color.0 = Color::srgb(1., 0., 0.);
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
@@ -85,7 +85,7 @@ fn setup(mut commands: Commands) {
                             ..default()
                         },
                         border_color: BorderColor(Color::BLACK),
-                        background_color: NORMAL_BUTTON.into(),
+                        image: UiImage { color: NORMAL_BUTTON, ..Default::default() },
                         ..default()
                     },
                     RelativeCursorPosition::default(),
@@ -119,7 +119,7 @@ fn setup(mut commands: Commands) {
                             TextStyle {
                                 font: Default::default(),
                                 font_size: 40.0,
-                                color: Color::rgb(0.9, 0.9, 0.9),
+                                color: Color::srgb(0.9, 0.9, 0.9),
                             },
                         ),
                         Signals::from_receiver::<UIInteractionChange>(state),
@@ -142,7 +142,7 @@ fn setup(mut commands: Commands) {
                     TextStyle {
                         font: Default::default(),
                         font_size: 40.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
+                        color: Color::srgb(0.9, 0.9, 0.9),
                     },
                 ),
                 Signals::new()

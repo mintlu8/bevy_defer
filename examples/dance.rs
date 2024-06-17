@@ -4,7 +4,8 @@ use bevy_defer::{
     access::{deref::AsyncComponentDeref, AsyncComponent, AsyncWorld},
     signal_ids, AccessError, AppReactorExtension, AsyncAccess, AsyncExtension, AsyncPlugin,
 };
-use bevy_ecs::{component::Component, entity::Entity, schedule::States, system::Resource};
+use bevy_ecs::{component::Component, entity::Entity, system::Resource};
+use bevy_state::{app::AppExtStates, state::States};
 use bevy_tasks::futures_lite::StreamExt;
 use futures::FutureExt;
 use ref_cast::RefCast;
@@ -107,8 +108,8 @@ pub fn main() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.react_to_state::<GameState>();
 
-    let e1 = app.world.spawn((HP(0), Animator("Idle".to_owned()))).id();
-    let e2 = app.world.spawn((HP(0), Animator("Idle".to_owned()))).id();
+    let e1 = app.world_mut().spawn((HP(0), Animator("Idle".to_owned()))).id();
+    let e2 = app.world_mut().spawn((HP(0), Animator("Idle".to_owned()))).id();
     app.insert_resource(NamedEntities(HashMap::from([
         ("Richard".to_owned(), e1),
         ("Jen".to_owned(), e2),
@@ -165,6 +166,5 @@ pub fn main() {
         Ok(())
     });
     app.insert_state(GameState::Animating);
-
-    app.run()
+    app.run();
 }

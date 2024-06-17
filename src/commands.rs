@@ -55,7 +55,7 @@ impl AsyncWorld {
     /// # Example
     ///
     /// ```
-    /// # use bevy::ecs::system::CommandQueue;
+    /// # use bevy::ecs::world::CommandQueue;
     /// # bevy_defer::test_spawn!({
     /// let queue = CommandQueue::default();
     /// AsyncWorld.apply_command_queue(queue);
