@@ -266,7 +266,7 @@ pub fn event_stream() {
     app.add_systems(Update, sys_update);
     app.add_systems(PreUpdate, sys_update);
     app.add_systems(PostUpdate, sys_update);
-    app.run()
+    app.run();
 }
 
 fn sys_update(mut event: EventWriter<IntegerEvent>) {

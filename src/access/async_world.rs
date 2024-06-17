@@ -12,7 +12,6 @@ use bevy_ecs::{
 };
 use bevy_utils::Duration;
 use ref_cast::RefCast;
-use std::usize;
 use std::{marker::PhantomData, ops::Deref};
 
 #[allow(unused)]

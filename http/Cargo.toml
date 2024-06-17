@@ -18,11 +18,11 @@ keywords = ["bevy", "async", "defer", "client"]
 
 [dependencies]
 async-io = "2.3.2"
-bevy_defer = { version = "0.11", path = "../"}
+bevy_defer = { version = "0.12", path = "../"}
 http-body-util = "0.1.1"
 hyper = { version = "1.2.0", features = ["http1", "client"] }
 smol-hyper = { version = "0.1.1", default-features = false, features = ["async-io"] }
 thiserror = "1.0.58"
 
 [dev-dependencies]
-bevy = "0.13"
+bevy = "0.14.0-rc.3"
