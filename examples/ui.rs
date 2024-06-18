@@ -85,7 +85,10 @@ fn setup(mut commands: Commands) {
                             ..default()
                         },
                         border_color: BorderColor(Color::BLACK),
-                        image: UiImage { color: NORMAL_BUTTON, ..Default::default() },
+                        image: UiImage {
+                            color: NORMAL_BUTTON,
+                            ..Default::default()
+                        },
                         ..default()
                     },
                     RelativeCursorPosition::default(),

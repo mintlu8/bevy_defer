@@ -4,6 +4,7 @@ use crate::async_systems::AsyncWorldParam;
 use crate::executor::QUERY_QUEUE;
 use crate::in_async_context;
 use crate::reactors::Reactors;
+use bevy_asset::Asset;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -19,6 +20,8 @@ use bevy_ecs::{system::Commands, world::World};
 
 #[allow(unused)]
 use crate::{AsyncExecutor, QueryQueue};
+
+use super::AsyncComponentHandle;
 
 /// Async version of [`World`] or [`Commands`].
 ///
@@ -128,6 +131,19 @@ impl AsyncEntityMut {
     /// This does not mean the component or the entity exists in the world.
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
+            entity: self.0,
+            p: PhantomData,
+        }
+    }
+
+    /// Get an [`AsyncComponentHandle`](crate::access::AsyncComponentHandle) on this entity.
+    /// This is similar to `AsyncComponent<Handle<T>>` but point to the asset instead.
+    ///
+    /// # Note
+    ///
+    /// This does not mean the component, asset or entity exist in the world.
+    pub fn component_handle<A: Asset>(&self) -> AsyncComponentHandle<A> {
+        AsyncComponentHandle {
             entity: self.0,
             p: PhantomData,
         }

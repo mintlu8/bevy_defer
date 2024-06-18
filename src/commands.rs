@@ -9,17 +9,12 @@ use crate::{
     tween::AsSeconds,
 };
 use crate::{access::AsyncWorld, AccessError, AccessResult};
-use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use bevy_app::AppExit;
 use bevy_ecs::system::{IntoSystem, SystemId};
 use bevy_ecs::world::{Command, CommandQueue};
-use bevy_ecs::{
-    bundle::Bundle,
-    schedule::ScheduleLabel,
-    system::Resource,
-    world::World,
-};
+use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
 use bevy_log::error;
+use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use bevy_utils::Duration;
 use futures::future::ready;
 use futures::future::Either;

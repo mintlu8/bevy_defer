@@ -108,8 +108,14 @@ pub fn main() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.react_to_state::<GameState>();
 
-    let e1 = app.world_mut().spawn((HP(0), Animator("Idle".to_owned()))).id();
-    let e2 = app.world_mut().spawn((HP(0), Animator("Idle".to_owned()))).id();
+    let e1 = app
+        .world_mut()
+        .spawn((HP(0), Animator("Idle".to_owned())))
+        .id();
+    let e2 = app
+        .world_mut()
+        .spawn((HP(0), Animator("Idle".to_owned())))
+        .id();
     app.insert_resource(NamedEntities(HashMap::from([
         ("Richard".to_owned(), e1),
         ("Jen".to_owned(), e2),

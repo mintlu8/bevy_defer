@@ -1,19 +1,16 @@
-use std::ops::{Deref, DerefMut};
-use bevy_animation::prelude::{AnimationNodeIndex, AnimationTransitions};
-use bevy_animation::AnimationPlayer;
-use bevy_ecs::component::Component;
-use bevy_ecs::{
-    query::Changed,
-    system::Query,
-};
-use futures::{Future, FutureExt};
-use ref_cast::RefCast;
 use crate::tween::AsSeconds;
-use crate::{AccessError, AsyncWorld, OwnedQueryState};
 use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
     AccessResult, AsyncAccess,
 };
+use crate::{AccessError, AsyncWorld, OwnedQueryState};
+use bevy_animation::prelude::{AnimationNodeIndex, AnimationTransitions};
+use bevy_animation::AnimationPlayer;
+use bevy_ecs::component::Component;
+use bevy_ecs::{query::Changed, system::Query};
+use futures::{Future, FutureExt};
+use ref_cast::RefCast;
+use std::ops::{Deref, DerefMut};
 
 /// Async accessor to [`AnimationPlayer`].
 #[derive(RefCast)]
@@ -72,15 +69,15 @@ impl AsyncAnimationPlayer {
 
     /// Stop playing an animation.
     pub fn is_playing_animation(&self, clip: AnimationNodeIndex) -> AccessResult<bool> {
-        self.0.get(move |player| {
-            player.is_playing_animation(clip)
-        })
+        self.0.get(move |player| player.is_playing_animation(clip))
     }
 
     pub fn wait(&self, event: AnimationEvent) -> AccessResult<impl Future<Output = ()> + 'static> {
         let (send, recv) = async_oneshot::oneshot();
         AsyncWorld.run(|w| {
-            let Some(mut entity) = w.get_entity_mut(self.0.entity) else {return Err(AccessError::EntityNotFound);};
+            let Some(mut entity) = w.get_entity_mut(self.0.entity) else {
+                return Err(AccessError::EntityNotFound);
+            };
             if let Some(mut reactors) = entity.get_mut::<AnimationReactor>() {
                 reactors.push((event, send));
             } else {
@@ -95,7 +92,8 @@ impl AsyncAnimationPlayer {
 impl AsyncAnimationTransitions {
     pub fn play(&self, animation: AnimationNodeIndex, transition: impl AsSeconds) {
         AsyncWorld.run(|w| {
-            let mut query = OwnedQueryState::<(&mut AnimationPlayer, &mut AnimationTransitions), ()>::new(w);
+            let mut query =
+                OwnedQueryState::<(&mut AnimationPlayer, &mut AnimationTransitions), ()>::new(w);
             if let Ok((mut player, mut transitions)) = query.get_mut(self.0.entity()) {
                 transitions.play(&mut player, animation, transition.as_duration());
             }
@@ -109,20 +107,20 @@ pub enum AnimationEvent {
     OnExit(AnimationNodeIndex),
     /// Yields when current animation is the one specified.
     OnEnter(AnimationNodeIndex),
-    /// Yields when the last animation is the one specified 
+    /// Yields when the last animation is the one specified
     /// and current animation is not the one specified.
     WaitUnitOnExit(AnimationNodeIndex),
     /// Yields when the specified animation passes a specific frame.
-    OnFrame{
+    OnFrame {
         animation: AnimationNodeIndex,
         frame: f32,
     },
     /// Yields when the specified animation passes a specific frame,
     /// or when the specified animation exits.
-    OnFrameOrExit{
+    OnFrameOrExit {
         animation: AnimationNodeIndex,
         frame: f32,
-    }
+    },
 }
 
 #[derive(Component, Clone)]
@@ -161,21 +159,23 @@ impl DerefMut for AnimationReactor {
 
 // /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
 pub fn react_to_animation(
-    mut query: Query<(&AnimationPlayer, &mut PreviousAnimationPlayer, &mut AnimationReactor), Changed<AnimationPlayer>>,
+    mut query: Query<
+        (
+            &AnimationPlayer,
+            &mut PreviousAnimationPlayer,
+            &mut AnimationReactor,
+        ),
+        Changed<AnimationPlayer>,
+    >,
 ) {
     for (player, mut prev, mut reactors) in query.iter_mut() {
         reactors.0.retain_mut(|(event, channel)| {
             let yields = match event {
-                AnimationEvent::OnExit(idx) => {
-                    !player.is_playing_animation(*idx)
-                },
-                AnimationEvent::OnEnter(idx) => {
-                    player.is_playing_animation(*idx)
-                },
+                AnimationEvent::OnExit(idx) => !player.is_playing_animation(*idx),
+                AnimationEvent::OnEnter(idx) => player.is_playing_animation(*idx),
                 AnimationEvent::WaitUnitOnExit(idx) => {
-                    player.is_playing_animation(*idx) &&
-                        !prev.0.is_playing_animation(*idx)
-                },
+                    player.is_playing_animation(*idx) && !prev.0.is_playing_animation(*idx)
+                }
                 AnimationEvent::OnFrame { animation, frame } => {
                     if let Some(prev) = prev.0.animation(*animation) {
                         if let Some(curr) = player.animation(*animation) {

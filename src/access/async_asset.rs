@@ -46,9 +46,7 @@ impl AssetSet {
             panic!("AssetServer does not exist.")
         }
         self.0.count.fetch_add(1, Ordering::AcqRel);
-        ASSET_SERVER.with(|s| {
-            s.load_acquire::<A, _>(path, AssetBarrierGuard(self.0.clone()))
-        })
+        ASSET_SERVER.with(|s| s.load_acquire::<A, _>(path, AssetBarrierGuard(self.0.clone())))
     }
 
     pub fn wait(&self) -> impl Future<Output = ()> + '_ {
