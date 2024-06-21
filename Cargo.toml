@@ -32,7 +32,7 @@ async-executor = "1.10.0"
 
 thiserror = "1"
 ref-cast = "1.0.22"
-rustc-hash = "1.1.0"
+rustc-hash = "2.0.0"
 async-oneshot = "0.5.9"
 scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
