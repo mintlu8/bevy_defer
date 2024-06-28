@@ -1,17 +1,17 @@
 use crate::access::AsyncResource;
-use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER};
-use crate::signals::SignalStream;
+use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER, WORLD};
 use crate::{
     access::AsyncEntityMut,
     reactors::StateSignal,
-    signals::{Signal, SignalId},
+    signals::SignalId,
     sync::oneshot::{channel, ChannelOut, MaybeChannelOut},
     tween::AsSeconds,
 };
 use crate::{access::AsyncWorld, AccessError, AccessResult};
+use async_shared::{Value, ValueStream};
 use bevy_app::AppExit;
 use bevy_ecs::system::{IntoSystem, SystemId};
-use bevy_ecs::world::{Command, CommandQueue};
+use bevy_ecs::world::{Command, CommandQueue, Mut};
 use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
 use bevy_log::error;
 use bevy_state::state::{FreelyMutableState, NextState, State, States};
@@ -120,6 +120,20 @@ impl AsyncWorld {
                 .try_run_schedule(schedule)
                 .map_err(|_| AccessError::ScheduleNotFound)
         })
+    }
+
+    /// Obtain a [`Resource`] in a scoped function.
+    /// This is not considered an access function.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// AsyncWorld.run(|w: &mut World| w.resource::<Int>().0)
+    /// # );
+    /// ```
+    pub fn resource_scope<R: Resource, T>(&self, f: impl FnOnce(Mut<R>) -> T) -> T {
+        with_world_mut(|w| w.resource_scope(|w, r| WORLD.set(w, || f(r))))
     }
 
     /// Register a system and return a [`SystemId`] so it can later be called by `run_system`.
@@ -340,9 +354,9 @@ impl AsyncWorld {
     /// Obtain a [`SignalStream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
-    pub fn state_stream<S: States + Clone + Default>(&self) -> SignalStream<S> {
+    pub fn state_stream<S: States + Clone + Default>(&self) -> ValueStream<S> {
         let signal = self.typed_signal::<StateSignal<S>>();
-        signal.rewind();
+        signal.make_readable();
         signal.into_stream()
     }
 
@@ -431,7 +445,7 @@ impl AsyncWorld {
     /// signal.poll().await;
     /// # });
     /// ```
-    pub fn typed_signal<T: SignalId>(&self) -> Signal<T::Data> {
+    pub fn typed_signal<T: SignalId>(&self) -> Value<T::Data> {
         if !REACTORS.is_set() {
             panic!("Can only obtain typed signal in async context.")
         }
@@ -455,7 +469,7 @@ impl AsyncWorld {
     /// signal.poll().await;
     /// # });
     /// ```
-    pub fn named_signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
+    pub fn named_signal<T: SignalId>(&self, name: &str) -> Value<T::Data> {
         if !REACTORS.is_set() {
             panic!("Can only obtain named signal in async context.")
         }

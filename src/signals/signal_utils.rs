@@ -1,10 +1,12 @@
 use super::signal_component::Signals;
-use super::signal_inner::{SignalBorrow, SignalFuture};
 use crate::async_systems::AsyncEntityParam;
 use crate::reactors::Reactors;
+use async_shared::Value;
 use bevy_ecs::entity::Entity;
-use futures::Stream;
-use std::future::IntoFuture;
+use futures::future::FusedFuture;
+use futures::stream::FusedStream;
+use futures::FutureExt;
+use std::sync::Arc;
 use std::{any::Any, marker::PhantomData};
 
 /// A marker type that indicates the type and purpose of a signal.
@@ -51,93 +53,51 @@ impl<T: Clone + Default + Send + Sync + 'static> SignalId for Fac<T> {
 }
 
 /// [`AsyncEntityParam`] for sending a signal.
-pub struct Sender<T: SignalId>(SignalBorrow<T::Data>);
+pub struct Sender<T: SignalId>(Arc<Value<T::Data>>);
 
 impl<T: SignalId> Unpin for Sender<T> {}
 
 impl<T: SignalId> Sender<T> {
     /// Send a value with a signal, can be polled by the same sender.
-    pub fn send(self, item: T::Data) -> impl FnOnce() + Send + Sync + 'static {
-        move || self.0.send(item)
+    pub fn send(&self, item: T::Data) {
+        let _ = self.0.write(item);
     }
 
     /// Send a value with a signal, cannot be polled by the same sender.
-    pub fn broadcast(self, item: T::Data) -> impl FnOnce() + Send + Sync + 'static {
-        move || self.0.broadcast(item)
+    pub fn broadcast(self, item: T::Data) {
+        let _ = self.0.write_and_tick(item);
     }
 
     /// Receives a value from the sender.
-    #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub fn recv(&self) -> SignalFuture<T::Data> {
-        self.0.poll()
+    pub fn recv(&self) -> impl FusedFuture<Output = T::Data> + '_ {
+        self.0.read_async().fuse()
     }
 
     /// Convert into a stream.
-    pub fn into_stream(self) -> impl Stream<Item = T::Data> {
-        self.0.into_stream()
+    pub fn to_stream(&self) -> impl FusedStream<Item = T::Data> + '_ {
+        self.0.to_stream()
     }
 }
 
 /// [`AsyncEntityParam`] for receiving a signal.
-pub struct Receiver<T: SignalId>(SignalBorrow<T::Data>);
+pub struct Receiver<T: SignalId>(Arc<Value<T::Data>>);
 
 impl<T: SignalId> Unpin for Receiver<T> {}
 
 impl<T: SignalId> Receiver<T> {
     /// Receive a value from the receiver.
-    #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub fn recv(&self) -> SignalFuture<T::Data> {
-        self.0.poll()
+    pub fn recv(&self) -> impl FusedFuture<Output = T::Data> + '_ {
+        self.0.read_async().fuse()
     }
 
     /// Convert into a stream.
-    pub fn into_stream(self) -> impl Stream<Item = T::Data> {
-        self.0.into_stream()
-    }
-}
-
-impl<T: SignalId> IntoFuture for &Receiver<T> {
-    type Output = T::Data;
-
-    type IntoFuture = SignalFuture<T::Data>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        self.0.poll()
-    }
-}
-
-impl<T: SignalId> IntoFuture for &Sender<T> {
-    type Output = T::Data;
-
-    type IntoFuture = SignalFuture<T::Data>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        self.0.poll()
-    }
-}
-
-impl<T: SignalId> IntoFuture for Receiver<T> {
-    type Output = T::Data;
-
-    type IntoFuture = SignalFuture<T::Data>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        self.0.poll()
-    }
-}
-
-impl<T: SignalId> IntoFuture for Sender<T> {
-    type Output = T::Data;
-
-    type IntoFuture = SignalFuture<T::Data>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        self.0.poll()
+    pub fn into_stream(&self) -> impl FusedStream<Item = T::Data> + '_ {
+        self.0.to_stream()
     }
 }
 
 impl<T: SignalId> AsyncEntityParam for Sender<T> {
-    type Signal = SignalBorrow<T::Data>;
+    type Signal = Arc<Value<T::Data>>;
 
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
         signals.borrow_sender::<T>()
@@ -154,7 +114,7 @@ impl<T: SignalId> AsyncEntityParam for Sender<T> {
 }
 
 impl<T: SignalId> AsyncEntityParam for Receiver<T> {
-    type Signal = SignalBorrow<T::Data>;
+    type Signal = Arc<Value<T::Data>>;
 
     fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
         signals.borrow_receiver::<T>()

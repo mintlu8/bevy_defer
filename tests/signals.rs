@@ -1,18 +1,18 @@
 use std::{
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
+use async_shared::Value;
 use bevy::MinimalPlugins;
 use bevy_app::{App, PostUpdate, PreUpdate, Startup, Update};
 use bevy_core::FrameCountPlugin;
 use bevy_defer::{
-    access::AsyncWorld,
-    async_system,
-    async_systems::AsyncSystems,
-    signal_ids,
-    signals::{Signal, SignalSender},
-    AppReactorExtension, AsyncExtension, AsyncPlugin,
+    access::AsyncWorld, async_system, async_systems::AsyncSystems, signal_ids,
+    signals::SignalSender, AppReactorExtension, AsyncExtension, AsyncPlugin,
 };
 use bevy_defer::{signals::Signals, systems::run_async_executor};
 use bevy_ecs::{
@@ -53,7 +53,7 @@ pub fn main() {
 }
 
 pub fn init(mut commands: Commands) {
-    let signal = Signal::default();
+    let signal = Arc::new(Value::default());
     commands.spawn((Marker1, Signals::from_sender::<SigText>(signal.clone())));
     commands.spawn((
         Marker2,
@@ -91,13 +91,13 @@ pub fn chat() {
     app.spawn_task(async {
         let world = AsyncWorld;
         assert_eq!(
-            world.named_signal::<Message>("Alice").poll().await,
+            world.named_signal::<Message>("Alice").read_async().await,
             "Hello, Alice."
         );
         world.sleep(Duration::from_millis(16)).await;
         world
             .named_signal::<Message>("Bob")
-            .send("Hello, Bob.".to_owned());
+            .write("Hello, Bob.".to_owned());
         ALICE.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -106,9 +106,9 @@ pub fn chat() {
         world.sleep(Duration::from_millis(16)).await;
         world
             .named_signal::<Message>("Alice")
-            .send("Hello, Alice.".to_owned());
+            .write("Hello, Alice.".to_owned());
         assert_eq!(
-            world.named_signal::<Message>("Bob").poll().await,
+            world.named_signal::<Message>("Bob").read_async().await,
             "Hello, Bob."
         );
         BOB.store(true, Ordering::Relaxed);

@@ -1,10 +1,10 @@
 #![allow(clippy::type_complexity)]
+use async_shared::Value;
 use bevy::prelude::*;
 use bevy_defer::ext::picking::{
     ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
 };
 use bevy_defer::reactors::StateMachine;
-use bevy_defer::signals::Signal;
 use bevy_defer::AsyncAccess;
 use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
 use bevy_tasks::futures_lite::StreamExt;
@@ -51,12 +51,12 @@ fn button_system(
 fn setup(mut commands: Commands) {
     // ui camera
     commands.spawn(Camera2dBundle::default());
-    let click = Signal::default();
-    let press = Signal::default();
-    let focus = Signal::default();
-    let lose = Signal::default();
-    let cancel = Signal::default();
-    let state = Signal::default();
+    let click = Value::new_arc();
+    let press = Value::new_arc();
+    let focus = Value::new_arc();
+    let lose = Value::new_arc();
+    let cancel = Value::new_arc();
+    let state = Value::new_arc();
     let mut btn_entity = Entity::PLACEHOLDER;
     commands
         .spawn(NodeBundle {
@@ -108,9 +108,9 @@ fn setup(mut commands: Commands) {
                             futures::select_biased! {
                                 pos = click.recv() => println!("Clicked at {pos}"),
                                 pos = press.recv() => println!("Pressed at {pos}"),
-                                pos = cancel.recv() => println!("Click cancelled at {pos}"),
                                 pos = focus.recv() => println!("Focus obtained at {pos}"),
                                 pos = lose.recv() => println!("Focus lost at {pos}"),
+                                pos = cancel.recv() => println!("Click cancelled at {pos}"),
                             }
                         }
                     )),
