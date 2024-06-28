@@ -261,6 +261,7 @@ struct RawValue<T> {
     tick: AtomicU32,
     event: Event,
 }
+
 impl<T> ValueInner<T> for Arc<dyn ValueInner<T>> {
     fn read_tick(&self) -> u32 {
         Arc::as_ref(self).read_tick()
