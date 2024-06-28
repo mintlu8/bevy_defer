@@ -173,6 +173,41 @@ impl<T: Send + Sync + 'static> Value<T> {
             listener: None,
         }
     }
+
+    pub fn adapt_read_only<U>(&self, f: impl Fn(T) -> U + Send + Sync + 'static) -> Value<U>
+    where
+        T: Clone,
+        U: Clone + Send + Sync + 'static,
+    {
+        Value {
+            inner: Arc::new(MappedReadonlyValue {
+                value: self.inner.clone(),
+                mapper: f,
+                p: PhantomData,
+            }),
+            tick: AtomicU32::new(self.tick.load(Ordering::Acquire)),
+        }
+    }
+
+    pub fn adapt_rw<U>(
+        &self,
+        f1: impl Fn(T) -> U + Send + Sync + 'static,
+        f2: impl Fn(U) -> T + Send + Sync + 'static,
+    ) -> Value<U>
+    where
+        T: Clone,
+        U: Clone + Send + Sync + 'static,
+    {
+        Value {
+            inner: Arc::new(MappedRwValue {
+                value: self.inner.clone(),
+                w2r: f1,
+                r2w: f2,
+                p: PhantomData,
+            }),
+            tick: AtomicU32::new(self.tick.load(Ordering::Acquire)),
+        }
+    }
 }
 
 /// [`Error`] that [`Value`] is read only.
@@ -223,6 +258,43 @@ struct RawValue<T> {
     value: RwLock<Option<T>>,
     tick: AtomicU32,
     event: Event,
+}
+impl<T> ValueInner<T> for Arc<dyn ValueInner<T>> {
+    fn read_tick(&self) -> u32 {
+        Arc::as_ref(self).read_tick()
+    }
+
+    fn write(&self, item: T) -> Result<u32, ValueIsReadOnly> {
+        Arc::as_ref(self).write(item)
+    }
+
+    fn write_if_changed(&self, item: T) -> Result<u32, ValueIsReadOnly>
+    where
+        T: PartialEq,
+    {
+        Arc::as_ref(self).write_if_changed(item)
+    }
+
+    fn read_async<'t>(&'t self, tick: u32) -> Pin<Box<dyn Future<Output = (T, u32)> + 't>>
+    where
+        T: Clone,
+    {
+        Arc::as_ref(self).read_async(tick)
+    }
+
+    fn read(&self, tick: u32) -> Option<(T, u32)>
+    where
+        T: Clone,
+    {
+        Arc::as_ref(self).read(tick)
+    }
+
+    fn force_read(&self) -> Option<(T, u32)>
+    where
+        T: Clone,
+    {
+        Arc::as_ref(self).force_read()
+    }
 }
 
 impl<T, A: ValueInner<T>> ValueInner<T> for Arc<A> {
@@ -340,14 +412,14 @@ impl<T: Send + Sync> ValueInner<T> for RawValue<T> {
 }
 
 #[derive(Debug)]
-pub struct MapperValueInner<T: Clone, U, F: Fn(T) -> U> {
-    value: RawValue<T>,
+pub struct MappedReadonlyValue<T: Clone, V: ValueInner<T>, U, F: Fn(T) -> U> {
+    value: V,
     mapper: F,
-    p: PhantomData<U>,
+    p: PhantomData<(T, U)>,
 }
 
-impl<U: Clone + Send + Sync, T: Send + Sync, F: Fn(U) -> T + Send + Sync> ValueInner<T>
-    for MapperValueInner<U, T, F>
+impl<U: Clone + Send + Sync, T: Send + Sync, V: ValueInner<U>, F: Fn(U) -> T + Send + Sync>
+    ValueInner<T> for MappedReadonlyValue<U, V, T, F>
 {
     fn as_debug(&self) -> &dyn Debug {
         #[derive(Debug)]
@@ -395,6 +467,71 @@ impl<U: Clone + Send + Sync, T: Send + Sync, F: Fn(U) -> T + Send + Sync> ValueI
         self.value
             .force_read()
             .map(|(value, tick)| ((self.mapper)(value), tick))
+    }
+}
+
+#[derive(Debug)]
+pub struct MappedRwValue<T: Clone, V: ValueInner<T>, U, F1: Fn(T) -> U, F2: Fn(U) -> T> {
+    value: V,
+    w2r: F1,
+    r2w: F2,
+    p: PhantomData<(T, U)>,
+}
+
+impl<
+        U: Clone + Send + Sync,
+        T: Send + Sync,
+        V: ValueInner<U>,
+        F1: Fn(U) -> T + Send + Sync,
+        F2: Fn(T) -> U + Send + Sync,
+    > ValueInner<T> for MappedRwValue<U, V, T, F1, F2>
+{
+    fn as_debug(&self) -> &dyn Debug {
+        #[derive(Debug)]
+        pub struct MapperValueInner;
+        &MapperValueInner
+    }
+    fn read_tick(&self) -> u32 {
+        self.value.read_tick()
+    }
+
+    fn write(&self, item: T) -> Result<u32, ValueIsReadOnly> {
+        self.value.write((self.r2w)(item))
+    }
+
+    fn write_if_changed(&self, item: T) -> Result<u32, ValueIsReadOnly>
+    where
+        T: PartialEq,
+    {
+        self.value.write((self.r2w)(item))
+    }
+
+    fn read_async<'t>(&'t self, tick: u32) -> Pin<Box<dyn Future<Output = (T, u32)> + 't>>
+    where
+        T: Clone,
+    {
+        Box::pin(async move {
+            let (value, tick) = self.value.read_async(tick).await;
+            ((self.w2r)(value), tick)
+        })
+    }
+
+    fn read(&self, tick: u32) -> Option<(T, u32)>
+    where
+        T: Clone,
+    {
+        self.value
+            .read(tick)
+            .map(|(value, tick)| ((self.w2r)(value), tick))
+    }
+
+    fn force_read(&self) -> Option<(T, u32)>
+    where
+        T: Clone,
+    {
+        self.value
+            .force_read()
+            .map(|(value, tick)| ((self.w2r)(value), tick))
     }
 }
 

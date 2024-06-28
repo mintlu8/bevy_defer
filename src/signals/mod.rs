@@ -33,6 +33,7 @@ pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 use std::ops::Deref;
 
+/// [`Value`] asserted to be writable.
 pub struct WriteValue<T>(pub(crate) Value<T>);
 
 impl<T> Deref for WriteValue<T> {
