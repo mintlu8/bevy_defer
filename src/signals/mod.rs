@@ -26,8 +26,47 @@
 //! if you only care about sending signals, make sure to add `With<Signals>` for better performance.
 //!
 mod signal_component;
-mod signal_inner;
 mod signal_utils;
 
+use async_shared::Value;
 pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
+use std::ops::Deref;
+
+pub struct WriteValue<T>(pub(crate) Value<T>);
+
+impl<T> Deref for WriteValue<T> {
+    type Target = Value<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: Send + Sync + 'static> WriteValue<T> {
+    pub fn into_inner(self) -> Value<T> {
+        self.0
+    }
+
+    pub fn write(&self, item: T) {
+        let _ = self.0.write(item);
+    }
+
+    pub fn write_and_tick(&self, item: T) {
+        let _ = self.0.write_and_tick(item);
+    }
+
+    pub fn write_if_changed(&self, item: T)
+    where
+        T: PartialEq,
+    {
+        let _ = self.0.write_if_changed(item);
+    }
+
+    pub fn write_if_changed_and_tick(&self, item: T)
+    where
+        T: PartialEq,
+    {
+        let _ = self.0.write_if_changed_and_tick(item);
+    }
+}

@@ -1,6 +1,5 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
-use async_shared::Value;
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::event::Event;
@@ -75,7 +74,7 @@ pub use bevy_log::error;
 pub use ref_cast::RefCast;
 
 use queue::run_fixed_queue;
-use signals::{SignalId, Signals};
+use signals::{SignalId, Signals, WriteValue};
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
@@ -232,10 +231,10 @@ pub trait AsyncExtension {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self;
 
     /// Obtain a named signal.
-    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
+    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data>;
 
     /// Obtain a named signal.
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data>;
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -249,12 +248,12 @@ impl AsyncExtension for World {
         self
     }
 
-    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
+    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
     }
@@ -273,13 +272,13 @@ impl AsyncExtension for App {
         self
     }
 
-    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
+    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
         self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data> {
         self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
@@ -361,6 +360,7 @@ macro_rules! test_spawn {
         use ::bevy::prelude::*;
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
+        use bevy_state::app::StatesPlugin;
         #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct Int(i32);
 
@@ -376,6 +376,7 @@ macro_rules! test_spawn {
 
         let mut app = ::bevy::app::App::new();
         app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
         app.add_plugins(AssetPlugin::default());
         app.init_asset::<Image>();
         app.add_plugins(bevy_defer::AsyncPlugin::default_settings());

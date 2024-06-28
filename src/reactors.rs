@@ -18,8 +18,8 @@ use std::{
 };
 use ty_map_gen::type_map;
 
-use crate::access::async_event::EventBuffer;
 use crate::signals::{Receiver, SignalId, SignalSender, Signals};
+use crate::{access::async_event::EventBuffer, signals::WriteValue};
 
 /// Signal that sends changed values of a [`States`].
 #[derive(Debug, Clone, Copy)]
@@ -69,26 +69,26 @@ impl std::fmt::Debug for ReactorsInner {
 impl Reactors {
     /// Obtain a typed signal.
     #[allow(clippy::box_default)]
-    pub fn get_typed<T: SignalId>(&self) -> Value<T::Data> {
+    pub fn get_typed<T: SignalId>(&self) -> WriteValue<T::Data> {
         let mut lock = self.0.typed.lock().unwrap();
         if let Some(data) = lock.get::<T>() {
-            data.clone_uninit()
+            WriteValue(data.clone_uninit())
         } else {
             let signal = Value::<T::Data>::default();
             lock.insert::<T>(signal.clone_raw());
-            signal
+            WriteValue(signal)
         }
     }
 
     /// Obtain a named signal.
-    pub fn get_named<T: SignalId>(&self, name: &str) -> Value<T::Data> {
+    pub fn get_named<T: SignalId>(&self, name: &str) -> WriteValue<T::Data> {
         let mut lock = self.0.named.lock().unwrap();
         if let Some(data) = lock.get::<T, _>(name) {
-            data.clone_uninit()
+            WriteValue(data.clone_uninit())
         } else {
             let signal = Value::<T::Data>::default();
             lock.insert::<T>(name.to_owned(), signal.clone_raw());
-            signal
+            WriteValue(signal)
         }
     }
 
@@ -107,7 +107,7 @@ impl Reactors {
 
 /// React to a [`States`] changing, signals can be subscribed from [`Reactors`] with [`StateSignal`].
 pub fn react_to_state<T: States + Clone>(
-    signal: Local<OnceCell<Value<T>>>,
+    signal: Local<OnceCell<WriteValue<T>>>,
     reactors: Res<Reactors>,
     state: Res<State<T>>,
 ) {
@@ -116,7 +116,7 @@ pub fn react_to_state<T: States + Clone>(
     }
     let value = state.get().clone();
     let signal = signal.get_or_init(|| reactors.get_typed::<StateSignal<T>>());
-    let _ = signal.write_if_changed(value);
+    signal.write_if_changed(value);
 }
 
 /// [`SignalId`] and data for a change in a component state machine.
