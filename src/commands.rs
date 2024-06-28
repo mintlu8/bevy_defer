@@ -442,8 +442,8 @@ impl AsyncWorld {
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
     /// let signal = AsyncWorld.typed_signal::<MySignal>();
-    /// signal.send(3.14);
-    /// signal.poll().await;
+    /// signal.write(3.14);
+    /// signal.read_async().await;
     /// # });
     /// ```
     pub fn typed_signal<T: SignalId>(&self) -> WriteValue<T::Data> {
@@ -466,8 +466,8 @@ impl AsyncWorld {
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
     /// let signal = AsyncWorld.named_signal::<MySignal>("signal 1");
-    /// signal.send(3.14);
-    /// signal.poll().await;
+    /// signal.write(3.14);
+    /// signal.read_async().await;
     /// # });
     /// ```
     pub fn named_signal<T: SignalId>(&self, name: &str) -> WriteValue<T::Data> {
