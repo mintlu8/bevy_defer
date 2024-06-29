@@ -16,11 +16,12 @@ use bevy_ecs::world::{Command, CommandQueue, Mut};
 use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
 use bevy_log::error;
 use bevy_state::state::{FreelyMutableState, NextState, State, States};
-use bevy_utils::Duration;
+use bevy_tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
 use rustc_hash::FxHashMap;
 use std::fmt::Display;
+use std::time::Duration;
 use std::{
     any::{Any, TypeId},
     future::{poll_fn, Future},
@@ -359,6 +360,12 @@ impl AsyncWorld {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();
         signal.into_inner().into_stream()
+    }
+
+    #[cfg(feature = "multi_threaded")]
+    /// Perform a blocking operation on [`AsyncComputeTaskPool`].
+    pub async fn unblock<T: Send + 'static>(&self, f: impl FnOnce() -> T + Send + 'static) -> T {
+        AsyncComputeTaskPool::get().spawn(async { f() }).await
     }
 
     /// Pause the future for the duration, according to the `Time` resource.

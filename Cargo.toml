@@ -22,8 +22,10 @@ A simple asynchronous runtime for executing async coroutines.
 keywords = ["bevy", "async", "defer"]
 
 [features]
-default = ["bevy_ui", "bevy_animation", "bevy_scene", "derive"]
+default = ["bevy_ui", "bevy_animation", "bevy_scene", "derive", "multi_threaded"]
 derive = ["bevy_defer_derive"]
+## Enable support for `bevy_tasks::multi_threaded` for unblocking tasks.
+multi_threaded = ["bevy_tasks/multi_threaded"]
 
 [dependencies]
 async_shared = {version = "0.1", path = "./async_shared"}
@@ -51,7 +53,6 @@ bevy_tasks = "0.14.0-rc.4"
 bevy_time = "0.14.0-rc.4"
 bevy_math = "0.14.0-rc.4"
 bevy_core = "0.14.0-rc.4"
-bevy_utils = "0.14.0-rc.4"
 
 bevy_animation = { version = "0.14.0-rc.4", optional = true }
 bevy_ui = { version = "0.14.0-rc.4", optional = true }
