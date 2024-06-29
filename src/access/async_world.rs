@@ -11,8 +11,8 @@ use bevy_ecs::{
     query::{QueryData, QueryFilter},
     system::Resource,
 };
-use bevy_utils::Duration;
 use ref_cast::RefCast;
+use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 
 #[allow(unused)]

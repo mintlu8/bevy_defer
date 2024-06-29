@@ -8,7 +8,7 @@ members = [
 
 [package]
 name = "bevy_defer"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -22,7 +22,7 @@ A simple asynchronous runtime for executing async coroutines.
 keywords = ["bevy", "async", "defer"]
 
 [features]
-default = ["bevy_ui", "bevy_animation", "bevy_scene", "derive", "multi_threaded"]
+default = ["bevy_ui", "bevy_animation", "bevy_scene", "derive"]
 derive = ["bevy_defer_derive"]
 ## Enable support for `bevy_tasks::multi_threaded` for unblocking tasks.
 multi_threaded = ["bevy_tasks/multi_threaded"]

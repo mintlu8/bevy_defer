@@ -12,7 +12,7 @@ use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt};
 use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
 use bevy_reflect::TypePath;
-use bevy_utils::ConditionalSendFuture;
+use bevy::utils::ConditionalSendFuture;
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
 pub struct JsonNumber(i64);
