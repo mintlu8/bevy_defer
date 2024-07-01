@@ -15,7 +15,7 @@ keywords = ["bevy", "async", "defer", "picking"]
 
 
 [dependencies]
-bevy_defer = { version = "0.13.0", path = ".." }
+bevy_defer = { version = "0.12.0", path = ".." }
 bevy_ecs = "0.14.0-rc.4"
 bevy_math = "0.14.0-rc.4"
 bevy_mod_picking = { version = "0.20.0-rc.0", default-features = false, features = ["selection"] }
