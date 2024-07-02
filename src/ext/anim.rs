@@ -1,3 +1,5 @@
+use crate::reactors::Change;
+use crate::signals::{Sender, SignalSender, Signals};
 use crate::tween::AsSeconds;
 use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
@@ -7,9 +9,13 @@ use crate::{AccessError, AsyncWorld, OwnedQueryState};
 use bevy_animation::prelude::{AnimationNodeIndex, AnimationTransitions};
 use bevy_animation::AnimationPlayer;
 use bevy_ecs::component::Component;
+use bevy_ecs::entity::{Entity, EntityHashMap};
+use bevy_ecs::query::With;
+use bevy_ecs::system::Local;
 use bevy_ecs::{query::Changed, system::Query};
 use futures::{Future, FutureExt};
 use ref_cast::RefCast;
+use rustc_hash::FxHashMap;
 use std::ops::{Deref, DerefMut};
 
 /// Async accessor to [`AnimationPlayer`].
@@ -50,6 +56,13 @@ impl AsyncAnimationPlayer {
     pub fn play(&self, clip: AnimationNodeIndex) -> AccessResult {
         self.0.set(move |player| {
             player.play(clip);
+        })
+    }
+
+    /// Start playing an animation and repeat.
+    pub fn play_repeat(&self, clip: AnimationNodeIndex) -> AccessResult {
+        self.0.set(move |player| {
+            player.play(clip).repeat();
         })
     }
 
@@ -209,3 +222,22 @@ pub fn react_to_animation(
         prev.0.clone_from(player);
     }
 }
+
+// // /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
+// pub fn react_to_animation_main(
+//     mut cache: Local<EntityHashMap<AnimationNodeIndex>>,
+//     query: Query<
+//         (
+//             Entity,
+//             &AnimationTransitions,
+//             SignalSender<Change<AnimationNodeIndex>>
+//         ),
+//         (With<Signals>, Changed<AnimationPlayer>),
+//     >,
+// ) {
+//     for (entity, transition, sender) in query.iter() {
+//         let prev = cache.get(&entity).copied();
+//         if !prev == transition.main()
+//     }
+//     if let Some(entity) = query
+// }

@@ -28,7 +28,7 @@
 mod signal_component;
 mod signal_utils;
 
-use async_shared::Value;
+pub use async_shared::{Value, ValueStream};
 pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 use std::ops::Deref;
