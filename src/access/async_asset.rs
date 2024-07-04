@@ -10,15 +10,14 @@ use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use event_listener::Event;
 use futures::future::{ready, Either};
-use futures::Future;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AssetBarrierInner {
     pub count: AtomicI32,
     pub notify: Event,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AssetBarrierGuard(Arc<AssetBarrierInner>);
 
 impl Clone for AssetBarrierGuard {
@@ -37,10 +36,16 @@ impl Drop for AssetBarrierGuard {
     }
 }
 
-#[derive(Debug)]
+/// A set that can wait for multiple assets to finish loading.
+#[derive(Debug, Default)]
 pub struct AssetSet(Arc<AssetBarrierInner>);
 
 impl AssetSet {
+    pub fn new(&self) -> AssetSet {
+        AssetSet::default()
+    }
+
+    /// Start loading an asset and register for waiting.
     pub fn load<A: Asset>(&self, path: impl Into<AssetPath<'static>>) -> Handle<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
@@ -49,18 +54,13 @@ impl AssetSet {
         ASSET_SERVER.with(|s| s.load_acquire::<A, _>(path, AssetBarrierGuard(self.0.clone())))
     }
 
-    pub fn wait(&self) -> impl Future<Output = ()> + '_ {
-        if self.0.count.load(Ordering::Acquire) == 0 {
-            Either::Left(ready(()))
-        } else {
-            Either::Right(async {
-                loop {
-                    self.0.notify.listen().await;
-                    if self.0.count.load(Ordering::Acquire) == 0 {
-                        return;
-                    }
-                }
-            })
+    /// Wait for all loading to complete.
+    pub async fn wait(&self) {
+        loop {
+            if self.0.count.load(Ordering::Acquire) == 0 {
+                return;
+            }
+            self.0.notify.listen().await;
         }
     }
 }

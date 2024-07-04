@@ -40,6 +40,7 @@ pub use errors::{AccessError, CustomError, MessageError};
 pub use executor::AsyncExecutor;
 pub use queue::QueryQueue;
 use reactors::Reactors;
+pub use access::async_asset::AssetSet;
 
 pub mod systems {
     //! Systems in `bevy_defer`.
