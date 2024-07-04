@@ -33,6 +33,9 @@ pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 use std::ops::Deref;
 
+#[deprecated = "Use `async_shared::Value` instead."]
+pub type Signal<T> = Value<T>;
+
 /// [`Value`] asserted to be writable.
 pub struct WriteValue<T>(pub(crate) Value<T>);
 

@@ -1,5 +1,13 @@
+//! # Getting Started
+//! 
+//! Add [`PreviousAnimationPlayer`] and [`AnimationReactor`] (optional) next to [`AnimationPlayer`].
+//! 
+//! [`AnimationReactor`] can react to [`AnimationEvent`]s happening.
+//! 
+//! Additionally [`MainAnimationChange`] can react to [`AnimationTransitions`]'s main animation being changed.
+
 use crate::reactors::Change;
-use crate::signals::{Sender, SignalSender, Signals};
+use crate::signals::{SignalSender, Signals};
 use crate::tween::AsSeconds;
 use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
@@ -15,7 +23,6 @@ use bevy_ecs::system::Local;
 use bevy_ecs::{query::Changed, system::Query};
 use futures::{Future, FutureExt};
 use ref_cast::RefCast;
-use rustc_hash::FxHashMap;
 use std::ops::{Deref, DerefMut};
 
 /// Async accessor to [`AnimationPlayer`].
@@ -136,7 +143,7 @@ pub enum AnimationEvent {
     },
 }
 
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Default)]
 pub struct PreviousAnimationPlayer(AnimationPlayer);
 
 impl Deref for PreviousAnimationPlayer {
@@ -147,14 +154,37 @@ impl Deref for PreviousAnimationPlayer {
     }
 }
 
-impl DerefMut for PreviousAnimationPlayer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+#[derive(Component)]
+pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<()>)>);
+
+#[derive(RefCast)]
+#[repr(transparent)]
+pub struct AsyncAnimationReactor(AsyncComponent<AnimationReactor>);
+
+impl AsyncComponentDeref for AnimationReactor {
+    type Target = AsyncAnimationReactor;
+
+    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target {
+        AsyncAnimationReactor::ref_cast(this)
     }
 }
 
-#[derive(Component)]
-pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<()>)>);
+impl AnimationReactor {
+    /// Wait for an [`AnimationEvent`] to happen.
+    pub fn react_to(&mut self, event: AnimationEvent) -> impl Future<Output = ()> + 'static {
+        let (send, recv) = async_oneshot::oneshot();
+        self.push((event, send));
+        recv.map(|_| ())
+    }
+}
+
+impl AsyncAnimationReactor {
+    /// Wait for an [`AnimationEvent`] to happen.
+    pub async fn react_to(&mut self, event: AnimationEvent) -> AccessResult {
+        let _ = self.0.set(|x| x.react_to(event))?.await;
+        Ok(())
+    }
+}
 
 impl Deref for AnimationReactor {
     type Target = Vec<(AnimationEvent, async_oneshot::Sender<()>)>;
@@ -176,68 +206,78 @@ pub fn react_to_animation(
         (
             &AnimationPlayer,
             &mut PreviousAnimationPlayer,
-            &mut AnimationReactor,
+            Option<&mut AnimationReactor>,
         ),
         Changed<AnimationPlayer>,
     >,
 ) {
-    for (player, mut prev, mut reactors) in query.iter_mut() {
-        reactors.0.retain_mut(|(event, channel)| {
-            let yields = match event {
-                AnimationEvent::OnExit(idx) => !player.is_playing_animation(*idx),
-                AnimationEvent::OnEnter(idx) => player.is_playing_animation(*idx),
-                AnimationEvent::WaitUnitOnExit(idx) => {
-                    player.is_playing_animation(*idx) && !prev.0.is_playing_animation(*idx)
-                }
-                AnimationEvent::OnFrame { animation, frame } => {
-                    if let Some(prev) = prev.0.animation(*animation) {
-                        if let Some(curr) = player.animation(*animation) {
-                            curr.seek_time() >= *frame && *frame > prev.seek_time()
+    for (player, mut prev, reactors) in query.iter_mut() {
+        if let Some(mut reactors) = reactors {
+            reactors.0.retain_mut(|(event, channel)| {
+                let yields = match event {
+                    AnimationEvent::OnExit(idx) => !player.is_playing_animation(*idx),
+                    AnimationEvent::OnEnter(idx) => player.is_playing_animation(*idx),
+                    AnimationEvent::WaitUnitOnExit(idx) => {
+                        player.is_playing_animation(*idx) && !prev.0.is_playing_animation(*idx)
+                    }
+                    AnimationEvent::OnFrame { animation, frame } => {
+                        if let Some(prev) = prev.0.animation(*animation) {
+                            if let Some(curr) = player.animation(*animation) {
+                                curr.seek_time() >= *frame && *frame > prev.seek_time()
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
-                    } else {
-                        false
                     }
-                }
-                AnimationEvent::OnFrameOrExit { animation, frame } => {
-                    if let Some(prev) = prev.0.animation(*animation) {
-                        if let Some(curr) = player.animation(*animation) {
-                            curr.seek_time() >= *frame && *frame > prev.seek_time()
+                    AnimationEvent::OnFrameOrExit { animation, frame } => {
+                        if let Some(prev) = prev.0.animation(*animation) {
+                            if let Some(curr) = player.animation(*animation) {
+                                curr.seek_time() >= *frame && *frame > prev.seek_time()
+                            } else {
+                                true
+                            }
                         } else {
-                            true
+                            false
                         }
-                    } else {
-                        false
                     }
+                };
+                if yields {
+                    let _ = channel.send(());
+                    false
+                } else {
+                    true
                 }
-            };
-            if yields {
-                let _ = channel.send(());
-                false
-            } else {
-                true
-            }
-        });
+            });
+        }
         prev.0.clone_from(player);
     }
 }
 
-// // /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
-// pub fn react_to_animation_main(
-//     mut cache: Local<EntityHashMap<AnimationNodeIndex>>,
-//     query: Query<
-//         (
-//             Entity,
-//             &AnimationTransitions,
-//             SignalSender<Change<AnimationNodeIndex>>
-//         ),
-//         (With<Signals>, Changed<AnimationPlayer>),
-//     >,
-// ) {
-//     for (entity, transition, sender) in query.iter() {
-//         let prev = cache.get(&entity).copied();
-//         if !prev == transition.main()
-//     }
-//     if let Some(entity) = query
-// }
+/// Changes to [`AnimationTransitions`]'s main animation.
+pub type MainAnimationChange = Change<Option<AnimationNodeIndex>>;
+
+// /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
+pub fn react_to_main_animation_change(
+    mut cache: Local<EntityHashMap<Option<AnimationNodeIndex>>>,
+    query: Query<
+        (
+            Entity,
+            &AnimationTransitions,
+            SignalSender<MainAnimationChange>,
+        ),
+        (With<Signals>, Changed<AnimationTransitions>),
+    >,
+) {
+    for (entity, transition, sender) in query.iter() {
+        let prev = cache.get(&entity).copied();
+        if prev.flatten() != transition.get_main_animation() {
+            cache.insert(entity, transition.get_main_animation());
+            sender.send(Change {
+                from: prev,
+                to: transition.get_main_animation(),
+            });
+        }
+    }
+}

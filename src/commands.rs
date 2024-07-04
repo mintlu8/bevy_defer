@@ -124,7 +124,7 @@ impl AsyncWorld {
     }
 
     /// Obtain a [`Resource`] in a scoped function.
-    /// This is not considered an access function.
+    /// [`AsyncWorld`] can be used inside as this is not considered an access function.
     ///
     /// # Example
     ///

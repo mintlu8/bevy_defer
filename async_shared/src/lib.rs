@@ -131,9 +131,9 @@ impl<T: Send + Sync + 'static> Value<T> {
         }
     }
 
-    /// The real `Clone` implementation that clones read tick.
+    /// The real `Clone` implementation.
     ///
-    /// `Clone` is not implemented since we primarily want to us `Arc::clone` with this type.
+    /// `Clone` is not implemented since we primarily want to use `Arc::clone` with this type.
     pub fn clone_raw(&self) -> Self {
         Value {
             inner: self.inner.clone(),
@@ -176,7 +176,7 @@ impl<T: Send + Sync + 'static> Value<T> {
         }
     }
 
-    pub fn adapt_read_only<U>(&self, f: impl Fn(T) -> U + Send + Sync + 'static) -> Value<U>
+    pub fn map_read_only<U>(&self, f: impl Fn(T) -> U + Send + Sync + 'static) -> Value<U>
     where
         T: Clone,
         U: Clone + Send + Sync + 'static,
@@ -191,7 +191,7 @@ impl<T: Send + Sync + 'static> Value<T> {
         }
     }
 
-    pub fn adapt_rw<U>(
+    pub fn map_rw<U>(
         &self,
         f1: impl Fn(T) -> U + Send + Sync + 'static,
         f2: impl Fn(U) -> T + Send + Sync + 'static,

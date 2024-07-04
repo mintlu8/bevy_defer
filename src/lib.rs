@@ -53,6 +53,8 @@ pub mod systems {
 
     #[cfg(feature = "bevy_animation")]
     pub use crate::ext::anim::react_to_animation;
+    #[cfg(feature = "bevy_animation")]
+    pub use crate::ext::anim::react_to_main_animation_change;
     #[cfg(feature = "bevy_ui")]
     pub use crate::ext::picking::react_to_ui;
     #[cfg(feature = "bevy_scene")]
@@ -118,6 +120,8 @@ impl Plugin for CoreAsyncPlugin {
         app.add_systems(BeforeAsyncExecutor, systems::react_to_ui);
         #[cfg(feature = "bevy_animation")]
         app.add_systems(BeforeAsyncExecutor, systems::react_to_animation);
+        #[cfg(feature = "bevy_animation")]
+        app.add_systems(BeforeAsyncExecutor, systems::react_to_main_animation_change);
     }
 }
 
@@ -242,7 +246,7 @@ impl AsyncExtension for World {
         self.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
-                Err(err) => error!("Async Failure: {err}."),
+                Err(err) => error!("Access Error: {err}."),
             }
         });
         self
@@ -266,7 +270,7 @@ impl AsyncExtension for App {
             .spawn(async move {
                 match f.await {
                     Ok(()) => (),
-                    Err(err) => error!("Async Failure: {err}."),
+                    Err(err) => error!("Access Error: {err}."),
                 }
             });
         self
