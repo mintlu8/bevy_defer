@@ -17,8 +17,8 @@ pub fn main() {
     app.add_plugins(TimePlugin);
     app.add_plugins(FrameCountPlugin);
     app.add_plugins(AsyncPlugin::default_settings());
-    let a = app.world.spawn(Int(69)).id();
-    let b = app.world.spawn(String("ferris")).id();
+    let a = app.world_mut().spawn(Int(69)).id();
+    let b = app.world_mut().spawn(String("ferris")).id();
 
     static LOCK: AtomicBool = AtomicBool::new(false);
     app.spawn_task(async move {

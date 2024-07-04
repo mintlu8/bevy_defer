@@ -1,27 +1,26 @@
-use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER};
-use crate::signals::SignalStream;
+use crate::access::AsyncResource;
+use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER, WORLD};
+use crate::signals::WriteValue;
 use crate::{
     access::AsyncEntityMut,
     reactors::StateSignal,
-    signals::{Signal, SignalId},
+    signals::SignalId,
     sync::oneshot::{channel, ChannelOut, MaybeChannelOut},
     tween::AsSeconds,
 };
 use crate::{access::AsyncWorld, AccessError, AccessResult};
+use async_shared::ValueStream;
 use bevy_app::AppExit;
-use bevy_ecs::system::{Command, CommandQueue, IntoSystem, SystemId};
-use bevy_ecs::{
-    bundle::Bundle,
-    schedule::{NextState, ScheduleLabel, State, States},
-    system::Resource,
-    world::World,
-};
+use bevy_ecs::system::{IntoSystem, SystemId};
+use bevy_ecs::world::{Command, CommandQueue, Mut};
+use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
 use bevy_log::error;
-use bevy_utils::Duration;
+use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use futures::future::ready;
 use futures::future::Either;
 use rustc_hash::FxHashMap;
 use std::fmt::Display;
+use std::time::Duration;
 use std::{
     any::{Any, TypeId},
     future::{poll_fn, Future},
@@ -52,7 +51,7 @@ impl AsyncWorld {
     /// # Example
     ///
     /// ```
-    /// # use bevy::ecs::system::CommandQueue;
+    /// # use bevy::ecs::world::CommandQueue;
     /// # bevy_defer::test_spawn!({
     /// let queue = CommandQueue::default();
     /// AsyncWorld.apply_command_queue(queue);
@@ -122,6 +121,20 @@ impl AsyncWorld {
                 .try_run_schedule(schedule)
                 .map_err(|_| AccessError::ScheduleNotFound)
         })
+    }
+
+    /// Obtain a [`Resource`] in a scoped function.
+    /// [`AsyncWorld`] can be used inside as this is not considered an access function.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// AsyncWorld.run(|w: &mut World| w.resource::<Int>().0)
+    /// # );
+    /// ```
+    pub fn resource_scope<R: Resource, T>(&self, f: impl FnOnce(Mut<R>) -> T) -> T {
+        with_world_mut(|w| w.resource_scope(|w, r| WORLD.set(w, || f(r))))
     }
 
     /// Register a system and return a [`SystemId`] so it can later be called by `run_system`.
@@ -279,6 +292,12 @@ impl AsyncWorld {
         }))
     }
 
+    /// Inserts a new resource with the given value.
+    pub fn insert_resource<R: Resource>(&self, resource: R) -> AsyncResource<R> {
+        with_world_mut(move |world: &mut World| world.insert_resource(resource));
+        self.resource()
+    }
+
     /// Transition to a new [`States`].
     ///
     /// # Example
@@ -288,7 +307,7 @@ impl AsyncWorld {
     /// AsyncWorld.set_state(MyState::A)
     /// # });
     /// ```
-    pub fn set_state<S: States>(&self, state: S) -> AccessResult<()> {
+    pub fn set_state<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
             world
                 .get_resource_mut::<NextState<S>>()
@@ -336,10 +355,18 @@ impl AsyncWorld {
     /// Obtain a [`SignalStream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
-    pub fn state_stream<S: States + Clone + Default>(&self) -> SignalStream<S> {
+    pub fn state_stream<S: States + Clone + Default>(&self) -> ValueStream<S> {
         let signal = self.typed_signal::<StateSignal<S>>();
-        signal.rewind();
-        signal.into_stream()
+        signal.make_readable();
+        signal.into_inner().into_stream()
+    }
+
+    #[cfg(feature = "multi_threaded")]
+    /// Perform a blocking operation on [`AsyncComputeTaskPool`].
+    pub async fn unblock<T: Send + 'static>(&self, f: impl FnOnce() -> T + Send + 'static) -> T {
+        bevy_tasks::AsyncComputeTaskPool::get()
+            .spawn(async { f() })
+            .await
     }
 
     /// Pause the future for the duration, according to the `Time` resource.
@@ -406,7 +433,7 @@ impl AsyncWorld {
     /// ```
     pub fn quit(&self) {
         with_world_mut(move |world: &mut World| {
-            world.send_event(AppExit);
+            world.send_event(AppExit::Success);
         })
     }
 
@@ -423,11 +450,11 @@ impl AsyncWorld {
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
     /// let signal = AsyncWorld.typed_signal::<MySignal>();
-    /// signal.send(3.14);
-    /// signal.poll().await;
+    /// signal.write(3.14);
+    /// signal.read_async().await;
     /// # });
     /// ```
-    pub fn typed_signal<T: SignalId>(&self) -> Signal<T::Data> {
+    pub fn typed_signal<T: SignalId>(&self) -> WriteValue<T::Data> {
         if !REACTORS.is_set() {
             panic!("Can only obtain typed signal in async context.")
         }
@@ -447,11 +474,11 @@ impl AsyncWorld {
     /// # signal_ids!(MySignal: f32);
     /// # bevy_defer::test_spawn!({
     /// let signal = AsyncWorld.named_signal::<MySignal>("signal 1");
-    /// signal.send(3.14);
-    /// signal.poll().await;
+    /// signal.write(3.14);
+    /// signal.read_async().await;
     /// # });
     /// ```
-    pub fn named_signal<T: SignalId>(&self, name: &str) -> Signal<T::Data> {
+    pub fn named_signal<T: SignalId>(&self, name: &str) -> WriteValue<T::Data> {
         if !REACTORS.is_set() {
             panic!("Can only obtain named signal in async context.")
         }

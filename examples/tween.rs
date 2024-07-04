@@ -15,7 +15,7 @@ fn main() {
             let world = AsyncWorld;
             let entity = world.spawn_bundle(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::BLUE,
+                    color: Color::srgb(0., 0., 1.),
                     custom_size: Some(Vec2::splat(40.0)),
                     ..Default::default()
                 },
@@ -75,7 +75,7 @@ fn main() {
             let world = AsyncWorld;
             let entity = world.spawn_bundle(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::GREEN,
+                    color: Color::srgb(0., 1., 0.),
                     custom_size: Some(Vec2::splat(40.0)),
                     ..Default::default()
                 },

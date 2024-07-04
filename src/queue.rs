@@ -7,9 +7,9 @@ use bevy_ecs::system::NonSend;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use bevy_time::Time;
-use bevy_utils::Duration;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::time::Duration;
 use std::{cell::Cell, cell::RefCell, collections::BinaryHeap};
 
 #[allow(unused)]

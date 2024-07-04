@@ -1,20 +1,29 @@
-use bevy_animation::{AnimationClip, AnimationPlayer, RepeatAnimation};
-use bevy_asset::Handle;
-use bevy_ecs::{
-    entity::Entity,
-    query::{Changed, With},
-    system::{Local, Query},
-};
-use ref_cast::RefCast;
-use rustc_hash::FxHashMap;
+//! # Getting Started
+//! 
+//! Add [`PreviousAnimationPlayer`] and [`AnimationReactor`] (optional) next to [`AnimationPlayer`].
+//! 
+//! [`AnimationReactor`] can react to [`AnimationEvent`]s happening.
+//! 
+//! Additionally [`MainAnimationChange`] can react to [`AnimationTransitions`]'s main animation being changed.
 
+use crate::reactors::Change;
 use crate::signals::{SignalSender, Signals};
+use crate::tween::AsSeconds;
 use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
-    reactors::Change,
-    tween::AsSeconds,
     AccessResult, AsyncAccess,
 };
+use crate::{AccessError, AsyncWorld, OwnedQueryState};
+use bevy_animation::prelude::{AnimationNodeIndex, AnimationTransitions};
+use bevy_animation::AnimationPlayer;
+use bevy_ecs::component::Component;
+use bevy_ecs::entity::{Entity, EntityHashMap};
+use bevy_ecs::query::With;
+use bevy_ecs::system::Local;
+use bevy_ecs::{query::Changed, system::Query};
+use futures::{Future, FutureExt};
+use ref_cast::RefCast;
+use std::ops::{Deref, DerefMut};
 
 /// Async accessor to [`AnimationPlayer`].
 #[derive(RefCast)]
@@ -29,161 +38,246 @@ impl AsyncComponentDeref for AnimationPlayer {
     }
 }
 
+/// Async accessor to [`AnimationTransitions`].
+#[derive(RefCast)]
+#[repr(transparent)]
+pub struct AsyncAnimationTransitions(AsyncComponent<AnimationTransitions>);
+
+impl AsyncComponentDeref for AnimationTransitions {
+    type Target = AsyncAnimationTransitions;
+
+    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target {
+        AsyncAnimationTransitions::ref_cast(this)
+    }
+}
+
 impl AsyncAnimationPlayer {
-    /// Start playing an animation, resetting state of the player, unless the requested animation is already playing.
-    pub fn play(&self, clip: Handle<AnimationClip>) -> AccessResult {
+    /// Start playing an animation, restarting it if necessary.
+    pub fn start(&self, clip: AnimationNodeIndex) -> AccessResult {
+        self.0.set(move |player| {
+            player.start(clip);
+        })
+    }
+
+    /// Start playing an animation.
+    pub fn play(&self, clip: AnimationNodeIndex) -> AccessResult {
         self.0.set(move |player| {
             player.play(clip);
         })
     }
 
-    /// Start playing an animation, and set repeat mode to [`RepeatAnimation::Never`].
-    pub fn play_once(&self, clip: Handle<AnimationClip>) -> AccessResult {
+    /// Start playing an animation and repeat.
+    pub fn play_repeat(&self, clip: AnimationNodeIndex) -> AccessResult {
         self.0.set(move |player| {
-            player.play(clip);
-            player.set_repeat(RepeatAnimation::Never);
+            player.play(clip).repeat();
         })
     }
 
-    /// Start playing an animation, and set repeat mode to [`RepeatAnimation::Forever`].
-    pub fn play_repeat(&self, clip: Handle<AnimationClip>) -> AccessResult {
+    /// Stop playing an animation.
+    pub fn stop(&self, clip: AnimationNodeIndex) -> AccessResult {
         self.0.set(move |player| {
-            player.play(clip);
-            player.repeat();
+            player.stop(clip);
         })
     }
 
-    /// Start playing an animation with smooth linear transition.
-    pub fn play_with_transition(
-        &self,
-        clip: Handle<AnimationClip>,
-        duration: impl AsSeconds,
-    ) -> AccessResult {
-        let duration = duration.as_duration();
+    /// Stop playing all animations.
+    pub fn stop_all(&self) -> AccessResult {
         self.0.set(move |player| {
-            player.play_with_transition(clip, duration);
+            player.stop_all();
         })
     }
 
-    /// Start playing an animation with smooth linear transition and set repeat mode to [`RepeatAnimation::Never`].
-    pub fn play_once_with_transition(
-        &self,
-        clip: Handle<AnimationClip>,
-        duration: impl AsSeconds,
-    ) -> AccessResult {
-        let duration = duration.as_duration();
-        self.0.set(move |player| {
-            player.play_with_transition(clip, duration);
-            player.set_repeat(RepeatAnimation::Never);
+    /// Stop playing an animation.
+    pub fn is_playing_animation(&self, clip: AnimationNodeIndex) -> AccessResult<bool> {
+        self.0.get(move |player| player.is_playing_animation(clip))
+    }
+
+    pub fn wait(&self, event: AnimationEvent) -> AccessResult<impl Future<Output = ()> + 'static> {
+        let (send, recv) = async_oneshot::oneshot();
+        AsyncWorld.run(|w| {
+            let Some(mut entity) = w.get_entity_mut(self.0.entity) else {
+                return Err(AccessError::EntityNotFound);
+            };
+            if let Some(mut reactors) = entity.get_mut::<AnimationReactor>() {
+                reactors.push((event, send));
+            } else {
+                entity.insert(AnimationReactor(vec![(event, send)]));
+            };
+            Ok(())
+        })?;
+        Ok(recv.map(|_| ()))
+    }
+}
+
+impl AsyncAnimationTransitions {
+    pub fn play(&self, animation: AnimationNodeIndex, transition: impl AsSeconds) {
+        AsyncWorld.run(|w| {
+            let mut query =
+                OwnedQueryState::<(&mut AnimationPlayer, &mut AnimationTransitions), ()>::new(w);
+            if let Ok((mut player, mut transitions)) = query.get_mut(self.0.entity()) {
+                transitions.play(&mut player, animation, transition.as_duration());
+            }
         })
     }
+}
 
-    /// Start playing an animation with smooth linear transition and set repeat mode to [`RepeatAnimation::Forever`].
-    pub fn play_repeat_with_transition(
-        &self,
-        clip: Handle<AnimationClip>,
-        duration: impl AsSeconds,
-    ) -> AccessResult {
-        let duration = duration.as_duration();
-        self.0.set(move |player| {
-            player.play_with_transition(clip, duration);
-            player.repeat();
-        })
+#[derive(Debug)]
+pub enum AnimationEvent {
+    /// Yields when current animation is not the one specified.
+    OnExit(AnimationNodeIndex),
+    /// Yields when current animation is the one specified.
+    OnEnter(AnimationNodeIndex),
+    /// Yields when the last animation is the one specified
+    /// and current animation is not the one specified.
+    WaitUnitOnExit(AnimationNodeIndex),
+    /// Yields when the specified animation passes a specific frame.
+    OnFrame {
+        animation: AnimationNodeIndex,
+        frame: f32,
+    },
+    /// Yields when the specified animation passes a specific frame,
+    /// or when the specified animation exits.
+    OnFrameOrExit {
+        animation: AnimationNodeIndex,
+        frame: f32,
+    },
+}
+
+#[derive(Component, Clone, Default)]
+pub struct PreviousAnimationPlayer(AnimationPlayer);
+
+impl Deref for PreviousAnimationPlayer {
+    type Target = AnimationPlayer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
+}
 
-    /// Start playing an animation once and wait for it to complete.
-    pub async fn animate(&self, clip: Handle<AnimationClip>) -> AccessResult {
-        self.play_once(clip.clone())?;
-        self.when_exit(clip).await.map(|_| ())
+#[derive(Component)]
+pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<()>)>);
+
+#[derive(RefCast)]
+#[repr(transparent)]
+pub struct AsyncAnimationReactor(AsyncComponent<AnimationReactor>);
+
+impl AsyncComponentDeref for AnimationReactor {
+    type Target = AsyncAnimationReactor;
+
+    fn async_deref(this: &AsyncComponent<Self>) -> &Self::Target {
+        AsyncAnimationReactor::ref_cast(this)
     }
+}
 
-    /// Start playing an animation once with smooth linear transition and wait for it to complete.
-    pub async fn animate_with_transition(
-        &self,
-        clip: Handle<AnimationClip>,
-        duration: impl AsSeconds,
-    ) -> AccessResult {
-        self.play_once_with_transition(clip.clone(), duration)?;
-        self.when_exit(clip).await
+impl AnimationReactor {
+    /// Wait for an [`AnimationEvent`] to happen.
+    pub fn react_to(&mut self, event: AnimationEvent) -> impl Future<Output = ()> + 'static {
+        let (send, recv) = async_oneshot::oneshot();
+        self.push((event, send));
+        recv.map(|_| ())
     }
+}
 
-    /// Set the repetition behaviour of the animation.
-    pub async fn set_repeat(
-        &self,
-        f: impl FnOnce(RepeatAnimation) -> RepeatAnimation + Send + 'static,
-    ) -> AccessResult {
-        self.0.set(move |player| {
-            player.set_repeat(f(player.repeat_mode()));
-        })
-    }
-
-    /// Set the speed of the animation playback
-    pub async fn set_speed(&self, f: impl FnOnce(f32) -> f32 + Send + 'static) -> AccessResult {
-        self.0.set(move |player| {
-            player.set_speed(f(player.speed()));
-        })
-    }
-
-    /// Seek to a specific time in the animation.
-    pub async fn seek_to(&self, f: impl FnOnce(f32) -> f32 + Send + 'static) -> AccessResult {
-        self.0.set(move |player| {
-            player.seek_to(f(player.seek_time()));
-        })
-    }
-
-    /// Pause the animation
-    pub async fn pause(&self) -> AccessResult {
-        self.0.set(move |player| {
-            player.pause();
-        })
-    }
-
-    /// Unpause the animation
-    pub async fn resume(&self) -> AccessResult {
-        self.0.set(move |player| {
-            player.resume();
-        })
-    }
-
-    /// Wait for an [`AnimationClip`] to exit.
-    pub async fn when_exit(&self, clip: Handle<AnimationClip>) -> AccessResult {
-        self.0
-            .watch(move |player| {
-                (player.animation_clip() != &clip || player.is_finished()).then_some(())
-            })
-            .await?;
-        Ok(())
-    }
-
-    /// Wait for an [`AnimationClip`] to be entered.
-    pub async fn when_enter(&self, clip: Handle<AnimationClip>) -> AccessResult {
-        self.0
-            .watch(move |player| (player.animation_clip() == &clip).then_some(()))
-            .await?;
+impl AsyncAnimationReactor {
+    /// Wait for an [`AnimationEvent`] to happen.
+    pub async fn react_to(&mut self, event: AnimationEvent) -> AccessResult {
+        let _ = self.0.set(|x| x.react_to(event))?.await;
         Ok(())
     }
 }
 
-/// `SignalId` and content for playing [`AnimationClip`] changed.
-pub type AnimationChange = Change<Handle<AnimationClip>>;
+impl Deref for AnimationReactor {
+    type Target = Vec<(AnimationEvent, async_oneshot::Sender<()>)>;
 
-/// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for AnimationReactor {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+// /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
 pub fn react_to_animation(
-    mut previous: Local<FxHashMap<Entity, Handle<AnimationClip>>>,
-    query: Query<
-        (Entity, &AnimationPlayer, SignalSender<AnimationChange>),
-        (Changed<AnimationPlayer>, With<Signals>),
+    mut query: Query<
+        (
+            &AnimationPlayer,
+            &mut PreviousAnimationPlayer,
+            Option<&mut AnimationReactor>,
+        ),
+        Changed<AnimationPlayer>,
     >,
 ) {
-    for (entity, player, sender) in query.iter() {
-        let last = previous.get(&entity);
-        if last != Some(player.animation_clip()) {
-            let change = AnimationChange {
-                from: last.map(|x| x.clone_weak()),
-                to: player.animation_clip().clone_weak(),
-            };
-            previous.insert(entity, player.animation_clip().clone_weak());
-            sender.send(change);
+    for (player, mut prev, reactors) in query.iter_mut() {
+        if let Some(mut reactors) = reactors {
+            reactors.0.retain_mut(|(event, channel)| {
+                let yields = match event {
+                    AnimationEvent::OnExit(idx) => !player.is_playing_animation(*idx),
+                    AnimationEvent::OnEnter(idx) => player.is_playing_animation(*idx),
+                    AnimationEvent::WaitUnitOnExit(idx) => {
+                        player.is_playing_animation(*idx) && !prev.0.is_playing_animation(*idx)
+                    }
+                    AnimationEvent::OnFrame { animation, frame } => {
+                        if let Some(prev) = prev.0.animation(*animation) {
+                            if let Some(curr) = player.animation(*animation) {
+                                curr.seek_time() >= *frame && *frame > prev.seek_time()
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    AnimationEvent::OnFrameOrExit { animation, frame } => {
+                        if let Some(prev) = prev.0.animation(*animation) {
+                            if let Some(curr) = player.animation(*animation) {
+                                curr.seek_time() >= *frame && *frame > prev.seek_time()
+                            } else {
+                                true
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                };
+                if yields {
+                    let _ = channel.send(());
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+        prev.0.clone_from(player);
+    }
+}
+
+/// Changes to [`AnimationTransitions`]'s main animation.
+pub type MainAnimationChange = Change<Option<AnimationNodeIndex>>;
+
+// /// Reactor to [`AnimationClip`] in [`AnimationPlayer`] changed as [`AnimationChange`].
+pub fn react_to_main_animation_change(
+    mut cache: Local<EntityHashMap<Option<AnimationNodeIndex>>>,
+    query: Query<
+        (
+            Entity,
+            &AnimationTransitions,
+            SignalSender<MainAnimationChange>,
+        ),
+        (With<Signals>, Changed<AnimationTransitions>),
+    >,
+) {
+    for (entity, transition, sender) in query.iter() {
+        let prev = cache.get(&entity).copied();
+        if prev.flatten() != transition.get_main_animation() {
+            cache.insert(entity, transition.get_main_animation());
+            sender.send(Change {
+                from: prev,
+                to: transition.get_main_animation(),
+            });
         }
     }
 }

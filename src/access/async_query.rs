@@ -3,10 +3,11 @@ use crate::{async_systems::AsyncEntityParam, AccessError};
 use crate::{async_systems::AsyncWorldParam, executor::with_world_mut, signals::Signals};
 #[allow(unused)]
 use bevy_ecs::system::Query;
+use bevy_ecs::world::CommandQueue;
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState, WorldQuery},
-    system::{CommandQueue, Resource},
+    system::Resource,
     world::World,
 };
 use std::{borrow::Borrow, marker::PhantomData, ops::Deref};

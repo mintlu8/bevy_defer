@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::future::Future;
 use std::rc::Rc;
 
-scoped_tls_hkt::scoped_thread_local!(static mut WORLD: World);
+scoped_tls_hkt::scoped_thread_local!(pub(crate) static mut WORLD: World);
 
 pub(crate) const USED_OUTSIDE: &str =
     "Should not be called outside of a `bevy_defer` future or inside a access function.";

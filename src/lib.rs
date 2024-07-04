@@ -3,9 +3,10 @@
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::event::Event;
-use bevy_ecs::schedule::States;
+use bevy_ecs::intern::Interned;
+use bevy_ecs::world::Command;
+use bevy_state::state::States;
 use bevy_time::TimeSystem;
-use bevy_utils::intern::Interned;
 use std::pin::Pin;
 
 pub mod access;
@@ -31,7 +32,7 @@ pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
 use bevy_ecs::{
     schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
-    system::{Command, Commands},
+    system::Commands,
     world::World,
 };
 use bevy_reflect::std_traits::ReflectDefault;
@@ -52,6 +53,8 @@ pub mod systems {
 
     #[cfg(feature = "bevy_animation")]
     pub use crate::ext::anim::react_to_animation;
+    #[cfg(feature = "bevy_animation")]
+    pub use crate::ext::anim::react_to_main_animation_change;
     #[cfg(feature = "bevy_ui")]
     pub use crate::ext::picking::react_to_ui;
     #[cfg(feature = "bevy_scene")]
@@ -73,7 +76,7 @@ pub use bevy_log::error;
 pub use ref_cast::RefCast;
 
 use queue::run_fixed_queue;
-use signals::{Signal, SignalId, Signals};
+use signals::{SignalId, Signals, WriteValue};
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
@@ -117,6 +120,8 @@ impl Plugin for CoreAsyncPlugin {
         app.add_systems(BeforeAsyncExecutor, systems::react_to_ui);
         #[cfg(feature = "bevy_animation")]
         app.add_systems(BeforeAsyncExecutor, systems::react_to_animation);
+        #[cfg(feature = "bevy_animation")]
+        app.add_systems(BeforeAsyncExecutor, systems::react_to_main_animation_change);
     }
 }
 
@@ -230,10 +235,10 @@ pub trait AsyncExtension {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self;
 
     /// Obtain a named signal.
-    fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data>;
+    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data>;
 
     /// Obtain a named signal.
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data>;
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -241,18 +246,18 @@ impl AsyncExtension for World {
         self.non_send_resource::<AsyncExecutor>().spawn(async move {
             match f.await {
                 Ok(()) => (),
-                Err(err) => error!("Async Failure: {err}."),
+                Err(err) => error!("Access Error: {err}."),
             }
         });
         self
     }
 
-    fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
+    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
     }
@@ -260,25 +265,25 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
-        self.world
+        self.world()
             .non_send_resource::<AsyncExecutor>()
             .spawn(async move {
                 match f.await {
                     Ok(()) => (),
-                    Err(err) => error!("Async Failure: {err}."),
+                    Err(err) => error!("Access Error: {err}."),
                 }
             });
         self
     }
 
-    fn typed_signal<T: SignalId>(&mut self) -> Signal<T::Data> {
-        self.world
+    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
+        self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Signal<T::Data> {
-        self.world
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data> {
+        self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
     }
@@ -359,10 +364,11 @@ macro_rules! test_spawn {
         use ::bevy::prelude::*;
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
-        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
+        use bevy_state::app::StatesPlugin;
+        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct Int(i32);
 
-        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct Str(&'static str);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
@@ -374,11 +380,12 @@ macro_rules! test_spawn {
 
         let mut app = ::bevy::app::App::new();
         app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
         app.add_plugins(AssetPlugin::default());
         app.init_asset::<Image>();
         app.add_plugins(bevy_defer::AsyncPlugin::default_settings());
-        app.world.spawn(Int(4));
-        app.world.spawn(Str("Ferris"));
+        app.world_mut().spawn(Int(4));
+        app.world_mut().spawn(Str("Ferris"));
         app.insert_resource(Int(4));
         app.insert_resource(Str("Ferris"));
         app.insert_non_send_resource(Int(4));

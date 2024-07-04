@@ -1,10 +1,10 @@
 #![allow(clippy::type_complexity)]
+use async_shared::Value;
 use bevy::prelude::*;
 use bevy_defer::ext::picking::{
     ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
 };
 use bevy_defer::reactors::StateMachine;
-use bevy_defer::signals::Signal;
 use bevy_defer::AsyncAccess;
 use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
 use bevy_tasks::futures_lite::StreamExt;
@@ -19,9 +19,9 @@ fn main() {
         .run();
 }
 
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 /// from the original
 fn button_system(
@@ -34,7 +34,7 @@ fn button_system(
         match *interaction {
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
-                border_color.0 = Color::RED;
+                border_color.0 = Color::srgb(1., 0., 0.);
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
@@ -51,12 +51,12 @@ fn button_system(
 fn setup(mut commands: Commands) {
     // ui camera
     commands.spawn(Camera2dBundle::default());
-    let click = Signal::default();
-    let press = Signal::default();
-    let focus = Signal::default();
-    let lose = Signal::default();
-    let cancel = Signal::default();
-    let state = Signal::default();
+    let click = Value::new_arc();
+    let press = Value::new_arc();
+    let focus = Value::new_arc();
+    let lose = Value::new_arc();
+    let cancel = Value::new_arc();
+    let state = Value::new_arc();
     let mut btn_entity = Entity::PLACEHOLDER;
     commands
         .spawn(NodeBundle {
@@ -85,7 +85,10 @@ fn setup(mut commands: Commands) {
                             ..default()
                         },
                         border_color: BorderColor(Color::BLACK),
-                        background_color: NORMAL_BUTTON.into(),
+                        image: UiImage {
+                            color: NORMAL_BUTTON,
+                            ..Default::default()
+                        },
                         ..default()
                     },
                     RelativeCursorPosition::default(),
@@ -105,9 +108,9 @@ fn setup(mut commands: Commands) {
                             futures::select_biased! {
                                 pos = click.recv() => println!("Clicked at {pos}"),
                                 pos = press.recv() => println!("Pressed at {pos}"),
-                                pos = cancel.recv() => println!("Click cancelled at {pos}"),
                                 pos = focus.recv() => println!("Focus obtained at {pos}"),
                                 pos = lose.recv() => println!("Focus lost at {pos}"),
+                                pos = cancel.recv() => println!("Click cancelled at {pos}"),
                             }
                         }
                     )),
@@ -119,7 +122,7 @@ fn setup(mut commands: Commands) {
                             TextStyle {
                                 font: Default::default(),
                                 font_size: 40.0,
-                                color: Color::rgb(0.9, 0.9, 0.9),
+                                color: Color::srgb(0.9, 0.9, 0.9),
                             },
                         ),
                         Signals::from_receiver::<UIInteractionChange>(state),
@@ -142,7 +145,7 @@ fn setup(mut commands: Commands) {
                     TextStyle {
                         font: Default::default(),
                         font_size: 40.0,
-                        color: Color::rgb(0.9, 0.9, 0.9),
+                        color: Color::srgb(0.9, 0.9, 0.9),
                     },
                 ),
                 Signals::new()

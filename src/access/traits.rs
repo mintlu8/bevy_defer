@@ -12,7 +12,7 @@ use crate::{
     sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut},
     AccessError, AccessResult,
 };
-use bevy_asset::{Asset, Assets, Handle};
+use bevy_asset::{Asset, AssetId, Assets, Handle};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -22,6 +22,8 @@ use bevy_ecs::{
 };
 use futures::future::{ready, Either};
 use std::{borrow::BorrowMut, cell::OnceCell};
+
+use super::async_values::AsyncComponentHandle;
 
 /// Obtain readonly access from a readonly `&World`.
 pub trait AsyncReadonlyAccess: AsyncAccess {
@@ -382,6 +384,68 @@ impl<C: Component> AsyncTake for AsyncComponent<C> {
             .ok_or(AccessError::EntityNotFound)?
             .take::<C>()
             .ok_or(AccessError::ComponentNotFound)
+    }
+}
+
+impl<A: Asset> AsyncAccess for AsyncComponentHandle<A> {
+    type Cx = Entity;
+    type RefMutCx<'t> = (&'t mut Assets<A>, AssetId<A>);
+    type Ref<'t> = &'t A;
+    type RefMut<'t> = &'t mut A;
+
+    fn as_cx(&self) -> Self::Cx {
+        self.entity
+    }
+
+    fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>> {
+        let id = world
+            .get::<Handle<A>>(*cx)
+            .ok_or(AccessError::ComponentNotFound)?
+            .id();
+        let assets = world
+            .get_resource_mut::<Assets<A>>()
+            .ok_or(AccessError::ResourceNotFound)
+            .map(|x| x.into_inner())?;
+        Ok((assets, id))
+    }
+
+    fn from_mut_cx<'t>(
+        (assets, id): &'t mut Self::RefMutCx<'_>,
+        _: &Self::Cx,
+    ) -> AccessResult<Self::RefMut<'t>> {
+        assets.get_mut(*id).ok_or(AccessError::AssetNotFound)
+    }
+}
+
+impl<A: Asset> AsyncReadonlyAccess for AsyncComponentHandle<A> {
+    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
+        let id = world
+            .get::<Handle<A>>(*cx)
+            .ok_or(AccessError::ComponentNotFound)?
+            .id();
+        world
+            .get_resource::<Assets<A>>()
+            .ok_or(AccessError::ResourceNotFound)?
+            .get(id)
+            .ok_or(AccessError::AssetNotFound)
+    }
+}
+
+impl<A: Asset> AsyncAccessRef for AsyncComponentHandle<A> {
+    type Generic = A;
+}
+
+impl<A: Asset> AsyncTake for AsyncComponentHandle<A> {
+    fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic> {
+        let id = world
+            .get::<Handle<A>>(*cx)
+            .ok_or(AccessError::ComponentNotFound)?
+            .id();
+        world
+            .get_resource_mut::<Assets<A>>()
+            .ok_or(AccessError::ResourceNotFound)?
+            .remove(id)
+            .ok_or(AccessError::AssetNotFound)
     }
 }
 

@@ -3,14 +3,17 @@ use crate::executor::{with_world_mut, with_world_ref};
 use crate::OwnedQueryState;
 use crate::{
     access::AsyncEntityMut,
-    signals::{SignalBorrow, SignalId, Signals},
+    signals::{SignalId, Signals},
     AccessError, AccessResult,
 };
+use async_shared::Value;
 use bevy_core::Name;
-use bevy_ecs::{bundle::Bundle, entity::Entity, system::Command, world::World};
+use bevy_ecs::world::Command;
+use bevy_ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};
 use rustc_hash::FxHashMap;
 use std::borrow::Borrow;
+use std::sync::Arc;
 
 impl AsyncEntityMut {
     /// Adds a [`Bundle`] of components to the entity.
@@ -198,7 +201,7 @@ impl AsyncEntityMut {
     }
 
     /// Borrow a sender from an entity with shared read tick.
-    pub fn sender<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
+    pub fn sender<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
@@ -214,7 +217,7 @@ impl AsyncEntityMut {
     }
 
     /// Borrow a receiver from an entity with shared read tick.
-    pub fn receiver<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
+    pub fn receiver<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
@@ -230,7 +233,7 @@ impl AsyncEntityMut {
     }
 
     /// Init or borrow a sender from an entity with shared read tick.
-    pub fn init_sender<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
+    pub fn init_sender<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
@@ -245,7 +248,7 @@ impl AsyncEntityMut {
     }
 
     /// Init or borrow a receiver from an entity with shared read tick.
-    pub fn init_receiver<S: SignalId>(&self) -> AccessResult<SignalBorrow<S::Data>> {
+    pub fn init_receiver<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {

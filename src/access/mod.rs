@@ -10,7 +10,7 @@ pub(crate) mod async_world;
 pub use async_asset::AsyncAsset;
 pub use async_event::EventStream;
 pub use async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle};
-pub use async_values::{AsyncComponent, AsyncNonSend, AsyncResource};
+pub use async_values::{AsyncComponent, AsyncComponentHandle, AsyncNonSend, AsyncResource};
 pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld};
 
 /// Deprecated, Async version of World or Commands.

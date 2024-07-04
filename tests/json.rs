@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use bevy::utils::ConditionalSendFuture;
 use bevy::MinimalPlugins;
 use bevy_app::App;
 use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt};
@@ -31,7 +32,7 @@ impl AssetLoader for JsonNumberLoader {
         reader: &'a mut bevy_asset::io::Reader,
         _: &'a Self::Settings,
         _: &'a mut bevy_asset::LoadContext,
-    ) -> bevy_asset::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         Box::pin(async {
             let mut buf = String::new();
             reader.read_to_string(&mut buf).await.unwrap();
