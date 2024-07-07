@@ -2,10 +2,7 @@
 
 Http utilities for the `bevy_defer` crate, based on the `hyper` crate.
 
-## Runtime
-
-* The executor is the `futures` single threaded `LocalExecutor`.
-* `async_io` is used as the reactor.
+This crate is for examples and testing only, do not use this in production.
 
 ## Features
 
