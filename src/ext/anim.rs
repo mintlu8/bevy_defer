@@ -1,9 +1,9 @@
 //! # Getting Started
-//! 
+//!
 //! Add [`PreviousAnimationPlayer`] and [`AnimationReactor`] (optional) next to [`AnimationPlayer`].
-//! 
+//!
 //! [`AnimationReactor`] can react to [`AnimationEvent`]s happening.
-//! 
+//!
 //! Additionally [`MainAnimationChange`] can react to [`AnimationTransitions`]'s main animation being changed.
 
 use crate::reactors::Change;

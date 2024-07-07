@@ -26,6 +26,7 @@ pub mod tween;
 pub use crate::executor::world;
 #[allow(deprecated)]
 pub use crate::executor::{in_async_context, spawn, spawn_scoped};
+pub use access::async_asset::AssetSet;
 pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
@@ -40,7 +41,6 @@ pub use errors::{AccessError, CustomError, MessageError};
 pub use executor::AsyncExecutor;
 pub use queue::QueryQueue;
 use reactors::Reactors;
-pub use access::async_asset::AssetSet;
 
 pub mod systems {
     //! Systems in `bevy_defer`.
@@ -82,16 +82,12 @@ use signals::{SignalId, Signals, WriteValue};
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
 
-/// Deprecated access error.
-#[deprecated = "Use AccessError instead."]
-pub type AsyncFailure = AccessError;
-
-/// Deprecated access result.
-#[deprecated = "Use AccessResult instead."]
-pub type AsyncResult<T = ()> = Result<T, AccessError>;
-
 /// Result type of spawned tasks.
 pub type AccessResult<T = ()> = Result<T, AccessError>;
+
+pub type BoxedFuture = Pin<Box<dyn Future<Output = AccessResult>>>;
+
+pub type BoxedSharedFuture = Pin<Box<dyn Future<Output = AccessResult> + Send + Sync>>;
 
 #[derive(Debug, Default, Clone, Copy)]
 

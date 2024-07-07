@@ -8,9 +8,13 @@ use crate::{
 };
 use async_shared::Value;
 use bevy_core::Name;
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::world::Command;
 use bevy_ecs::{bundle::Bundle, entity::Entity, world::World};
-use bevy_hierarchy::{BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive};
+use bevy_hierarchy::{
+    BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive, Parent,
+};
+use bevy_transform::components::{GlobalTransform, Transform};
 use rustc_hash::FxHashMap;
 use std::borrow::Borrow;
 use std::sync::Arc;
@@ -329,6 +333,40 @@ impl AsyncEntityMut {
             }
         });
         result
+    }
+
+    /// Obtain an entity's [`GlobalTransform`] while respecting change detection.
+    ///
+    /// If `is_added` is true, calculate it from ancestors.
+    /// Otherwise returns the entity's [`GlobalTransform`] directly.
+    ///
+    /// This function is greedy with change detection and does not
+    /// promise a perfectly accurate global transform.
+    ///
+    /// # Errors
+    ///
+    /// If [`Entity`], [`Transform`] or [`GlobalTransform`] is missing in one of the
+    /// target's ancestors.
+    pub fn global_transform(&self) -> AccessResult<GlobalTransform> {
+        AsyncWorld
+            .run(|world| {
+                let mut entity = world.get_entity(self.0)?;
+                let t = entity.get_ref::<GlobalTransform>()?;
+                if !t.is_added() {
+                    return Some(*t);
+                }
+                let mut transform = *entity.get::<Transform>()?;
+                while let Some(parent) = entity.get::<Parent>().map(|x| x.get()) {
+                    entity = world.get_entity(parent)?;
+                    let t = entity.get_ref::<GlobalTransform>()?;
+                    if !t.is_added() {
+                        return Some(t.mul_transform(transform));
+                    }
+                    transform = entity.get::<Transform>()?.mul_transform(transform)
+                }
+                Some(transform.into())
+            })
+            .ok_or(AccessError::ComponentNotFound)
     }
 }
 

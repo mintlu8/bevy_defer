@@ -191,8 +191,8 @@ macro_rules! format_error {
         }
     };
     ($variant: expr, $str: literal $(,)?) => {
-        #[allow(unused_imports)]
         {
+            #[allow(unused_imports)]
             use $crate::AccessError::*;
             $crate::CustomError {
                 error: $variant,
@@ -203,8 +203,8 @@ macro_rules! format_error {
     };
 
     ($variant: expr, $str: literal $(,$expr: expr)* $(,)?) => {
-        #[allow(unused_imports)]
         {
+            #[allow(unused_imports)]
             use $crate::AccessError::*;
             $crate::CustomError {
                 error: $variant,
