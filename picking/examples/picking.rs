@@ -2,7 +2,7 @@ use bevy::{prelude::*, sprite::SpriteBundle};
 use bevy_defer::{
     async_system,
     async_systems::AsyncSystems,
-    signals::{Signal, Signals},
+    signals::{Signals, Value},
     AsyncAccess, AsyncPlugin,
 };
 use bevy_defer_picking::{react_to_picking, PickingInteractionChange, PickingSelected};
@@ -25,21 +25,21 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::RED,
+                color: Srgba::RED.into(),
                 custom_size: Some(Vec2::new(200.0, 200.0)),
                 ..Default::default()
             },
             ..Default::default()
         },
         PickableBundle::default(),
-        Signals::from_sender::<PickingInteractionChange>(Signal::default())
-            .with_sender::<PickingSelected>(Signal::new(false)),
+        Signals::from_sender::<PickingInteractionChange>(Value::new_arc())
+            .with_sender::<PickingSelected>(Value::new_arc()),
         AsyncSystems::from_iter([
             async_system!(|sender: Sender<PickingInteractionChange>,
                            sp: AsyncComponent<Sprite>| {
                 match sender.recv().await.to {
-                    PickingInteraction::Pressed => sp.set(|x| x.color = Color::BLUE)?,
-                    _ => sp.set(|x| x.color = Color::RED)?,
+                    PickingInteraction::Pressed => sp.set(|x| x.color = Srgba::BLUE.into())?,
+                    _ => sp.set(|x| x.color = Srgba::RED.into())?,
                 };
             }),
             async_system!(
