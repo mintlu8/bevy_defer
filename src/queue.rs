@@ -6,7 +6,7 @@ use bevy_core::FrameCount;
 use bevy_ecs::system::NonSend;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
-use bevy_time::Time;
+use bevy_time::{Time, Virtual};
 use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
@@ -187,7 +187,7 @@ pub fn run_fixed_queue(world: &mut World) {
 }
 
 /// Run `sleep` and `sleep_frames` reactors.
-pub fn run_time_series(queue: NonSend<QueryQueue>, time: Res<Time>, frames: Res<FrameCount>) {
+pub fn run_time_series(queue: NonSend<QueryQueue>, time: Res<Time<Virtual>>, frames: Res<FrameCount>) {
     let now = time.elapsed();
     queue.now.set(now);
     let mut time_series = queue.time_series.borrow_mut();
