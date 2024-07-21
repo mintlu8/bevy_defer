@@ -187,7 +187,11 @@ pub fn run_fixed_queue(world: &mut World) {
 }
 
 /// Run `sleep` and `sleep_frames` reactors.
-pub fn run_time_series(queue: NonSend<QueryQueue>, time: Res<Time<Virtual>>, frames: Res<FrameCount>) {
+pub fn run_time_series(
+    queue: NonSend<QueryQueue>,
+    time: Res<Time<Virtual>>,
+    frames: Res<FrameCount>,
+) {
     let now = time.elapsed();
     queue.now.set(now);
     let mut time_series = queue.time_series.borrow_mut();

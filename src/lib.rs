@@ -318,10 +318,10 @@ impl AppReactorExtension for App {
 /// Extension for [`Commands`].
 pub trait AsyncCommandsExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
-    /// 
+    ///
     /// Unlike [`AsyncExtension::spawn_task`] this accepts a closure so
     /// that users can smuggle `!Send` futures across thread boundaries.
-    /// 
+    ///
     /// ```rust
     /// # /*
     /// move || async move {

@@ -156,6 +156,29 @@ impl AsyncEntityMut {
         })
     }
 
+    /// Set parent to an entity.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = AsyncWorld.spawn_bundle(Int(1)).id();
+    /// entity.set_parent(child);
+    /// # });
+    /// ```
+    pub fn set_parent(&self, parent: Entity) -> AccessResult<()> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map(|mut entity| {
+                    entity.set_parent(parent);
+                })
+                .ok_or(AccessError::EntityNotFound)
+        })
+    }
+
     /// Despawns the given entity and all its children recursively.
     ///
     /// # Example
