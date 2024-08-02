@@ -1,12 +1,9 @@
 use crate::access::AsyncResource;
+use crate::channel;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER, WORLD};
 use crate::signals::WriteValue;
-use crate::{
-    access::AsyncEntityMut,
-    reactors::StateSignal,
-    signals::SignalId,
-    tween::AsSeconds,
-};
+use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
+use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::ValueStream;
 use bevy_app::AppExit;
@@ -362,10 +359,14 @@ impl AsyncWorld {
     }
 
     /// Perform a blocking operation on [`AsyncComputeTaskPool`].
-    pub fn unblock<T: Send + Sync + 'static>(&self, f: impl FnOnce() -> T + Send + Sync + 'static) -> impl Future<Output = T> + 'static {
+    pub fn unblock<T: Send + Sync + 'static>(
+        &self,
+        f: impl FnOnce() -> T + Send + Sync + 'static,
+    ) -> impl Future<Output = T> + 'static {
         let (mut send, recv) = async_oneshot::oneshot();
-        let handle = AsyncComputeTaskPool::get()
-            .spawn(async move { let _ = send.send(f()); });
+        let handle = AsyncComputeTaskPool::get().spawn(async move {
+            let _ = send.send(f());
+        });
         async move {
             let result = recv.await.unwrap();
             drop(handle);
