@@ -81,6 +81,12 @@ impl<A: Asset> From<Handle<A>> for AsyncAsset<A> {
     }
 }
 
+impl<A: Asset> From<&AsyncAsset<A>> for AssetId<A> {
+    fn from(val: &AsyncAsset<A>) -> Self {
+        val.id()
+    }
+}
+
 impl AsyncWorld {
     /// Obtain an [`AsyncAsset`] from a [`Handle`].
     ///
