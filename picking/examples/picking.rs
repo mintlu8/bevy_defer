@@ -3,7 +3,7 @@ use bevy_defer::{
     async_system,
     async_systems::AsyncSystems,
     signals::{Signals, Value},
-    AsyncAccess, AsyncPlugin,
+    AsyncPlugin,
 };
 use bevy_defer_picking::{react_to_picking, PickingInteractionChange, PickingSelected};
 use bevy_mod_picking::prelude::*;

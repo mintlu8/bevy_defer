@@ -30,7 +30,7 @@ impl AsyncEntityMut {
     /// entity.insert(Str("bevy"));
     /// # });
     /// ```
-    pub fn insert(&self, bundle: impl Bundle) -> Result<(), AccessError> {
+    pub fn insert(&self, bundle: impl Bundle) -> Result<Self, AccessError> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -39,7 +39,8 @@ impl AsyncEntityMut {
                     e.insert(bundle);
                 })
                 .ok_or(AccessError::EntityNotFound)
-        })
+        })?;
+        Ok(AsyncEntityMut(entity))
     }
 
     /// Removes any components in the [`Bundle`] from the entity.
@@ -52,7 +53,7 @@ impl AsyncEntityMut {
     /// entity.remove::<Int>();
     /// # });
     /// ```
-    pub fn remove<T: Bundle>(&self) -> Result<(), AccessError> {
+    pub fn remove<T: Bundle>(&self) -> Result<Self, AccessError> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -61,7 +62,8 @@ impl AsyncEntityMut {
                     e.remove::<T>();
                 })
                 .ok_or(AccessError::EntityNotFound)
-        })
+        })?;
+        Ok(AsyncEntityMut(entity))
     }
 
     /// Removes any components except those in the [`Bundle`] from the entity.
@@ -74,7 +76,7 @@ impl AsyncEntityMut {
     /// entity.retain::<Int>();
     /// # });
     /// ```
-    pub fn retain<T: Bundle>(&self) -> Result<(), AccessError> {
+    pub fn retain<T: Bundle>(&self) -> Result<Self, AccessError> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -83,7 +85,8 @@ impl AsyncEntityMut {
                     e.retain::<T>();
                 })
                 .ok_or(AccessError::EntityNotFound)
-        })
+        })?;
+        Ok(AsyncEntityMut(entity))
     }
 
     /// Removes all components in the [`Bundle`] from the entity and returns their previous values.
@@ -144,7 +147,7 @@ impl AsyncEntityMut {
     /// entity.add_child(child);
     /// # });
     /// ```
-    pub fn add_child(&self, child: Entity) -> AccessResult<()> {
+    pub fn add_child(&self, child: Entity) -> AccessResult<AsyncEntityMut> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -153,7 +156,8 @@ impl AsyncEntityMut {
                     entity.add_child(child);
                 })
                 .ok_or(AccessError::EntityNotFound)
-        })
+        })?;
+        Ok(AsyncEntityMut(entity))
     }
 
     /// Set parent to an entity.
@@ -167,7 +171,7 @@ impl AsyncEntityMut {
     /// entity.set_parent(child);
     /// # });
     /// ```
-    pub fn set_parent(&self, parent: Entity) -> AccessResult<()> {
+    pub fn set_parent(&self, parent: Entity) -> AccessResult<AsyncEntityMut> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -176,7 +180,8 @@ impl AsyncEntityMut {
                     entity.set_parent(parent);
                 })
                 .ok_or(AccessError::EntityNotFound)
-        })
+        })?;
+        Ok(AsyncEntityMut(entity))
     }
 
     /// Despawns the given entity and all its children recursively.

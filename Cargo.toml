@@ -24,8 +24,6 @@ keywords = ["bevy", "async", "defer"]
 [features]
 default = ["bevy_ui", "bevy_animation", "bevy_scene", "derive"]
 derive = ["bevy_defer_derive"]
-## Enable support for `bevy_tasks::multi_threaded` for unblocking tasks.
-multi_threaded = ["bevy_tasks/multi_threaded"]
 
 [dependencies]
 async_shared = {version = "0.1", path = "./async_shared"}
@@ -60,6 +58,6 @@ bevy_ui = { version = "0.14.0", optional = true }
 bevy_scene = { version = "0.14.0", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.14.0" }
+bevy = { version = "0.14.0", default-features = false, features = ["bevy_ui", "bevy_state"]}
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }

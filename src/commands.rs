@@ -5,7 +5,6 @@ use crate::{
     access::AsyncEntityMut,
     reactors::StateSignal,
     signals::SignalId,
-    sync::oneshot::{channel, ChannelOut, MaybeChannelOut},
     tween::AsSeconds,
 };
 use crate::{access::AsyncWorld, AccessError, AccessResult};
@@ -16,6 +15,7 @@ use bevy_ecs::world::{Command, CommandQueue, Mut};
 use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
 use bevy_log::error;
 use bevy_state::state::{FreelyMutableState, NextState, State, States};
+use bevy_tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
 use rustc_hash::FxHashMap;
@@ -361,12 +361,16 @@ impl AsyncWorld {
         signal.into_inner().into_stream()
     }
 
-    #[cfg(feature = "multi_threaded")]
     /// Perform a blocking operation on [`AsyncComputeTaskPool`].
-    pub async fn unblock<T: Send + 'static>(&self, f: impl FnOnce() -> T + Send + 'static) -> T {
-        bevy_tasks::AsyncComputeTaskPool::get()
-            .spawn(async { f() })
-            .await
+    pub fn unblock<T: Send + Sync + 'static>(&self, f: impl FnOnce() -> T + Send + Sync + 'static) -> impl Future<Output = T> + 'static {
+        let (mut send, recv) = async_oneshot::oneshot();
+        let handle = AsyncComputeTaskPool::get()
+            .spawn(async move { let _ = send.send(f()); });
+        async move {
+            let result = recv.await.unwrap();
+            drop(handle);
+            result
+        }
     }
 
     /// Pause the future for the duration, according to the `Time` resource.

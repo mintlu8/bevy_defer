@@ -21,15 +21,15 @@ fn import_crate() -> TokenStream {
 /// ## Requirements
 ///
 /// * For type `MyResource`, there must be a type `AsyncMyResource` with
-/// an accessible field `0` being `AsyncResource<MyResource>`. This is the
-/// semantics of the derive macros.
+///   an accessible field `0` being `AsyncResource<MyResource>`. This is the
+///   semantics of the derive macros. Same for components and others.
 ///
 /// * All functions must have `&self` or `&mut self` receivers.
 ///
 /// * Outputs must be `'static`.
 ///
 /// * Does not support `async` functions, since it's currently difficult to get a static future
-/// with a `self` receiver. Return `impl Future + 'static` instead.
+///   with a `self` receiver. Return `impl Future + 'static` instead.
 ///
 /// ```
 /// use module::{Character, AsyncCharacter};
