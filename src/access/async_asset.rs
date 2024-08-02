@@ -148,9 +148,15 @@ impl<A: Asset> AsyncAsset<A> {
     pub fn id(&self) -> AssetId<A> {
         self.0.id()
     }
+
     /// Obtain the underlying [`Handle`].
     pub fn handle(&self) -> &Handle<A> {
         &self.0
+    }
+
+    /// Create an [`AsyncAsset`] from a [`Handle`].
+    pub fn from_handle(handle: Handle<A>) -> Self {
+        AsyncAsset(handle)
     }
 
     /// Obtain the underlying [`Handle`].

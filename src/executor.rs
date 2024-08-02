@@ -60,19 +60,6 @@ pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
     AsyncWorld.spawn(fut)
 }
 
-/// Obtain the [`AsyncWorld`] of the currently running `bevy_defer` executor.
-///
-/// # Panics
-///
-/// If used outside a `bevy_defer` future.
-#[deprecated = "Use `AsyncWorld` directly, or `AsyncWorld::new()` that mimics this function's behavior."]
-pub fn world() -> AsyncWorld {
-    if !in_async_context() {
-        panic!("bevy_defer::world can only be used in a bevy_defer future.")
-    }
-    AsyncWorld
-}
-
 /// Returns `true` if in async context, for diagnostics purpose only.
 pub fn in_async_context() -> bool {
     QUERY_QUEUE.is_set()

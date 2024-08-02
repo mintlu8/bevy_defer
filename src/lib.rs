@@ -23,8 +23,6 @@ pub mod signals;
 pub mod sync;
 pub mod tween;
 #[allow(deprecated)]
-pub use crate::executor::world;
-#[allow(deprecated)]
 pub use crate::executor::{in_async_context, spawn, spawn_scoped};
 pub use access::async_asset::AssetSet;
 pub use access::async_event::EventBuffer;

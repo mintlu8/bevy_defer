@@ -369,6 +369,7 @@ impl AsyncWorld {
         });
         async move {
             let result = recv.await.unwrap();
+            #[allow(clippy::drop_non_drop)]
             drop(handle);
             result
         }

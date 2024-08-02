@@ -1,8 +1,9 @@
 //! Tweening support for `bevy_defer`.
 use bevy_math::Quat;
 use ref_cast::RefCast;
+use bevy_transform::prelude::Transform;
 use std::{
-    ops::{Add, Mul},
+    ops::{Add, Deref, DerefMut, Mul},
     time::Duration,
 };
 
@@ -33,11 +34,44 @@ where
 /// Performs a spherical linear interpolation on [`Quat`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, RefCast)]
 #[repr(transparent)]
-pub struct SLerp(pub Quat);
+pub struct MakeLerp<T>(pub T);
 
-impl Lerp for SLerp {
+impl<T> MakeLerp<T> where Self: Lerp {
+    pub fn lerp(from: T, to: T, fac: f32) -> T {
+        Lerp::lerp(Self(from), Self(to), fac).0
+    }
+}
+
+impl<T> Deref for MakeLerp<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for MakeLerp<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[deprecated(note = "Use MakeLerp<Quat> instead.")]
+pub type SLerp = MakeLerp<Quat>;
+
+impl Lerp for MakeLerp<Quat> {
     fn lerp(from: Self, to: Self, fac: f32) -> Self {
-        SLerp(Quat::slerp(from.0, to.0, fac))
+        MakeLerp(Quat::slerp(from.0, to.0, fac))
+    }
+}
+
+impl Lerp for MakeLerp<Transform> {
+    fn lerp(from: Self, to: Self, fac: f32) -> Self {
+        MakeLerp(Transform { 
+            translation: Lerp::lerp(from.translation, to.translation, fac), 
+            rotation: Quat::slerp(from.rotation, to.rotation, fac), 
+            scale: Lerp::lerp(from.scale, to.scale, fac), 
+        })
     }
 }
 

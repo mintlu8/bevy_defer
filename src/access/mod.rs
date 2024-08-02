@@ -13,9 +13,5 @@ pub use async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle};
 pub use async_values::{AsyncComponent, AsyncComponentHandle, AsyncNonSend, AsyncResource};
 pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld};
 
-/// Deprecated, Async version of World or Commands.
-#[deprecated = "Use `AsyncWorld` instead."]
-pub type AsyncWorldMut = AsyncWorld;
-
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
