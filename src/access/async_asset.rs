@@ -6,7 +6,7 @@ use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
 use crate::{AccessError, AccessResult};
 use bevy_asset::meta::Settings;
-use bevy_asset::{Asset, AssetPath, AssetServer, Assets, Handle, LoadState};
+use bevy_asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle, LoadState};
 use bevy_ecs::world::World;
 use event_listener::Event;
 use futures::future::{ready, Either};
@@ -75,6 +75,12 @@ impl<A: Asset> Clone for AsyncAsset<A> {
     }
 }
 
+impl<A: Asset> From<Handle<A>> for AsyncAsset<A> {
+    fn from(value: Handle<A>) -> Self {
+        AsyncAsset(value)
+    }
+}
+
 impl AsyncWorld {
     /// Obtain an [`AsyncAsset`] from a [`Handle`].
     ///
@@ -86,8 +92,8 @@ impl AsyncWorld {
     /// AsyncWorld.asset(square.into_handle());
     /// # });
     /// ```
-    pub fn asset<A: Asset>(&self, handle: Handle<A>) -> AsyncAsset<A> {
-        AsyncAsset(handle)
+    pub fn asset<A: Asset>(&self, handle: impl Into<AssetId<A>>) -> AsyncAsset<A> {
+        AsyncAsset(Handle::Weak(handle.into()))
     }
 
     /// Load an asset from an [`AssetPath`], equivalent to `AssetServer::load`.
@@ -138,6 +144,10 @@ impl AsyncWorld {
 }
 
 impl<A: Asset> AsyncAsset<A> {
+    /// Obtain the underlying [`AssetId`].
+    pub fn id(&self) -> AssetId<A> {
+        self.0.id()
+    }
     /// Obtain the underlying [`Handle`].
     pub fn handle(&self) -> &Handle<A> {
         &self.0
