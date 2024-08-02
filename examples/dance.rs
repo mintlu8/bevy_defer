@@ -167,7 +167,7 @@ pub fn main() {
         richard.component::<Animator>().animate("Idle").await?;
         // Spawn another future on the executor and wait for it to complete
         // Returns `Result<(), AsyncFailure>`
-        audio.await??;
+        audio.await?;
         world.quit();
         Ok(())
     });

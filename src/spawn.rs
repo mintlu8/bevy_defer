@@ -1,7 +1,7 @@
 use std::future::Future;
 use bevy_log::error;
 
-use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
+use crate::{executor::SPAWNER, AccessResult, AsyncWorld};
 
 
 
@@ -29,16 +29,16 @@ impl AsyncWorld {
     ///
     /// # Panics
     ///
-    /// If used outside a `bevy_defer` future.
+    /// * If used outside a `bevy_defer` future.
+    /// * If the task has panicked.
     pub fn spawn_scoped<T: 'static>(
         &self,
         fut: impl Future<Output = T> + 'static,
-    ) -> impl Future<Output = AccessResult<T>> {
-        use futures::FutureExt;
+    ) -> impl Future<Output = T> {
         if !SPAWNER.is_set() {
             panic!("bevy_defer::spawn_scoped can only be used in a bevy_defer future.")
         }
-        SPAWNER.with(|s| s.spawn(fut).fallible().map(|x| x.ok_or(AccessError::TaskPanicked)))
+        SPAWNER.with(|s| s.spawn(fut))
     }
 
     /// Spawn a `bevy_defer` compatible future and logs errors.
