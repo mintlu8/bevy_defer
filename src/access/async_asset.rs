@@ -89,7 +89,7 @@ impl AsyncWorld {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// let square = AsyncWorld.load_asset::<Image>("square.png");
-    /// AsyncWorld.asset(square.into_handle());
+    /// AsyncWorld.asset(&square);
     /// # });
     /// ```
     pub fn asset<A: Asset>(&self, handle: impl Into<AssetId<A>>) -> AsyncAsset<A> {
