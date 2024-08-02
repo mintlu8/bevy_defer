@@ -1,6 +1,6 @@
 use crate::access::AsyncResource;
 use crate::channel;
-use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, SPAWNER, WORLD};
+use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, WORLD};
 use crate::signals::WriteValue;
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
 use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
@@ -10,13 +10,11 @@ use bevy_app::AppExit;
 use bevy_ecs::system::{IntoSystem, SystemId};
 use bevy_ecs::world::{Command, CommandQueue, Mut};
 use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
-use bevy_log::error;
 use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use bevy_tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
 use rustc_hash::FxHashMap;
-use std::fmt::Display;
 use std::time::Duration;
 use std::{
     any::{Any, TypeId},
@@ -489,64 +487,5 @@ impl AsyncWorld {
             panic!("Can only obtain named signal in async context.")
         }
         REACTORS.with(|signals| signals.get_named::<T>(name))
-    }
-
-    /// Spawn a `bevy_defer` compatible future with a handle.
-    ///
-    /// # Handle
-    ///
-    /// The handle can be used to obtain the result,
-    /// if dropped, the associated future will be dropped by the executor.
-    ///
-    /// # Panics
-    ///
-    /// If used outside a `bevy_defer` future.
-    pub fn spawn_scoped<T: 'static>(
-        &self,
-        fut: impl Future<Output = T> + 'static,
-    ) -> impl Future<Output = T> {
-        if !SPAWNER.is_set() {
-            panic!("bevy_defer::spawn_scoped can only be used in a bevy_defer future.")
-        }
-        SPAWNER.with(|s| s.spawn(fut))
-    }
-
-    /// Spawn a `bevy_defer` compatible future.
-    ///
-    /// The spawned future will not be dropped until finished.
-    ///
-    /// # Panics
-    ///
-    /// If used outside a `bevy_defer` future.
-    pub fn spawn<T: 'static>(&self, fut: impl Future<Output = T> + 'static) {
-        if !SPAWNER.is_set() {
-            panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
-        }
-        SPAWNER.with(|s| s.spawn(fut).detach());
-    }
-
-    /// Spawn a `bevy_defer` compatible future and logs errors.
-    ///
-    /// The spawned future will not be dropped until finished.
-    ///
-    /// # Panics
-    ///
-    /// If used outside a `bevy_defer` future.
-    pub fn spawn_log<T: 'static, E: Display + 'static>(
-        &self,
-        fut: impl Future<Output = Result<T, E>> + 'static,
-    ) {
-        use futures::FutureExt;
-        if !SPAWNER.is_set() {
-            panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
-        }
-        SPAWNER.with(|s| {
-            s.spawn(fut.map(|r| {
-                if let Err(e) = r {
-                    error!("{e}");
-                }
-            }))
-            .detach()
-        });
     }
 }

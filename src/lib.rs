@@ -16,6 +16,7 @@ mod commands;
 mod entity_commands;
 mod errors;
 mod executor;
+mod spawn;
 pub mod ext;
 mod queue;
 pub mod reactors;
@@ -23,7 +24,7 @@ pub mod signals;
 pub mod sync;
 pub mod tween;
 #[allow(deprecated)]
-pub use crate::executor::{in_async_context, spawn, spawn_scoped};
+pub use crate::executor::{in_async_context, spawn};
 pub use access::async_asset::AssetSet;
 pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;

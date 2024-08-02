@@ -46,6 +46,8 @@ pub enum AccessError {
     WorldParamNotFound,
     #[error("SystemId not found")]
     SystemIdNotFound,
+    #[error("Task spawned by `spawn_scoped` has panicked")]
+    TaskPanicked,
     #[error("name not found")]
     NameNotFound,
     #[error("io error")]
