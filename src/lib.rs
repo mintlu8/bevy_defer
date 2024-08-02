@@ -16,11 +16,11 @@ mod commands;
 mod entity_commands;
 mod errors;
 mod executor;
-mod spawn;
 pub mod ext;
 mod queue;
 pub mod reactors;
 pub mod signals;
+mod spawn;
 pub mod sync;
 pub mod tween;
 #[allow(deprecated)]

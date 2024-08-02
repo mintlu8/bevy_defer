@@ -1,7 +1,7 @@
 //! Tweening support for `bevy_defer`.
 use bevy_math::Quat;
-use ref_cast::RefCast;
 use bevy_transform::prelude::Transform;
+use ref_cast::RefCast;
 use std::{
     ops::{Add, Deref, DerefMut, Mul},
     time::Duration,
@@ -36,7 +36,10 @@ where
 #[repr(transparent)]
 pub struct MakeLerp<T>(pub T);
 
-impl<T> MakeLerp<T> where Self: Lerp {
+impl<T> MakeLerp<T>
+where
+    Self: Lerp,
+{
     pub fn lerp(from: T, to: T, fac: f32) -> T {
         Lerp::lerp(Self(from), Self(to), fac).0
     }
@@ -67,10 +70,10 @@ impl Lerp for MakeLerp<Quat> {
 
 impl Lerp for MakeLerp<Transform> {
     fn lerp(from: Self, to: Self, fac: f32) -> Self {
-        MakeLerp(Transform { 
-            translation: Lerp::lerp(from.translation, to.translation, fac), 
-            rotation: Quat::slerp(from.rotation, to.rotation, fac), 
-            scale: Lerp::lerp(from.scale, to.scale, fac), 
+        MakeLerp(Transform {
+            translation: Lerp::lerp(from.translation, to.translation, fac),
+            rotation: Quat::slerp(from.rotation, to.rotation, fac),
+            scale: Lerp::lerp(from.scale, to.scale, fac),
         })
     }
 }

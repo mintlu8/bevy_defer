@@ -58,6 +58,6 @@ bevy_ui = { version = "0.14.0", optional = true }
 bevy_scene = { version = "0.14.0", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.14.0", default-features = false, features = ["bevy_ui", "bevy_state"]}
+bevy = { version = "0.14.0", default-features = false, features = ["bevy_ui", "bevy_state", "bevy_sprite"]}
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }
