@@ -382,6 +382,7 @@ impl AsyncWorld {
     /// AsyncWorld.sleep(5.4).await
     /// # });
     /// ```
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub fn sleep(&self, duration: impl AsSeconds) -> MaybeChannelOut<()> {
         let duration = duration.as_duration();
         if duration <= Duration::ZERO {
@@ -401,6 +402,7 @@ impl AsyncWorld {
     /// AsyncWorld.sleep_frames(12).await
     /// # });
     /// ```
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub fn sleep_frames(&self, frames: u32) -> MaybeChannelOut<()> {
         let (sender, receiver) = channel();
         if frames == 0 {
