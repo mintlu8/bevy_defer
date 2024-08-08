@@ -23,8 +23,6 @@ pub mod signals;
 mod spawn;
 pub mod sync;
 pub mod tween;
-#[allow(deprecated)]
-pub use crate::executor::{in_async_context, spawn};
 pub use access::async_asset::AssetSet;
 pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
@@ -38,8 +36,11 @@ use bevy_ecs::{
 use bevy_reflect::std_traits::ReflectDefault;
 pub use errors::{AccessError, CustomError, MessageError};
 pub use executor::AsyncExecutor;
+#[allow(deprecated)]
+pub use executor::{in_async_context, spawn};
 pub use queue::QueryQueue;
 use reactors::Reactors;
+pub use spawn::ScopedTasks;
 
 pub mod systems {
     //! Systems in `bevy_defer`.

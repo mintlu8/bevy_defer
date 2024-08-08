@@ -50,6 +50,8 @@ pub enum AccessError {
     TaskPanicked,
     #[error("name not found")]
     NameNotFound,
+    #[error("not in state")]
+    NotInState,
     #[error("io error")]
     IO,
     #[error("custom error")]

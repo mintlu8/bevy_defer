@@ -9,7 +9,8 @@ A simple asynchronous runtime for executing async coroutines.
 ## Motivation
 
 Async rust is incredible for modelling wait centric tasks like coroutines.
-Not utilizing async in game development is a huge waste of potential.
+`bevy_defer` is a step further by offering
+world access directly in an async runtime.
 
 Imagine we want to model a rapid sword attack animation, in async rust this is straightforward:
 
@@ -37,37 +38,6 @@ futures::join! {
 
 swing_animation().await;
 ```
-
-## Why not `bevy_tasks`?
-
-`bevy_tasks` has no direct world access, which makes it difficult to write game
-logic in it.
-
-The core idea behind `bevy_defer` is simple:
-
-```rust, ignore
-// Pseudocode
-static WORLD_CELL: Mutex<&mut World>;
-
-fn run_async_executor(world: &mut World) {
-    let executor = world.get_executor();
-    WORLD_CELL.set(world);
-    executor.run();
-    WORLD_CELL.remove(world);
-}
-```
-
-Futures spawned onto the executor can access the `World`
-via access functions, similar to how database transaction works:
-
-```rust, ignore
-WORLD_CELL.with(|world: &mut World| {
-    world.entity(entity).get::<Transform>().clone()
-})
-```
-
-As long as no references can be borrowed from the world,
-and the executor is single threaded, this is perfectly sound!
 
 ## Spawning a Task
 
@@ -137,7 +107,7 @@ We do not provide a `AsyncSystemParam`, instead you should use
 one-shot system based API on `AsyncWorld`.
 They can cover all uses cases where you need to running systems in `bevy_defer`.
 
-## Async Basics
+## Async Utilities
 
 Here are some common utilities you might find useful from an async ecosystem.
 
@@ -180,17 +150,43 @@ pub fn jump_system(query: Query<Name, Changed<IsJumping>>) {
 The core principle is async code should help sync code to
 do less work, and vice versa!
 
-## Signals and AsyncSystems
+## Comparison with `bevy_tasks`
 
-`AsyncSystems` and `Signals` provides per-entity reactivity for user interfaces.
-Checkout their respective modules for more information.
+`bevy_tasks` has no direct world access, which makes it difficult to write game
+logic in it.
+
+The core idea behind `bevy_defer` is simple:
+
+```rust, ignore
+// Pseudocode
+static WORLD_CELL: Mutex<&mut World>;
+
+fn run_async_executor(world: &mut World) {
+    let executor = world.get_executor();
+    WORLD_CELL.set(world);
+    executor.run();
+    WORLD_CELL.remove(world);
+}
+```
+
+Futures spawned onto the executor can access the `World`
+via access functions, similar to how database transaction works:
+
+```rust, ignore
+WORLD_CELL.with(|world: &mut World| {
+    world.entity(entity).get::<Transform>().clone()
+})
+```
+
+As long as no references can be borrowed from the world,
+and the executor is single threaded, this is perfectly sound!
 
 ## Implementation Details
 
 `bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
 this is ideal for simple game logic, wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
-The `AsyncComputeTaskPool` in `bevy_tasks` is ideal for this use case.
-We can use `AsyncComputeTaskPool::get().spawn()` to spawn a future on task pool and call `await` in `bevy_defer`.
+`AsyncWorld::unblock` is an abstraction for using `AsyncComputeTaskPool` to run cpu intensive tasks, for blocking `io`,
+checkout crates like `async-fs` which are more suited for these tasks.
 
 ## Usage Tips
 

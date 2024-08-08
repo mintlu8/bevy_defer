@@ -1,11 +1,11 @@
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
-use crate::{AsyncAccess, OwnedQueryState};
 use crate::{
     access::AsyncEntityMut,
     signals::{SignalId, Signals},
     AccessError, AccessResult,
 };
+use crate::{AsyncAccess, OwnedQueryState};
 use async_shared::Value;
 use bevy_core::Name;
 use bevy_ecs::change_detection::DetectChanges;
@@ -321,24 +321,24 @@ impl AsyncEntityMut {
     }
 
     /// Returns a string containing the names of component types on this entity.
-    /// 
+    ///
     /// If the entity is missing, returns an error message.
-    pub fn debug_print(&self) -> String  {
+    pub fn debug_print(&self) -> String {
         let e = self.id();
         AsyncWorld.run(|w| {
             if w.get_entity(e).is_none() {
-                return format!("Entity {e} missing!")
-            }            
+                return format!("Entity {e} missing!");
+            }
             let v: Vec<_> = w.inspect_entity(e).into_iter().map(|x| x.name()).collect();
             v.join(", ")
         })
     }
 
     /// Obtain a child entity by index.
-    pub fn child(&self, index: usize) -> AccessResult<AsyncEntityMut>  {
+    pub fn child(&self, index: usize) -> AccessResult<AsyncEntityMut> {
         match self.component::<Children>().get(|x| x.get(index).copied()) {
             Ok(Some(entity)) => Ok(self.world().entity(entity)),
-            _ => Err(AccessError::ChildNotFound)
+            _ => Err(AccessError::ChildNotFound),
         }
     }
 

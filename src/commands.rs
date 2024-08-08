@@ -350,7 +350,7 @@ impl AsyncWorld {
     /// Obtain a [`SignalStream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
-    pub fn state_stream<S: States + Clone + Default>(&self) -> ValueStream<S> {
+    pub fn state_stream<S: States>(&self) -> ValueStream<S> {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();
         signal.into_inner().into_stream()
