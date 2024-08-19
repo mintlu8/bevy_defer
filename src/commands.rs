@@ -5,7 +5,6 @@ use crate::signals::WriteValue;
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
 use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use crate::{access::AsyncWorld, AccessError, AccessResult};
-use async_shared::ValueStream;
 use bevy_app::AppExit;
 use bevy_ecs::system::{IntoSystem, SystemId};
 use bevy_ecs::world::{Command, CommandQueue, Mut};
@@ -14,6 +13,7 @@ use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use bevy_tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
+use futures::stream::FusedStream;
 use rustc_hash::FxHashMap;
 use std::time::Duration;
 use std::{
@@ -350,7 +350,7 @@ impl AsyncWorld {
     /// Obtain a [`SignalStream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
-    pub fn state_stream<S: States>(&self) -> ValueStream<S> {
+    pub fn state_stream<S: States>(&self) -> impl FusedStream<Item = S> + '_ {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();
         signal.into_inner().into_stream()

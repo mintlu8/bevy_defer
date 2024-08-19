@@ -28,7 +28,7 @@
 mod signal_component;
 mod signal_utils;
 
-pub use async_shared::{Value, ValueStream};
+pub use async_shared::Value;
 pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 use std::ops::Deref;
@@ -53,24 +53,24 @@ impl<T: Send + Sync + 'static> WriteValue<T> {
     }
 
     pub fn write(&self, item: T) {
-        let _ = self.0.write(item);
+        self.0.write(item);
     }
 
     pub fn write_and_tick(&self, item: T) {
-        let _ = self.0.write_and_tick(item);
+        self.0.write_and_tick(item);
     }
 
     pub fn write_if_changed(&self, item: T)
     where
         T: PartialEq,
     {
-        let _ = self.0.write_if_changed(item);
+        self.0.write_if_changed(item);
     }
 
     pub fn write_if_changed_and_tick(&self, item: T)
     where
         T: PartialEq,
     {
-        let _ = self.0.write_if_changed_and_tick(item);
+        self.0.write_if_changed_and_tick(item);
     }
 }

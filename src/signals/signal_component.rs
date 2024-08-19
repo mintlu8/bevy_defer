@@ -69,7 +69,7 @@ impl Signals {
     /// Returns `true` if the signal exists.
     pub fn send<T: SignalId>(&self, item: T::Data) -> bool {
         if let Some(sig) = self.senders.get::<T>() {
-            let _ = sig.write(item);
+            sig.write(item);
             true
         } else {
             false
@@ -84,7 +84,7 @@ impl Signals {
         T::Data: PartialEq,
     {
         if let Some(sig) = self.senders.get::<T>() {
-            let _ = sig.write_if_changed(item);
+            sig.write_if_changed(item);
             true
         } else {
             false
@@ -96,7 +96,7 @@ impl Signals {
     /// Returns `true` if the signal exists.
     pub fn broadcast<T: SignalId>(&self, item: T::Data) -> bool {
         if let Some(sig) = self.senders.get::<T>() {
-            let _ = sig.write_and_tick(item);
+            sig.write_and_tick(item);
             true
         } else {
             false

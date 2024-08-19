@@ -60,12 +60,12 @@ impl<T: SignalId> Unpin for Sender<T> {}
 impl<T: SignalId> Sender<T> {
     /// Send a value with a signal, can be polled by the same sender.
     pub fn send(&self, item: T::Data) {
-        let _ = self.0.write(item);
+        self.0.write(item);
     }
 
     /// Send a value with a signal, cannot be polled by the same sender.
     pub fn broadcast(self, item: T::Data) {
-        let _ = self.0.write_and_tick(item);
+        self.0.write_and_tick(item);
     }
 
     /// Receives a value from the sender.

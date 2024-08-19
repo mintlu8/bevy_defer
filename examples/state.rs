@@ -1,12 +1,10 @@
-use std::time::Duration;
-
 use bevy::{
     color::palettes::css::{BLUE, GREEN, RED},
     prelude::*,
 };
 use bevy_defer::{
-    access::AsyncWorld, cancellation::Cancellation, tween::Playback, AccessResult, AsyncAccess,
-    AsyncExecutor, AsyncExtension, AsyncPlugin,
+    access::AsyncWorld, AccessResult,
+    AsyncExtension, AsyncPlugin,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, States)]
