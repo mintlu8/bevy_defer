@@ -347,7 +347,7 @@ impl AsyncWorld {
         })
     }
 
-    /// Obtain a [`Stream`] that reacts to changes of a [`States`].
+    /// Obtain a `Stream` that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
     pub fn state_stream<S: States>(&self) -> impl FusedStream<Item = S> + '_ {
