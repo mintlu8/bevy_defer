@@ -100,7 +100,7 @@ impl<T: Send + Sync + 'static> Value<T> {
     }
 
     /// Read a value once changed asynchronously.
-    pub fn read_async_owned(self) -> impl FusedFuture<Output = (T, Self)> + Unpin
+    pub fn read_async_owned(self) -> impl FusedFuture<Output = (T, Self)> + Unpin + 'static
     where
         T: Clone,
     {
@@ -114,7 +114,7 @@ impl<T: Send + Sync + 'static> Value<T> {
     }
 
     /// Read a value once changed asynchronously.
-    pub fn read_async_arc(self: Arc<Self>) -> impl FusedFuture<Output = T> + Unpin
+    pub fn read_async_arc(self: Arc<Self>) -> impl FusedFuture<Output = T> + Unpin + 'static
     where
         T: Clone,
     {

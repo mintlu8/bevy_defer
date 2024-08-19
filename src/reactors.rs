@@ -1,25 +1,28 @@
 //! Signals and synchronization primitives for reacting to standard bevy events.
 use async_shared::Value;
+use bevy_ecs::prelude::{EventReader, ResMut};
 use bevy_ecs::{
-    change_detection::DetectChanges,
     component::Component,
     entity::Entity,
     event::Event,
     query::{Changed, With},
     system::{Local, Query, Res, Resource},
 };
-use bevy_state::state::{State, States};
+use bevy_state::prelude::StateTransitionEvent;
+use bevy_state::state::States;
 use rustc_hash::FxHashMap;
 use std::{
-    cell::OnceCell,
     convert::Infallible,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
 use ty_map_gen::type_map;
 
-use crate::signals::{Receiver, SignalId, SignalSender, Signals};
-use crate::{access::async_event::EventBuffer, signals::WriteValue};
+use crate::access::async_event::EventBuffer;
+use crate::{
+    signals::{Receiver, SignalId, SignalSender, Signals},
+    ScopedTasks,
+};
 
 /// Signal that sends changed values of a [`States`].
 #[derive(Debug, Clone, Copy)]
@@ -69,26 +72,26 @@ impl std::fmt::Debug for ReactorsInner {
 impl Reactors {
     /// Obtain a typed signal.
     #[allow(clippy::box_default)]
-    pub fn get_typed<T: SignalId>(&self) -> WriteValue<T::Data> {
+    pub fn get_typed<T: SignalId>(&self) -> Value<T::Data> {
         let mut lock = self.0.typed.lock().unwrap();
         if let Some(data) = lock.get::<T>() {
-            WriteValue(data.clone_uninit())
+            data.clone_uninit()
         } else {
             let signal = Value::<T::Data>::default();
             lock.insert::<T>(signal.clone_raw());
-            WriteValue(signal)
+            signal
         }
     }
 
     /// Obtain a named signal.
-    pub fn get_named<T: SignalId>(&self, name: &str) -> WriteValue<T::Data> {
+    pub fn get_named<T: SignalId>(&self, name: &str) -> Value<T::Data> {
         let mut lock = self.0.named.lock().unwrap();
         if let Some(data) = lock.get::<T, _>(name) {
-            WriteValue(data.clone_uninit())
+            data.clone_uninit()
         } else {
             let signal = Value::<T::Data>::default();
             lock.insert::<T>(name.to_owned(), signal.clone_raw());
-            WriteValue(signal)
+            signal
         }
     }
 
@@ -107,16 +110,22 @@ impl Reactors {
 
 /// React to a [`States`] changing, signals can be subscribed from [`Reactors`] with [`StateSignal`].
 pub fn react_to_state<T: States + Clone>(
-    signal: Local<OnceCell<WriteValue<T>>>,
+    mut scoped_tasks: Option<ResMut<ScopedTasks<T>>>,
+    mut transition_event: EventReader<StateTransitionEvent<T>>,
     reactors: Res<Reactors>,
-    state: Res<State<T>>,
 ) {
-    if !state.is_changed() {
-        return;
+    for StateTransitionEvent { exited, entered } in transition_event.read() {
+        if exited != entered {
+            if let (Some(exited), Some(scoped_tasks)) = (exited, scoped_tasks.as_mut()) {
+                scoped_tasks.drain(exited);
+            }
+        }
+        if let Some(entered) = entered {
+            reactors
+                .get_typed::<StateSignal<T>>()
+                .write_if_changed(entered.clone());
+        }
     }
-    let value = state.get().clone();
-    let signal = signal.get_or_init(|| reactors.get_typed::<StateSignal<T>>());
-    signal.write_if_changed(value);
 }
 
 /// [`SignalId`] and data for a change in a component state machine.

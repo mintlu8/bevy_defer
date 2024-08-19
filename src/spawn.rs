@@ -1,13 +1,12 @@
 use async_executor::Task;
 use bevy_ecs::prelude::Resource;
 use bevy_log::error;
-use bevy_state::prelude::State;
-use bevy_state::prelude::States;
-use bevy_tasks::futures_lite::StreamExt;
+use bevy_state::prelude::{State, States};
 use rustc_hash::FxHashMap;
+use std::any::type_name;
 use std::{future::Future, marker::PhantomData};
 
-use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncAccess, AsyncWorld};
+use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
 
 /// A list of tasks constrained by [`States`].
 #[derive(Debug, Resource)]
@@ -30,7 +29,7 @@ impl<T: States> ScopedTasks<T> {
         }
     }
 
-    /// Drop all tasks bound to a scope.
+    /// Drop tasks bound to scope.
     pub fn drain(&mut self, state: &T) {
         if let Some(v) = self.tasks.get_mut(state) {
             v.clear();
@@ -102,25 +101,16 @@ impl AsyncWorld {
             _ => Err(AccessError::NotInState),
         })?;
         AsyncWorld.run(|world| {
-            if !world.contains_resource::<ScopedTasks<S>>() {
-                world.init_resource::<ScopedTasks<S>>();
-            }
-            SPAWNER.with(|s| {
-                s.spawn(async {
-                    let mut stream = AsyncWorld.state_stream::<S>();
-                    while let Some(state) = stream.next().await {
-                        let _ = AsyncWorld
-                            .resource::<ScopedTasks<S>>()
-                            .set(|x| x.drain(&state));
-                    }
-                })
-                .detach()
-            });
             if let Some(mut res) = world.get_resource_mut::<ScopedTasks<S>>() {
                 res.tasks
                     .entry(state)
                     .or_default()
                     .push(SPAWNER.with(|s| s.spawn(fut)));
+            } else {
+                error!(
+                    "Cannot spawn state scoped futures without `react_to_state::<{}>`.",
+                    type_name::<S>()
+                )
             }
         });
         Ok(())

@@ -1,5 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
+use async_shared::Value;
 use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::event::Event;
@@ -8,8 +9,7 @@ use bevy_ecs::world::Command;
 use bevy_state::prelude::State;
 use bevy_state::state::States;
 use bevy_time::TimeSystem;
-use futures::StreamExt;
-use std::pin::Pin;
+use std::{any::type_name, pin::Pin};
 
 pub mod access;
 pub mod async_systems;
@@ -79,7 +79,7 @@ pub use bevy_log::error;
 pub use ref_cast::RefCast;
 
 use queue::run_fixed_queue;
-use signals::{SignalId, Signals, WriteValue};
+use signals::{SignalId, Signals};
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::async_access;
@@ -246,10 +246,10 @@ pub trait AsyncExtension {
     ) -> AccessResult;
 
     /// Obtain a named signal.
-    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data>;
+    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
 
     /// Obtain a named signal.
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data>;
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -272,31 +272,24 @@ impl AsyncExtension for World {
             Some(s) if s.get() == &state => (),
             _ => return Err(AccessError::NotInState),
         };
-        if !self.contains_resource::<ScopedTasks<S>>() {
-            self.init_resource::<ScopedTasks<S>>();
-            self.spawn_task(async {
-                let mut stream = AsyncWorld.state_stream::<S>();
-                while let Some(state) = stream.next().await {
-                    let _ = AsyncWorld
-                        .resource::<ScopedTasks<S>>()
-                        .set(|x| x.drain(&state));
-                }
-                Ok(())
-            });
-        }
         let task = self.non_send_resource::<AsyncExecutor>().spawn_scoped(fut);
         if let Some(mut res) = self.get_resource_mut::<ScopedTasks<S>>() {
             res.tasks.entry(state).or_default().push(task);
+        } else {
+            error!(
+                "Cannot spawn state scoped futures without `react_to_state::<{}>`.",
+                type_name::<S>()
+            )
         }
         Ok(())
     }
 
-    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
+    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
     }
@@ -323,13 +316,13 @@ impl AsyncExtension for App {
         self.world_mut().spawn_state_scoped(state, fut)
     }
 
-    fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
+    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
         self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
     }
 
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> WriteValue<T::Data> {
+    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data> {
         self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
             .get_named::<T>(name)
@@ -342,7 +335,7 @@ pub trait AppReactorExtension {
     fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self;
 
     /// React to changes in a [`States`].
-    fn react_to_state<S: States + Default>(&mut self) -> &mut Self;
+    fn react_to_state<S: States>(&mut self) -> &mut Self;
 
     /// React to changes in a [`Component`].
     fn react_to_component_change<C: Component + Eq + Clone + Default>(&mut self) -> &mut Self;
@@ -354,8 +347,9 @@ impl AppReactorExtension for App {
         self
     }
 
-    fn react_to_state<S: States + Default>(&mut self) -> &mut Self {
+    fn react_to_state<S: States>(&mut self) -> &mut Self {
         self.add_systems(BeforeAsyncExecutor, systems::react_to_state::<S>);
+        self.init_resource::<ScopedTasks<S>>();
         self
     }
 

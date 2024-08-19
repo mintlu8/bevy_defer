@@ -8,38 +8,58 @@ A simple asynchronous runtime for executing async coroutines.
 
 ## Motivation
 
-Async rust is incredible for modelling wait centric tasks like coroutines.
-`bevy_defer` is a step further by offering
-world access directly in an async runtime.
+`bevy_defer` is an async runtime for bevy with world access. Think of a future
+in `bevy_defer` as a `Command` that can take as long as it wants to complete.
+They can even wait for each other or pause for a few seconds,
+which is pretty powerful!
 
-Imagine we want to model a rapid sword attack animation, in async rust this is straightforward:
+* So who needs `bevy_defer`?
+
+`bevy_defer` is not for every use case as it is somewhat opposite to `ecs`s
+design goal, if you have a game that might not want ecs only, `bevy_defer`
+might help you make your life easier.
+
+## Common use cases
+
+* Powerful Abstractions
+
+`Pin<Box<dyn Future>>` in `bevy_defer` is the strongest possible abstraction
+in bevy. Put that on a button's `OnClick` and it can do anything you want,
+much more powerful than a command or a system.
+
+* Turn based gameplay and event orchestration
+
+In turn based games, you generally want to sequence actions after the player's input.
+in `bevy_defer` this is incredibly simple:
 
 ```rust, ignore
-swing_animation().await;
-show_damage_number().await;
-damage_vfx().await;
-
-swing_animation().await;
-show_damage_number().await;
-damage_vfx().await;
+move_to(position).await;
+let damage = attack(enemy).await;
+show_damage(damage).await;
 ```
 
-At each `await` point we wait for something to complete, without wasting resources
-spin looping a thread or defining a complex state machine in a system.
+* UI reactivity
 
-What if we want damage number and damage vfx to run concurrently and wait for both
-before our next attack? It's simple with `async` semantics!
+`bevy_defer` provides an alternative model to handle reactivity using
+async rust.
+
+## Getting Started
+
+First add `AsyncPlugin`
 
 ```rust, ignore
-futures::join! {
-    show_damage_number(),
-    damage_vfx()
-};
-
-swing_animation().await;
+app.add_plugins(AsyncPlugin::default_settings())
 ```
 
-## Spawning a Task
+If you want to react to events, states, or other things,
+add their corresponding `react_to` functions.
+
+```rust, ignore
+app.react_to_state::<PlayerAlive>();
+app.react_to_event::<PlayerAttack>();
+```
+
+### Spawning a Task
 
 You can spawn a task onto `bevy_defer`
 from `World`, `App`, `Commands`, `AsyncWorld` or `AsyncExecutor`.
@@ -48,39 +68,13 @@ Here is an example:
 
 ```rust, ignore
 commands.spawn_task(|| async move {
-    // Wait for state to be `GameState::Animating`.
-    AsyncWorld.state_stream::<GameState>().filter(|x| x == &GameState::Animating).next().await;
-    // Obtain info from a resource.
-    // Since the `World` stored as a thread local, 
-    // a closure is the preferable syntax to access it.
-    let richard_entity = AsyncWorld.resource::<NamedEntities>()
-        .get(|res| *res.get("Richard").unwrap())?;
-    // Move to an entity's scope, does not verify the entity exists.
-    let richard = AsyncWorld.entity(richard_entity);
-    // We can also mutate the world directly.
-    richard.component::<HP>().set(|hp| hp.set(500))?;
-    // Move to a component's scope, does not verify the entity or component exists.
-    let animator = AsyncWorld.component::<Animator>();
-    // Implementing `AsyncComponentDeref` allows you to add extension methods to `AsyncComponent`.
-    animator.animate("Wave").await?;
-    // Spawn another future on the executor.
-    let audio = AsyncWorld.spawn(sound_routine(richard_entity));
-    // Dance for 5 seconds with `select`.
-    futures::select!(
-        _ = animator.animate("Dance").fuse() => (),
-        _ = AsyncWorld.sleep(Duration::from_secs(5)) => println!("Dance cancelled"),
-    );
-    // animate back to idle
-    richard.component::<Animator>().animate("Idle").await?;
-    // Wait for spawned future to complete
-    audio.await?;
-    // Tell the bevy App to quit.
-    AsyncWorld.quit();
+    AsyncWorld.sleep(500.0).await;
+    println("Hello, World!")
     Ok(())
 });
 ```
 
-## World Accessors
+### Accessing the world
 
 The entry point of all world access is `AsyncWorld`,
 for example a `Component` can be accessed by
@@ -91,8 +85,17 @@ let translation = AsyncWorld
     .component::<Transform>()
     .get(|t| {
         t.translation
-    }
-)
+    }).unwrap()
+```
+
+This is similar to `World` but all validation are
+deferred to the access function.
+
+To set some data:
+
+```rust, ignore
+let richard = AsyncWorld.entity(richard_entity);
+richard.component::<HP>().set(|hp| hp.set(500))?;
 ```
 
 This works for all the bevy things you expect, `Resource`, `Query`, etc.
@@ -103,23 +106,59 @@ underlying types. See the `access::deref` module for more detail. The
 `async_access` derive macro can be useful for adding method to
 async accessors.
 
-We do not provide a `AsyncSystemParam`, instead you should use
-one-shot system based API on `AsyncWorld`.
-They can cover all uses cases where you need to running systems in `bevy_defer`.
+### Run Systems
 
-## Async Utilities
+You might have noticed `AsyncSystemParam` does not exist (yet).
+In order to run more complicated logic, use one of the one-shot
+system based API, like:
 
-Here are some common utilities you might find useful from an async ecosystem.
+```rust, ignore
+AsyncWorld.run_cached_system(my_system)
+AsyncWorld.run_cached_system_with_input(my_system2, 4)
+```
 
-* `AsyncWorld.spawn()` spawns a future.
+### Event Orchestration
 
-* `AsyncWorld.spawn_scoped()` spawns a future with a handle to get result from.
+* Coroutines
 
-* `AsyncWorld.yield_now()` yields execution for the current frame, similar to how coroutines work.
+`AsyncWorld.yield_now()` yields execution for the current frame,
+with default settings this makes code like this run once per frame.
 
-* `AsyncWorld.sleep(4.0)` pauses the future for `4` seconds.
+```rust, ignore
+loop {
+    transform.set(|t| t.translation.x += delta_time)?;
+    AsyncWorld.yield_now().await
+}
+```
 
-* `AsyncWorld.sleep_frames(4)` pauses the future for `4` frames.
+* Pausing
+
+`AsyncWorld.sleep(4.0)` pauses the future for `4` seconds,
+while `AsyncWorld.sleep_frames(4)` pauses the future for `4` frames.
+
+* Concurrency
+
+Use `futures::join!` or `futures_lite::zip` to achieve concurrency:
+
+```rust, ignore
+// Do both at the same time.
+join! {
+    dance(),
+    play_music(),
+}
+```
+
+* Cancellation
+
+Use `futures::select!` or `futures_lite::or` to achieve cancellation:
+
+```rust, ignore
+// Dance for no more than 5 seconds.
+select! {
+    _ = dance() => (),
+    _ = sleep(5.0) => (),
+}
+```
 
 ## Bridging Sync and Async
 
@@ -145,6 +184,12 @@ pub fn jump_system(query: Query<Name, Changed<IsJumping>>) {
         println!("{} is jumping!", name);
     }
 }
+```
+
+`States` is particularly powerful for this type of communication:
+
+```rust, ignore
+AsyncWorld.set_state(GameState::Loading);
 ```
 
 The core principle is async code should help sync code to
@@ -184,17 +229,10 @@ and the executor is single threaded, this is perfectly sound!
 ## Implementation Details
 
 `bevy_defer` uses a single threaded runtime that always runs on bevy's main thread inside the main schedule,
-this is ideal for simple game logic, wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`.
-`AsyncWorld::unblock` is an abstraction for using `AsyncComputeTaskPool` to run cpu intensive tasks, for blocking `io`,
-checkout crates like `async-fs` which are more suited for these tasks.
+this is ideal for simple game logic, wait heavy or IO heavy tasks, but CPU heavy tasks should not be run in `bevy_defer`. Unlike multithreaded runtimes, single threaded runtimes are more vulnerable to
+blocking tasks, so pay extra attention to this.
 
-## Usage Tips
-
-The `futures` and/or `futures_lite` crate has excellent tools to for us to use.
-
-For example `futures::join!` can be used to run tasks concurrently, and
-`futures::select!` can be used to cancel tasks, for example despawning a task
-if a level has finished.
+`AsyncWorld::unblock` is an abstraction for using `AsyncComputeTaskPool` to run cpu intensive tasks. for blocking io, checkout crates like `async-fs` which are more suited for these tasks.
 
 ## Versions
 

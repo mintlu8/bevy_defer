@@ -121,7 +121,8 @@ macro_rules! async_system {
                 $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::from_async_context(entity, &reactors, $field, children)?;)*
                 Some(async move {
                     let _ = $body;
-                    Ok(())
+                    #[allow(unreachable_code)]
+                    { Ok(()) }
                 })
             })
         }

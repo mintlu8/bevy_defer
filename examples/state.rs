@@ -3,8 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_defer::{
-    access::AsyncWorld, AccessResult,
-    AsyncExtension, AsyncPlugin,
+    access::AsyncWorld, AccessResult, AppReactorExtension, AsyncExtension, AsyncPlugin,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, States)]
@@ -35,6 +34,8 @@ fn main() {
         .add_plugins(AsyncPlugin::default_settings())
         .init_state::<MainState>()
         .add_computed_state::<Spin>()
+        .react_to_state::<MainState>()
+        .react_to_state::<Spin>()
         .add_systems(Startup, setup)
         .add_systems(OnEnter(MainState::Red), |world: &mut World| {
             let _ = world.spawn_state_scoped(MainState::Red, async {
@@ -54,14 +55,24 @@ fn main() {
                 AccessResult::Ok(())
             });
         })
+        .add_systems(OnEnter(Spin), |world: &mut World| {
+            // Coroutine :)
+            let _ = world.spawn_state_scoped(Spin, async {
+                loop {
+                    AsyncWorld.run_cached_system(spin)?;
+                    AsyncWorld.yield_now().await;
+                }
+            });
+        })
         .spawn_task(async {
-            AsyncWorld.sleep(2.).await;
-            AsyncWorld.set_state(MainState::Green)?;
-            AsyncWorld.sleep(2.).await;
-            AsyncWorld.set_state(MainState::Blue)?;
-            AsyncWorld.sleep(2.).await;
-            AsyncWorld.set_state(MainState::Red)?;
-            AccessResult::Ok(())
+            loop {
+                AsyncWorld.sleep(2.).await;
+                AsyncWorld.set_state(MainState::Green)?;
+                AsyncWorld.sleep(2.).await;
+                AsyncWorld.set_state(MainState::Blue)?;
+                AsyncWorld.sleep(2.).await;
+                AsyncWorld.set_state(MainState::Red)?;
+            }
         })
         .run();
 }
@@ -80,4 +91,8 @@ fn setup(mut commands: Commands) {
 
 fn set_color(color: In<Color>, mut query: Query<&mut Sprite>) {
     query.single_mut().color = color.0;
+}
+
+fn spin(time: ResMut<Time>, mut query: Query<&mut Transform, With<Sprite>>) {
+    query.single_mut().rotate_z(time.delta_seconds());
 }

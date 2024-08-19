@@ -1,10 +1,10 @@
 use crate::access::AsyncResource;
 use crate::channel;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, WORLD};
-use crate::signals::WriteValue;
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
 use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use crate::{access::AsyncWorld, AccessError, AccessResult};
+use async_shared::Value;
 use bevy_app::AppExit;
 use bevy_ecs::system::{IntoSystem, SystemId};
 use bevy_ecs::world::{Command, CommandQueue, Mut};
@@ -347,13 +347,13 @@ impl AsyncWorld {
         })
     }
 
-    /// Obtain a [`SignalStream`] that reacts to changes of a [`States`].
+    /// Obtain a [`Stream`] that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
     pub fn state_stream<S: States>(&self) -> impl FusedStream<Item = S> + '_ {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();
-        signal.into_inner().into_stream()
+        signal.into_stream()
     }
 
     /// Perform a blocking operation on [`AsyncComputeTaskPool`].
@@ -460,7 +460,7 @@ impl AsyncWorld {
     /// signal.read_async().await;
     /// # });
     /// ```
-    pub fn typed_signal<T: SignalId>(&self) -> WriteValue<T::Data> {
+    pub fn typed_signal<T: SignalId>(&self) -> Value<T::Data> {
         if !REACTORS.is_set() {
             panic!("Can only obtain typed signal in async context.")
         }
@@ -484,7 +484,7 @@ impl AsyncWorld {
     /// signal.read_async().await;
     /// # });
     /// ```
-    pub fn named_signal<T: SignalId>(&self, name: &str) -> WriteValue<T::Data> {
+    pub fn named_signal<T: SignalId>(&self, name: &str) -> Value<T::Data> {
         if !REACTORS.is_set() {
             panic!("Can only obtain named signal in async context.")
         }

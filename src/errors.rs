@@ -61,6 +61,7 @@ pub enum AccessError {
 }
 
 /// An alternative [`AccessError`] with a custom error message.
+/// 
 /// All types implementing [`Error`] can propagate to [`CustomError`] via `?`.
 /// Use [`Error::source`] to specify the associated `AccessError`, otherwise [`AccessError::Custom`].
 /// If propagated to `AccessError` via `?`, will log the error message via `bevy_log`.
