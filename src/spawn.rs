@@ -12,7 +12,7 @@ use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncAccess, AsyncWorl
 /// A list of tasks constrained by [`States`].
 #[derive(Debug, Resource)]
 pub struct ScopedTasks<T: States> {
-    tasks: FxHashMap<T, Vec<Task<AccessResult<()>>>>,
+    pub(crate) tasks: FxHashMap<T, Vec<Task<AccessResult<()>>>>,
     p: PhantomData<T>,
 }
 

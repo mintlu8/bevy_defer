@@ -5,8 +5,10 @@ use bevy_ecs::component::Component;
 use bevy_ecs::event::Event;
 use bevy_ecs::intern::Interned;
 use bevy_ecs::world::Command;
+use bevy_state::prelude::State;
 use bevy_state::state::States;
 use bevy_time::TimeSystem;
+use futures::StreamExt;
 use std::pin::Pin;
 
 pub mod access;
@@ -231,6 +233,18 @@ pub trait AsyncExtension {
     /// Spawn a task to be run on the [`AsyncExecutor`].
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self;
 
+    /// Spawn a `bevy_defer` compatible future, the future is constrained to a [`States`]
+    /// and will be cancelled upon exiting the state.
+    ///
+    /// # Errors
+    ///
+    /// If not in the specified state.
+    fn spawn_state_scoped<S: States>(
+        &mut self,
+        state: S,
+        fut: impl Future<Output = AccessResult> + 'static,
+    ) -> AccessResult;
+
     /// Obtain a named signal.
     fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data>;
 
@@ -247,6 +261,34 @@ impl AsyncExtension for World {
             }
         });
         self
+    }
+
+    fn spawn_state_scoped<S: States>(
+        &mut self,
+        state: S,
+        fut: impl Future<Output = AccessResult> + 'static,
+    ) -> AccessResult {
+        match self.get_resource::<State<S>>() {
+            Some(s) if s.get() == &state => (),
+            _ => return Err(AccessError::NotInState),
+        };
+        if !self.contains_resource::<ScopedTasks<S>>() {
+            self.init_resource::<ScopedTasks<S>>();
+            self.spawn_task(async {
+                let mut stream = AsyncWorld.state_stream::<S>();
+                while let Some(state) = stream.next().await {
+                    let _ = AsyncWorld
+                        .resource::<ScopedTasks<S>>()
+                        .set(|x| x.drain(&state));
+                }
+                Ok(())
+            });
+        }
+        let task = self.non_send_resource::<AsyncExecutor>().spawn_scoped(fut);
+        if let Some(mut res) = self.get_resource_mut::<ScopedTasks<S>>() {
+            res.tasks.entry(state).or_default().push(task);
+        }
+        Ok(())
     }
 
     fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
@@ -271,6 +313,14 @@ impl AsyncExtension for App {
                 }
             });
         self
+    }
+
+    fn spawn_state_scoped<S: States>(
+        &mut self,
+        state: S,
+        fut: impl Future<Output = AccessResult> + 'static,
+    ) -> AccessResult {
+        self.world_mut().spawn_state_scoped(state, fut)
     }
 
     fn typed_signal<T: SignalId>(&mut self) -> WriteValue<T::Data> {
@@ -333,6 +383,18 @@ pub trait AsyncCommandsExtension {
         &mut self,
         f: impl FnOnce() -> F + Send + 'static,
     ) -> &mut Self;
+
+    /// Spawn a `bevy_defer` compatible future, the future is constrained to a [`States`]
+    /// and will be cancelled upon exiting the state.
+    ///
+    /// # Errors
+    ///
+    /// If not in the specified state.
+    fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
+        &mut self,
+        state: S,
+        fut: impl FnOnce() -> F + Send + 'static,
+    ) -> &mut Self;
 }
 
 impl AsyncCommandsExtension for Commands<'_, '_> {
@@ -341,6 +403,15 @@ impl AsyncCommandsExtension for Commands<'_, '_> {
         f: impl (FnOnce() -> F) + Send + 'static,
     ) -> &mut Self {
         self.add(SpawnFn::new(f));
+        self
+    }
+
+    fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
+        &mut self,
+        state: S,
+        f: impl FnOnce() -> F + Send + 'static,
+    ) -> &mut Self {
+        self.add(StateScopedSpawnFn::new(state, f));
         self
     }
 }
@@ -361,6 +432,30 @@ impl SpawnFn {
 impl Command for SpawnFn {
     fn apply(self, world: &mut World) {
         world.spawn_task(self.0());
+    }
+}
+
+/// [`Command`] for spawning a task.
+pub struct StateScopedSpawnFn<S: States> {
+    future: Box<dyn (FnOnce() -> Pin<Box<dyn Future<Output = AccessResult>>>) + Send + 'static>,
+    state: S,
+}
+
+impl<S: States> StateScopedSpawnFn<S> {
+    fn new<F: Future<Output = AccessResult> + 'static>(
+        state: S,
+        f: impl (FnOnce() -> F) + Send + 'static,
+    ) -> Self {
+        Self {
+            future: Box::new(move || Box::pin(f())),
+            state,
+        }
+    }
+}
+
+impl<S: States> Command for StateScopedSpawnFn<S> {
+    fn apply(self, world: &mut World) {
+        let _ = world.spawn_state_scoped(self.state, (self.future)());
     }
 }
 
