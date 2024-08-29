@@ -13,13 +13,13 @@ use std::{any::type_name, pin::Pin};
 
 pub mod access;
 pub mod async_systems;
-mod fetch;
 pub mod cancellation;
 mod commands;
 mod entity_commands;
 mod errors;
 mod executor;
 pub mod ext;
+mod fetch;
 mod queue;
 pub mod reactors;
 pub mod signals;
@@ -31,8 +31,6 @@ pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
-#[doc(hidden)]
-pub use fetch::{fetch0, fetch1, fetch};
 use bevy_ecs::{
     schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
     system::Commands,
@@ -43,6 +41,8 @@ pub use errors::AccessError;
 pub use executor::AsyncExecutor;
 #[allow(deprecated)]
 pub use executor::{in_async_context, spawn};
+#[doc(hidden)]
+pub use fetch::{fetch, fetch0, fetch1};
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;

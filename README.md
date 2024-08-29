@@ -91,6 +91,13 @@ let translation = AsyncWorld
 This is similar to `World` but all validation are
 deferred to the access function.
 
+* New in `0.13`: the `fetch!` macro can be used:
+
+```rust, ignore
+let translation = fetch!(entity, Transform).get(|t| t.translation).unwrap()
+```
+
+
 To set some data:
 
 ```rust, ignore

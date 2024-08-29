@@ -6,7 +6,9 @@ use bevy_ecs::{
 use std::borrow::Borrow;
 
 use crate::{
-    access::{AsyncAsset, AsyncComponent, AsyncEntityMut, AsyncEntityQuery, AsyncQuery, AsyncResource},
+    access::{
+        AsyncAsset, AsyncComponent, AsyncEntityMut, AsyncEntityQuery, AsyncQuery, AsyncResource,
+    },
     AsyncWorld,
 };
 
@@ -16,13 +18,13 @@ use crate::{
 ///
 /// * `fetch!(entity, Type)`
 ///
-/// Obtain a [`AsyncComponent`] or [`AsyncEntityQuery`] depend on the type.
+/// Obtain a [`struct@AsyncComponent`] or [`AsyncEntityQuery`] depend on the type.
 /// `entity` can be [`Entity`] or [`AsyncEntityMut`].
-/// 
+///
 /// * `fetch!(#expr)`
 ///
 /// Obtain a [`AsyncEntityMut`] or [`AsyncAsset`] from an underlying expr.
-/// 
+///
 /// * `fetch!(Type)`
 ///
 /// Obtain a [`struct@AsyncResource`] or [`AsyncQuery`] depend on the type.

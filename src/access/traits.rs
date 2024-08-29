@@ -118,7 +118,7 @@ pub trait AsyncAccess {
     }
 
     /// Obtain an underlying world accessor from an item using [`WorldDeref`].
-    /// 
+    ///
     /// An example is obtaining `AsyncAsset<T>` from `AsyncComponent<Handle<T>>`.
     fn chain(&self) -> AccessResult<<Self::Generic as WorldDeref>::Target>
     where
@@ -201,8 +201,6 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on a readonly reference to this item and obtain the result.
-    ///
-    /// Completes immediately if `&World` access is available.
     fn get<T>(&self, f: impl FnOnce(Self::Ref<'_>) -> T) -> AccessResult<T>
     where
         Self: AsyncReadonlyAccess,
@@ -213,8 +211,6 @@ pub trait AsyncAccess {
 
     /// Run a function on a readonly reference to this item and obtain the result,
     /// repeat until the item is loaded.
-    ///
-    /// Completes immediately if `&World` access is available and item is loaded.
     fn get_on_load<T: 'static>(
         &self,
         f: impl FnOnce(Self::Ref<'_>) -> T + 'static,

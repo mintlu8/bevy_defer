@@ -7,7 +7,7 @@ use bevy_log::error;
 /// It might me more correct to either match or unwrap this error instead of propagating it.
 ///
 /// # Error Logging
-/// 
+///
 /// Consider the `instrument` macro from the `tracing` crate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
