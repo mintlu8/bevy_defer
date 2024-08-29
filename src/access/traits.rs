@@ -104,6 +104,35 @@ pub trait AsyncAccess {
         })
     }
 
+    /// Run a function if the query is infallible.
+    fn with<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> T
+    where
+        Self: InfallibleQuery,
+    {
+        let cx = self.as_cx();
+        with_world_mut(|w| {
+            let mut mut_cx = Self::from_mut_world(w, &cx).expect("Should be infallible");
+            let cx = Self::from_mut_cx(&mut mut_cx, &cx).expect("Should be infallible");
+            f(cx)
+        })
+    }
+
+    /// Obtain an underlying world accessor from an item using [`WorldDeref`].
+    /// 
+    /// An example is obtaining `AsyncAsset<T>` from `AsyncComponent<Handle<T>>`.
+    fn chain(&self) -> AccessResult<<Self::Generic as WorldDeref>::Target>
+    where
+        Self: AsyncAccessRef,
+        Self::Generic: WorldDeref,
+    {
+        let cx = self.as_cx();
+        with_world_mut(|w| {
+            let mut mut_cx = Self::from_mut_world(w, &cx)?;
+            let cx = Self::from_mut_cx(&mut mut_cx, &cx)?;
+            Ok(WorldDeref::deref_to(cx))
+        })
+    }
+
     /// Run a function on this item and obtain the result once loaded.
     fn set_on_load<T: 'static>(
         &self,
@@ -214,6 +243,15 @@ pub trait AsyncAccess {
             Err(err) if Self::should_continue(err) => None,
             Err(err) => Some(Err(err)),
         }))
+    }
+
+    /// Copy the item.
+    fn copied(&self) -> AccessResult<Self::Generic>
+    where
+        Self: AsyncAccessRef,
+        Self::Generic: Copy,
+    {
+        self.get(|x| *x)
     }
 
     /// Clone the item.
@@ -662,5 +700,31 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         entity: &Entity,
     ) -> AccessResult<Self::RefMut<'t>> {
         cx.get_mut(*entity).map_err(|_| AccessError::EntityNotFound)
+    }
+}
+
+/// If implemented on a resource or a non-send resource, assume its always available
+/// during `bevy_defer`'s runtime. This allows the `with` accessor to be used.
+pub trait InfallibleQuery {}
+
+impl<T: QueryData, F: QueryFilter> InfallibleQuery for AsyncQuery<T, F> {}
+
+impl<T: Resource + InfallibleQuery> InfallibleQuery for AsyncResource<T> {}
+
+impl<T: InfallibleQuery + 'static> InfallibleQuery for AsyncNonSend<T> {}
+
+/// Signifies an item points to another item in the [`World`].
+pub trait WorldDeref {
+    type Target: 'static;
+
+    /// Returns a world accessor like [`AsyncAsset`] or [`AsyncComponent`].
+    fn deref_to(&self) -> Self::Target;
+}
+
+impl<T: Asset> WorldDeref for Handle<T> {
+    type Target = AsyncAsset<T>;
+
+    fn deref_to(&self) -> Self::Target {
+        AsyncAsset(self.clone_weak())
     }
 }

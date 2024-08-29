@@ -161,40 +161,22 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
     }
 
     pub fn single(&mut self) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AccessError> {
-        self.state
-            .as_mut()
-            .unwrap()
-            .get_single(self.world)
-            .map_err(|e| match e {
-                bevy_ecs::query::QuerySingleError::NoEntities(_) => AccessError::EntityNotFound,
-                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => {
-                    AccessError::TooManyEntities
-                }
-            })
+        Ok(self.state.as_mut().unwrap().get_single(self.world)?)
     }
 
     pub fn single_mut(&mut self) -> Result<D::Item<'_>, AccessError> {
-        self.state
-            .as_mut()
-            .unwrap()
-            .get_single_mut(self.world)
-            .map_err(|e| match e {
-                bevy_ecs::query::QuerySingleError::NoEntities(_) => AccessError::EntityNotFound,
-                bevy_ecs::query::QuerySingleError::MultipleEntities(_) => {
-                    AccessError::TooManyEntities
-                }
-            })
+        Ok(self.state.as_mut().unwrap().get_single_mut(self.world)?)
     }
 
     pub fn get(
         &mut self,
         entity: Entity,
     ) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AccessError> {
-        self.state
-            .as_mut()
-            .unwrap()
-            .get(self.world, entity)
-            .map_err(|_| AccessError::EntityNotFound)
+        Ok(self.state.as_mut().unwrap().get(self.world, entity)?)
+    }
+
+    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_>, AccessError> {
+        Ok(self.state.as_mut().unwrap().get_mut(self.world, entity)?)
     }
 
     pub fn iter_many<E: IntoIterator>(
@@ -218,14 +200,6 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
             .as_mut()
             .unwrap()
             .iter_many_mut(self.world, entities)
-    }
-
-    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_>, AccessError> {
-        self.state
-            .as_mut()
-            .unwrap()
-            .get_mut(self.world, entity)
-            .map_err(|_| AccessError::EntityNotFound)
     }
 
     pub fn iter(&mut self) -> QueryIter<D::ReadOnly, F> {

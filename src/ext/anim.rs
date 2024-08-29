@@ -92,7 +92,10 @@ impl AsyncAnimationPlayer {
         self.0.get(move |player| player.is_playing_animation(clip))
     }
 
-    pub fn wait(&self, event: AnimationEvent) -> AccessResult<impl Future<Output = ()> + 'static> {
+    pub fn wait(
+        &self,
+        event: AnimationEvent,
+    ) -> AccessResult<impl Future<Output = bool> + 'static> {
         let (send, recv) = async_oneshot::oneshot();
         AsyncWorld.run(|w| {
             let Some(mut entity) = w.get_entity_mut(self.0.entity) else {
@@ -105,7 +108,7 @@ impl AsyncAnimationPlayer {
             };
             Ok(())
         })?;
-        Ok(recv.map(|_| ()))
+        Ok(recv.map(|v| v.unwrap_or(false)))
     }
 }
 
@@ -123,21 +126,31 @@ impl AsyncAnimationTransitions {
 
 #[derive(Debug)]
 pub enum AnimationEvent {
-    /// Yields when current animation is not the one specified.
+    /// Waits for an animation to exit,
+    /// immediately returns if the specified animation is not playing.
+    ///
+    /// Yields when the current animation is not the one specified.
     OnExit(AnimationNodeIndex),
+    /// Waits for an animation to be entered,
+    /// immediately returns if the specified animation is not playing.
+    ///
     /// Yields when current animation is the one specified.
     OnEnter(AnimationNodeIndex),
+    /// Wait for an animation to be entered then exited.
+    ///
     /// Yields when the last animation is the one specified
     /// and current animation is not the one specified.
     WaitUnitOnExit(AnimationNodeIndex),
-    /// Yields when the specified animation passes a specific frame.
-    OnFrame {
-        animation: AnimationNodeIndex,
-        frame: f32,
-    },
+    /// Wait for a specific frame to pass or the animation exits.
+    ///
     /// Yields when the specified animation passes a specific frame,
-    /// or when the specified animation exits.
-    OnFrameOrExit {
+    /// returns false if animation exits and the frame is not entered.
+    ///
+    /// # Note
+    ///
+    /// Frame is in seconds, if referencing keyframe `15` exported at `60` fps,
+    /// the value should be `0.25`.
+    OnFrame {
         animation: AnimationNodeIndex,
         frame: f32,
     },
@@ -155,7 +168,7 @@ impl Deref for PreviousAnimationPlayer {
 }
 
 #[derive(Component)]
-pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<()>)>);
+pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<bool>)>);
 
 #[derive(RefCast)]
 #[repr(transparent)]
@@ -171,23 +184,22 @@ impl AsyncComponentDeref for AnimationReactor {
 
 impl AnimationReactor {
     /// Wait for an [`AnimationEvent`] to happen.
-    pub fn react_to(&mut self, event: AnimationEvent) -> impl Future<Output = ()> + 'static {
+    pub fn react_to(&mut self, event: AnimationEvent) -> impl Future<Output = bool> + 'static {
         let (send, recv) = async_oneshot::oneshot();
         self.push((event, send));
-        recv.map(|_| ())
+        recv.map(|v| v.unwrap_or(false))
     }
 }
 
 impl AsyncAnimationReactor {
     /// Wait for an [`AnimationEvent`] to happen.
-    pub async fn react_to(&mut self, event: AnimationEvent) -> AccessResult {
-        let _ = self.0.set(|x| x.react_to(event))?.await;
-        Ok(())
+    pub async fn react_to(&self, event: AnimationEvent) -> AccessResult<bool> {
+        Ok(self.0.set(|x| x.react_to(event))?.await)
     }
 }
 
 impl Deref for AnimationReactor {
-    type Target = Vec<(AnimationEvent, async_oneshot::Sender<()>)>;
+    type Target = Vec<(AnimationEvent, async_oneshot::Sender<bool>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -215,39 +227,37 @@ pub fn react_to_animation(
         if let Some(mut reactors) = reactors {
             reactors.0.retain_mut(|(event, channel)| {
                 let yields = match event {
-                    AnimationEvent::OnExit(idx) => !player.is_playing_animation(*idx),
-                    AnimationEvent::OnEnter(idx) => player.is_playing_animation(*idx),
-                    AnimationEvent::WaitUnitOnExit(idx) => {
-                        player.is_playing_animation(*idx) && !prev.0.is_playing_animation(*idx)
+                    AnimationEvent::OnExit(idx) => {
+                        (!player.is_playing_animation(*idx)).then_some(true)
                     }
+                    AnimationEvent::OnEnter(idx) => {
+                        player.is_playing_animation(*idx).then_some(true)
+                    }
+                    AnimationEvent::WaitUnitOnExit(idx) => (player.is_playing_animation(*idx)
+                        && !prev.0.is_playing_animation(*idx))
+                    .then_some(true),
                     AnimationEvent::OnFrame { animation, frame } => {
                         if let Some(prev) = prev.0.animation(*animation) {
                             if let Some(curr) = player.animation(*animation) {
-                                curr.seek_time() >= *frame && *frame > prev.seek_time()
+                                if curr.seek_time() >= *frame && *frame > prev.seek_time() {
+                                    Some(true)
+                                } else {
+                                    None
+                                }
                             } else {
-                                false
+                                Some(false)
                             }
                         } else {
-                            false
-                        }
-                    }
-                    AnimationEvent::OnFrameOrExit { animation, frame } => {
-                        if let Some(prev) = prev.0.animation(*animation) {
-                            if let Some(curr) = player.animation(*animation) {
-                                curr.seek_time() >= *frame && *frame > prev.seek_time()
-                            } else {
-                                true
-                            }
-                        } else {
-                            false
+                            None
                         }
                     }
                 };
-                if yields {
-                    let _ = channel.send(());
-                    false
-                } else {
-                    true
+                match yields {
+                    Some(v) => {
+                        let _ = channel.send(v);
+                        false
+                    }
+                    None => true,
                 }
             });
         }

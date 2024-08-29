@@ -12,6 +12,7 @@ use bevy_ecs::{
     system::Resource,
 };
 use ref_cast::RefCast;
+use std::borrow::Borrow;
 use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 
@@ -112,6 +113,18 @@ impl AsyncWorld {
 /// [`AsyncExecutor`] and [`QueryQueue`].
 #[derive(Debug, Clone)]
 pub struct AsyncEntityMut(pub(crate) Entity);
+
+impl Borrow<Entity> for AsyncEntityMut {
+    fn borrow(&self) -> &Entity {
+        &self.0
+    }
+}
+
+impl Borrow<Entity> for &AsyncEntityMut {
+    fn borrow(&self) -> &Entity {
+        &self.0
+    }
+}
 
 impl AsyncEntityMut {
     /// Obtain the underlying [`Entity`] id.

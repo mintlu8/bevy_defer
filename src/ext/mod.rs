@@ -5,3 +5,5 @@ pub mod anim;
 pub mod picking;
 #[cfg(feature = "bevy_scene")]
 pub mod scene;
+#[cfg(feature = "bevy_sprite")]
+pub mod sprite;
