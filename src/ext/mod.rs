@@ -7,3 +7,4 @@ pub mod picking;
 pub mod scene;
 #[cfg(feature = "bevy_sprite")]
 pub mod sprite;
+pub mod transform;

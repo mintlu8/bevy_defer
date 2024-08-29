@@ -418,6 +418,34 @@ impl AsyncEntityMut {
             })
             .ok_or(AccessError::ComponentNotFound)
     }
+
+    /// Obtain an entity's visibility through traversing the hierarchy.
+    ///
+    /// # Errors
+    ///
+    /// If `Visibility` is missing in one of the target's ancestors.
+    #[cfg(feature = "bevy_render")]
+    pub fn visibility(&self) -> AccessResult<bool> {
+        use bevy_render::prelude::Visibility;
+        AsyncWorld
+            .run(|world| {
+                let entity = world.get_entity(self.0)?;
+                match entity.get::<Visibility>()? {
+                    Visibility::Inherited => (),
+                    Visibility::Hidden => return Some(false),
+                    Visibility::Visible => return Some(true),
+                }
+                while let Some(parent) = entity.get::<Parent>().map(|x| x.get()) {
+                    match world.get_entity(parent)?.get::<Visibility>()? {
+                        Visibility::Inherited => (),
+                        Visibility::Hidden => return Some(false),
+                        Visibility::Visible => return Some(true),
+                    }
+                }
+                Some(true)
+            })
+            .ok_or(AccessError::ComponentNotFound)
+    }
 }
 
 /// A map of names to entities.

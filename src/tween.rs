@@ -31,7 +31,13 @@ where
     }
 }
 
-/// Performs a spherical linear interpolation on [`Quat`].
+/// Performs a specialized linear interpolation on bevy types that does not
+/// use multiply and add for linear interpolation.
+///
+/// # Type Supported
+///
+/// * `Quat`: Performs spherical interpolation `Quat::slerp`.
+/// * `Transform`: Performs interpolation on all three fields.
 #[derive(Debug, Clone, Copy, Default, PartialEq, RefCast)]
 #[repr(transparent)]
 pub struct MakeLerp<T>(pub T);

@@ -132,7 +132,7 @@ pub enum AnimationEvent {
     /// Yields when the current animation is not the one specified.
     OnExit(AnimationNodeIndex),
     /// Waits for an animation to be entered,
-    /// immediately returns if the specified animation is not playing.
+    /// immediately returns if the specified animation is playing.
     ///
     /// Yields when current animation is the one specified.
     OnEnter(AnimationNodeIndex),
