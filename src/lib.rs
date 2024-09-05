@@ -257,12 +257,7 @@ pub trait AsyncExtension {
 
 impl AsyncExtension for World {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
-        self.non_send_resource::<AsyncExecutor>().spawn(async move {
-            match f.await {
-                Ok(()) => (),
-                Err(err) => error!("Access Error: {err}."),
-            }
-        });
+        self.non_send_resource::<AsyncExecutor>().spawn(f);
         self
     }
 
@@ -300,14 +295,7 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
-        self.world()
-            .non_send_resource::<AsyncExecutor>()
-            .spawn(async move {
-                match f.await {
-                    Ok(()) => (),
-                    Err(err) => error!("Access Error: {err}."),
-                }
-            });
+        self.world().non_send_resource::<AsyncExecutor>().spawn(f);
         self
     }
 

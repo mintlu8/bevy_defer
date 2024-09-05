@@ -366,7 +366,7 @@ impl AsyncSystem {
             let Some(fut) = (self.function)(entity, reactors, signals, children) else {
                 return;
             };
-            executor.spawn(futures::future::select(alive, fut.map(|_| ())));
+            executor.spawn_any(futures::future::select(alive, fut.map(|_| ())));
         }
     }
 }

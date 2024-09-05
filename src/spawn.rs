@@ -68,6 +68,25 @@ impl AsyncWorld {
     ///
     /// * If used outside a `bevy_defer` future.
     /// * If the task has panicked.
+    pub fn spawn_task<T: 'static>(&self, fut: impl Future<Output = T> + 'static) -> Task<T> {
+        if !SPAWNER.is_set() {
+            panic!("AsyncWorld::spawn_scoped can only be used in a bevy_defer future.")
+        }
+        SPAWNER.with(|s| s.spawn(fut))
+    }
+
+    /// Spawn a `bevy_defer` compatible future with a handle.
+    ///
+    /// # Handle
+    ///
+    /// The handle can be used to obtain the result,
+    /// if dropped, the associated future will be dropped by the executor.
+    ///
+    /// # Panics
+    ///
+    /// * If used outside a `bevy_defer` future.
+    /// * If the task has panicked.
+    #[deprecated = "Use `spawn_task`."]
     pub fn spawn_scoped<T: 'static>(
         &self,
         fut: impl Future<Output = T> + 'static,

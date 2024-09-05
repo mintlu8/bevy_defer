@@ -57,7 +57,7 @@ pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
 
 impl AsyncExecutor {
     /// Spawns a future, does not wait for it to complete.
-    pub fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) {
+    pub fn spawn_any<T: 'static>(&self, future: impl Future<Output = T> + 'static) {
         self.0.spawn(future).detach();
     }
 
@@ -73,7 +73,7 @@ impl AsyncExecutor {
     }
 
     /// Spawns a future, logs errors but does not wait for it to complete.
-    pub fn spawn_log<T: 'static, E: Display>(
+    pub fn spawn<T: 'static, E: Display>(
         &self,
         future: impl Future<Output = Result<T, E>> + 'static,
     ) {
