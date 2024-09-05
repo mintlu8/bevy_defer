@@ -50,9 +50,9 @@ impl AsyncWorld {
     ///
     /// Due to the internals of `AsyncExecutor` this function will fail silently on panic.
     /// Use `spawn_log` or `panic=abort` for better panic handling.
-    pub fn spawn<T: 'static>(&self, fut: impl Future<Output = T> + 'static) {
+    pub fn spawn_any<T: 'static>(&self, fut: impl Future<Output = T> + 'static) {
         if !SPAWNER.is_set() {
-            panic!("bevy_defer::spawn can only be used in a bevy_defer future.")
+            panic!("AsyncWorld::spawn_any can only be used in a bevy_defer future.")
         }
         SPAWNER.with(|s| s.spawn(fut).detach());
     }
@@ -73,7 +73,7 @@ impl AsyncWorld {
         fut: impl Future<Output = T> + 'static,
     ) -> impl Future<Output = T> {
         if !SPAWNER.is_set() {
-            panic!("bevy_defer::spawn_scoped can only be used in a bevy_defer future.")
+            panic!("AsyncWorld::spawn_scoped can only be used in a bevy_defer future.")
         }
         SPAWNER.with(|s| s.spawn(fut))
     }
@@ -94,7 +94,7 @@ impl AsyncWorld {
         fut: impl Future<Output = AccessResult> + 'static,
     ) -> AccessResult {
         if !SPAWNER.is_set() {
-            panic!("bevy_defer::state_scoped can only be used in a bevy_defer future.")
+            panic!("AsyncWorld::spawn_state_scoped can only be used in a bevy_defer future.")
         }
         AsyncWorld.run(|world| match world.get_resource::<State<S>>() {
             Some(s) if s.get() == &state => Ok(()),
@@ -128,9 +128,9 @@ impl AsyncWorld {
     ///
     /// Due to the internals of `AsyncExecutor` we currently cannot report error messages of panics.
     /// Use `panic=abort` to avoid unwinding or choose an error based approach.
-    pub fn spawn_log<T: 'static>(&self, fut: impl Future<Output = AccessResult<T>> + 'static) {
+    pub fn spawn<T: 'static>(&self, fut: impl Future<Output = AccessResult<T>> + 'static) {
         if !SPAWNER.is_set() {
-            panic!("bevy_defer::spawn_log can only be used in a bevy_defer future.")
+            panic!("AsyncWorld::spawn can only be used in a bevy_defer future.")
         }
         SPAWNER.with(|s| {
             let task = s.spawn(fut).fallible();

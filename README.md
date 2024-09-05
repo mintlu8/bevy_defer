@@ -97,7 +97,6 @@ deferred to the access function.
 let translation = fetch!(entity, Transform).get(|t| t.translation).unwrap()
 ```
 
-
 To set some data:
 
 ```rust, ignore

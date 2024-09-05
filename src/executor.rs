@@ -42,7 +42,7 @@ scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
 /// If used outside a `bevy_defer` future.
 #[deprecated = "Use AsyncWorldMut::spawn instead."]
 pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
-    AsyncWorld.spawn(fut)
+    AsyncWorld.spawn_any(fut)
 }
 
 /// Returns `true` if in async context, for diagnostics purpose only.
@@ -56,17 +56,23 @@ pub fn in_async_context() -> bool {
 pub struct AsyncExecutor(pub(crate) Rc<async_executor::LocalExecutor<'static>>);
 
 impl AsyncExecutor {
-    /// Spawn a future, does not wait for it to complete.
+    /// Spawns a future, does not wait for it to complete.
     pub fn spawn<T: 'static>(&self, future: impl Future<Output = T> + 'static) {
         self.0.spawn(future).detach();
     }
 
-    /// Spawn a future and return a handle.
+    /// Spawns a future and returns a [`Task`].
+    #[deprecated = "Use `spawn_task`."]
     pub fn spawn_scoped<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.0.spawn(future)
     }
 
-    /// Spawn a future, logs errors but does not wait for it to complete.
+    /// Spawns a future and returns a [`Task`].
+    pub fn spawn_task<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
+        self.0.spawn(future)
+    }
+
+    /// Spawns a future, logs errors but does not wait for it to complete.
     pub fn spawn_log<T: 'static, E: Display>(
         &self,
         future: impl Future<Output = Result<T, E>> + 'static,

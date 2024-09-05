@@ -45,7 +45,7 @@ where
     F::Output: Send + 'static,
 {
     fn execute(&self, fut: F) {
-        AsyncWorld.spawn(fut);
+        AsyncWorld.spawn_any(fut);
     }
 }
 
@@ -74,7 +74,7 @@ impl HyperHttpClientExt for AsyncWorld {
         let (mut sender, conn) = handshake::<_, String>(FuturesIo::new(stream))
             .await
             .unwrap();
-        AsyncWorld.spawn(async move {
+        AsyncWorld.spawn_any(async move {
             if let Err(err) = conn.await {
                 println!("Connection failed: {:?}", err);
             }
@@ -113,7 +113,7 @@ impl HyperHttpClientExt for AsyncWorld {
         let address = format!("{}:{}", host, port);
         let stream = Async::<TcpStream>::new(TcpStream::connect(address)?)?;
         let (mut sender, conn) = handshake::<_, T>(FuturesIo::new(stream)).await?;
-        AsyncWorld.spawn(async move {
+        AsyncWorld.spawn_any(async move {
             if let Err(err) = conn.await {
                 println!("Connection failed: {:?}", err);
             }
