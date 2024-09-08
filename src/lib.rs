@@ -42,7 +42,7 @@ pub use executor::AsyncExecutor;
 #[allow(deprecated)]
 pub use executor::{in_async_context, spawn};
 #[doc(hidden)]
-pub use fetch::{fetch, fetch0, fetch1};
+pub use fetch::{fetch, fetch0, fetch1, FetchEntity, FetchOne, FetchWorld};
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;

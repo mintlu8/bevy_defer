@@ -111,7 +111,7 @@ impl AsyncWorld {
 ///
 /// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct AsyncEntityMut(pub(crate) Entity);
 
 impl Borrow<Entity> for AsyncEntityMut {
