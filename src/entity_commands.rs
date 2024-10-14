@@ -160,6 +160,28 @@ impl AsyncEntityMut {
         Ok(AsyncEntityMut(entity))
     }
 
+    /// Obtain parent of an entity.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = AsyncWorld.spawn_bundle(Int(1)).id();
+    /// child.parent();
+    /// # });
+    /// ```
+    pub fn parent(&self) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        let child = with_world_mut(move |world: &mut World| {
+            world
+                .get_entity(entity)
+                .and_then(|entity| entity.get::<Parent>().map(|x| x.get()))
+                .ok_or(AccessError::EntityNotFound)
+        })?;
+        Ok(AsyncEntityMut(child))
+    }
+
     /// Set parent to an entity.
     ///
     /// # Example

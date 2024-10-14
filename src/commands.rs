@@ -7,7 +7,7 @@ use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
 use bevy_app::AppExit;
 use bevy_ecs::system::{IntoSystem, SystemId};
-use bevy_ecs::world::{Command, CommandQueue, Mut};
+use bevy_ecs::world::{Command, CommandQueue, FromWorld, Mut};
 use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
 use bevy_state::state::{FreelyMutableState, NextState, State, States};
 use bevy_tasks::AsyncComputeTaskPool;
@@ -285,6 +285,14 @@ impl AsyncWorld {
         self.entity(with_world_mut(move |world: &mut World| {
             world.spawn(bundle).id()
         }))
+    }
+
+    /// Initializes a new resource.
+    ///
+    /// If the resource already exists, nothing happens.
+    pub fn init_resource<R: Resource + FromWorld>(&self) -> AsyncResource<R> {
+        with_world_mut(move |world: &mut World| world.init_resource::<R>());
+        self.resource()
     }
 
     /// Inserts a new resource with the given value.

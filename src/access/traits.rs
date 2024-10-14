@@ -94,6 +94,17 @@ pub trait AsyncAccess {
         })
     }
 
+    /// Remove the item if it exists.
+    fn remove(&self)
+    where
+        Self: AsyncTake,
+    {
+        let cx = self.as_cx();
+        let _ = with_world_mut(move |w| {
+            let _ = <Self as AsyncTake>::take(w, &cx);
+        });
+    }
+
     /// Run a function on this item and obtain the result.
     fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
         let cx = self.as_cx();
