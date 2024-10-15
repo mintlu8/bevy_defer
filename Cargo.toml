@@ -47,7 +47,7 @@ event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.14.0", default-features = false }
+bevy = { version = "0.14.0", default-features = false, features = ["bevy_state"] }
 pretty-type-name = "1.0.1"
 
 [dev-dependencies]

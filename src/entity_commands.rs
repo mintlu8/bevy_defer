@@ -170,8 +170,10 @@ impl AsyncEntityMut {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// # let entity = AsyncWorld.spawn_bundle(Int(1));
-    /// # let child = entity.spawn_child(Int(1));
-    /// child.parent();
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// child.parent()
+    /// # ;
+    /// # assert_eq!(child.parent().unwrap().id() == entity.id())
     /// # });
     /// ```
     pub fn parent(&self) -> AccessResult<AsyncEntityMut> {
