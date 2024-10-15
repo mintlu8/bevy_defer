@@ -1,10 +1,18 @@
-use bevy_ecs::query::{QueryEntityError, QuerySingleError};
-use bevy_log::error;
+use bevy::ecs::entity::Entity;
+use bevy::log::error;
+
+#[cfg(feature = "full_types")]
+fn fmt(s: &str) -> &str {
+    s
+}
+
+#[cfg(not(feature = "full_types"))]
+fn fmt(s: &str) -> String {
+    pretty_type_name::pretty_type_name_str(s)
+}
+
 
 /// Standard errors for the async runtime.
-///
-/// This type is designed to be match friendly but not necessarily carry all the debugging information.
-/// It might me more correct to either match or unwrap this error instead of propagating it.
 ///
 /// # Error Logging
 ///
@@ -14,22 +22,40 @@ use bevy_log::error;
 pub enum AccessError {
     #[error("async channel closed")]
     ChannelClosed,
-    #[error("entity not found")]
-    EntityNotFound,
+    #[error("entity not found{0}")]
+    EntityNotFound(Entity),
+    #[error("single entity not found in query {}", fmt(query))]
+    NoEntityFound {
+        query: &'static str
+    },
     #[error("too many entities")]
-    TooManyEntities,
-    #[error("child index missing")]
-    ChildNotFound,
-    #[error("component not found")]
-    ComponentNotFound,
-    #[error("resource not found")]
-    ResourceNotFound,
-    #[error("asset not found")]
-    AssetNotFound,
-    #[error("event not registered")]
-    EventNotRegistered,
-    #[error("signal not found")]
-    SignalNotFound,
+    TooManyEntities {
+        query: &'static str
+    },
+    #[error("child index {index} missing")]
+    ChildNotFound {
+        index: usize,
+    },
+    #[error("component <{}> not found", fmt(name))]
+    ComponentNotFound {
+        name: &'static str,
+    },
+    #[error("resource <{}> not found", fmt(name))]
+    ResourceNotFound {
+        name: &'static str,
+    },
+    #[error("asset <{}> not found", fmt(name))]
+    AssetNotFound {
+        name: &'static str,
+    },
+    #[error("event <{}> not registered", fmt(name))]
+    EventNotRegistered {
+        name: &'static str,
+    },
+    #[error("signal <{}> not found", fmt(name))]
+    SignalNotFound {
+        name: &'static str,
+    },
     #[error("schedule not found")]
     ScheduleNotFound,
     #[error("system param error")]
@@ -38,7 +64,7 @@ pub enum AccessError {
     WorldParamNotFound,
     #[error("SystemId not found")]
     SystemIdNotFound,
-    #[error("Task spawned by `spawn_scoped` has panicked")]
+    #[error("Task spawned has panicked")]
     TaskPanicked,
     #[error("name not found")]
     NameNotFound,
@@ -46,25 +72,10 @@ pub enum AccessError {
     NotInState,
     #[error("io error")]
     IO,
-    #[error("custom error")]
-    Custom,
+    #[error("custom error: {0}")]
+    Custom(&'static str),
     #[error("this error should not happen")]
     ShouldNotHappen,
-}
-
-impl From<QuerySingleError> for AccessError {
-    fn from(value: QuerySingleError) -> Self {
-        match value {
-            QuerySingleError::NoEntities(_) => AccessError::EntityNotFound,
-            QuerySingleError::MultipleEntities(_) => AccessError::TooManyEntities,
-        }
-    }
-}
-
-impl From<QueryEntityError> for AccessError {
-    fn from(_: QueryEntityError) -> Self {
-        AccessError::EntityNotFound
-    }
 }
 
 /// Try run a potentially async block of arguments with result type [`AccessError`],

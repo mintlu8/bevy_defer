@@ -3,12 +3,13 @@ use crate::async_systems::AsyncWorldParam;
 use crate::executor::{with_world_mut, REACTORS};
 use crate::reactors::Reactors;
 use crate::{AccessError, AccessResult};
-use bevy_ecs::event::{Event, EventId, EventReader};
-use bevy_ecs::system::{Local, Res};
-use bevy_ecs::world::World;
+use bevy::ecs::event::{Event, EventId, EventReader};
+use bevy::ecs::system::{Local, Res};
+use bevy::ecs::world::World;
 use event_listener::EventListener;
 use event_listener_strategy::{NonBlocking, Strategy};
 use futures::Stream;
+use std::any::type_name;
 use std::cell::OnceCell;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -21,7 +22,9 @@ impl AsyncWorld {
         with_world_mut(move |world: &mut World| {
             world
                 .send_event(event)
-                .ok_or(AccessError::EventNotRegistered)
+                .ok_or(AccessError::EventNotRegistered {
+                    name: type_name::<E>(),
+                })
         })
     }
 

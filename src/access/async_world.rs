@@ -4,8 +4,8 @@ use crate::async_systems::AsyncWorldParam;
 use crate::executor::QUERY_QUEUE;
 use crate::in_async_context;
 use crate::reactors::Reactors;
-use bevy_asset::Asset;
-use bevy_ecs::{
+use bevy::asset::Asset;
+use bevy::ecs::{
     component::Component,
     entity::Entity,
     query::{QueryData, QueryFilter},
@@ -17,7 +17,7 @@ use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 
 #[allow(unused)]
-use bevy_ecs::{system::Commands, world::World};
+use bevy::ecs::{system::Commands, world::World};
 
 #[allow(unused)]
 use crate::{AsyncExecutor, QueryQueue};

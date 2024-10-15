@@ -1,12 +1,10 @@
+use bevy::tasks::futures_lite::StreamExt;
 use bevy::MinimalPlugins;
-use bevy_app::App;
+use bevy::prelude::*;
 use bevy_defer::{
     access::{deref::AsyncComponentDeref, AsyncComponent, AsyncWorld},
     signal_ids, AccessError, AppReactorExtension, AsyncAccess, AsyncExtension, AsyncPlugin,
 };
-use bevy_ecs::{component::Component, entity::Entity, system::Resource};
-use bevy_state::{app::AppExtStates, state::States};
-use bevy_tasks::futures_lite::StreamExt;
 use futures::FutureExt;
 use ref_cast::RefCast;
 use std::{
@@ -154,7 +152,7 @@ pub fn main() {
         // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
         let animator = richard.component::<Animator>();
         animator.animate("Wave").await?;
-        let audio = AsyncWorld.spawn_scoped(sound_routine(richard_entity));
+        let audio = AsyncWorld.spawn_task(sound_routine(richard_entity));
         // Dance for 5 seconds with `select`.
         futures::select!(
             _ = animator.animate("Dance").fuse() => (),

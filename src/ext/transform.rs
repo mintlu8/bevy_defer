@@ -1,5 +1,5 @@
-use bevy_math::{Dir3, Quat, Vec3};
-use bevy_transform::prelude::Transform;
+use bevy::math::{Dir3, Quat, Vec3};
+use bevy::transform::prelude::Transform;
 use ref_cast::RefCast;
 
 use crate::{

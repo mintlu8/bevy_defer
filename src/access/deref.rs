@@ -1,7 +1,7 @@
 //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
 
-use bevy_asset::Asset;
-use bevy_ecs::{
+use bevy::asset::Asset;
+use bevy::ecs::{
     component::Component,
     query::{QueryData, QueryFilter},
     system::Resource,

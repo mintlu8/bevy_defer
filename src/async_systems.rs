@@ -71,13 +71,13 @@ use crate::{
 use crate::{
     executor::REACTORS, reactors::Reactors, signals::Signals, AccessResult, AsyncExecutor,
 };
-use bevy_ecs::{
+use bevy::ecs::{
     component::Component,
     entity::Entity,
     system::{Local, NonSend, Query, Res},
 };
-use bevy_hierarchy::Children;
-use bevy_reflect::Reflect;
+use bevy::hierarchy::Children;
+use bevy::reflect::Reflect;
 use futures::FutureExt;
 use std::pin::Pin;
 use std::{fmt::Debug, sync::Mutex};

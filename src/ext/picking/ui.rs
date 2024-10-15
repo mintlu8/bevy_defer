@@ -2,13 +2,13 @@
 
 use crate::reactors::Change;
 use crate::signals::Signals;
-use bevy_ecs::{
+use bevy::ui::{Interaction, RelativeCursorPosition};
+use bevy::ecs::{
     entity::Entity,
     query::{Changed, With},
     system::{Local, Query},
 };
-use bevy_math::Vec2;
-use bevy_ui::Interaction;
+use bevy::math::Vec2;
 use rustc_hash::FxHashMap;
 
 /// State machine [`Interaction`] changed to a different value.
@@ -18,15 +18,15 @@ pub type UIInteractionChange = Change<Interaction>;
 ///
 /// This also acts as `react_to_component_change` for [`Interaction`].
 pub fn react_to_ui(
-    mut prev: Local<FxHashMap<Entity, bevy_ui::Interaction>>,
+    mut prev: Local<FxHashMap<Entity, Interaction>>,
     query: Query<
         (
             Entity,
             &Signals,
-            &bevy_ui::Interaction,
-            Option<&bevy_ui::RelativeCursorPosition>,
+            &Interaction,
+            Option<&RelativeCursorPosition>,
         ),
-        (Changed<bevy_ui::Interaction>, With<Signals>),
+        (Changed<Interaction>, With<Signals>),
     >,
 ) {
     use super::{ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed};

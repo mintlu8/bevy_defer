@@ -1,5 +1,4 @@
-use bevy::MinimalPlugins;
-use bevy_app::App;
+use bevy::prelude::*;
 use bevy_defer::{AsyncExtension, AsyncPlugin, AsyncWorld};
 
 #[test]

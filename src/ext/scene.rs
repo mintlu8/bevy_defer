@@ -1,10 +1,10 @@
 use crate::access::{AsyncEntityMut, AsyncWorld};
 use crate::AccessResult;
-use bevy_ecs::component::Component;
-use bevy_ecs::query::With;
-use bevy_ecs::system::{Commands, Query};
-use bevy_ecs::{bundle::Bundle, entity::Entity};
-use bevy_scene::SceneInstance;
+use bevy::ecs::component::Component;
+use bevy::ecs::query::With;
+use bevy::ecs::system::{Commands, Query};
+use bevy::ecs::{bundle::Bundle, entity::Entity};
+use bevy::scene::SceneInstance;
 use std::borrow::Borrow;
 
 /// A component that sends a signal and removes itself

@@ -1,5 +1,5 @@
-use bevy_asset::{Asset, AssetId, Handle};
-use bevy_ecs::{
+use bevy::asset::{Asset, AssetId, Handle};
+use bevy::ecs::{
     prelude::{Component, Entity, Resource},
     query::{QueryData, QueryFilter},
 };
@@ -177,7 +177,7 @@ pub fn fetch<T: FetchEntity<M>, M>(entity: &impl Borrow<Entity>) -> T::Out {
 mod text {
     use crate::AsyncWorld;
     use bevy::prelude::{Entity, GlobalTransform, Image, Msaa, Transform, With};
-    use bevy_asset::{AssetId, Handle};
+    use bevy::asset::{AssetId, Handle};
 
     #[test]
     fn test_fetch() {

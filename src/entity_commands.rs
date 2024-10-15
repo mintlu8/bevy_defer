@@ -7,15 +7,16 @@ use crate::{
 };
 use crate::{AsyncAccess, OwnedQueryState};
 use async_shared::Value;
-use bevy_core::Name;
-use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::world::Command;
-use bevy_ecs::{bundle::Bundle, entity::Entity, world::World};
-use bevy_hierarchy::{
+use bevy::core::Name;
+use bevy::ecs::change_detection::DetectChanges;
+use bevy::ecs::world::Command;
+use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
+use bevy::hierarchy::{
     BuildWorldChildren, Children, DespawnChildrenRecursive, DespawnRecursive, Parent,
 };
-use bevy_transform::components::{GlobalTransform, Transform};
+use bevy::transform::components::{GlobalTransform, Transform};
 use rustc_hash::FxHashMap;
+use std::any::type_name;
 use std::borrow::Borrow;
 use std::sync::Arc;
 
@@ -38,7 +39,7 @@ impl AsyncEntityMut {
                 .map(|mut e| {
                     e.insert(bundle);
                 })
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
     }
@@ -61,7 +62,7 @@ impl AsyncEntityMut {
                 .map(|mut e| {
                     e.remove::<T>();
                 })
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
     }
@@ -84,7 +85,7 @@ impl AsyncEntityMut {
                 .map(|mut e| {
                     e.retain::<T>();
                 })
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
     }
@@ -106,8 +107,10 @@ impl AsyncEntityMut {
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
-                .ok_or(AccessError::EntityNotFound)
-                .and_then(|mut e| e.take::<T>().ok_or(AccessError::ComponentNotFound))
+                .ok_or(AccessError::EntityNotFound(entity))
+                .and_then(|mut e| e.take::<T>().ok_or(AccessError::ComponentNotFound {
+                    name: type_name::<T>()
+                }))
         })
     }
 
@@ -131,7 +134,7 @@ impl AsyncEntityMut {
                     entity.with_children(|spawn| id = spawn.spawn(bundle).id());
                     id
                 })
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncWorld.entity(entity))
     }
@@ -155,7 +158,7 @@ impl AsyncEntityMut {
                 .map(|mut entity| {
                     entity.add_child(child);
                 })
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
     }
@@ -167,7 +170,7 @@ impl AsyncEntityMut {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// # let entity = AsyncWorld.spawn_bundle(Int(1));
-    /// # let child = AsyncWorld.spawn_bundle(Int(1)).id();
+    /// # let child = entity.spawn_child(Int(1));
     /// child.parent();
     /// # });
     /// ```
@@ -177,7 +180,7 @@ impl AsyncEntityMut {
             world
                 .get_entity(entity)
                 .and_then(|entity| entity.get::<Parent>().map(|x| x.get()))
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(child))
     }
@@ -201,7 +204,7 @@ impl AsyncEntityMut {
                 .map(|mut entity| {
                     entity.set_parent(parent);
                 })
-                .ok_or(AccessError::EntityNotFound)
+                .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
     }
@@ -245,10 +248,12 @@ impl AsyncEntityMut {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound);
+                return Err(AccessError::EntityNotFound(entity));
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AccessError::ComponentNotFound);
+                return Err(AccessError::ComponentNotFound {
+                    name: type_name::<S>()
+                });
             };
             Ok(signals.send::<S>(data))
         })
@@ -259,14 +264,18 @@ impl AsyncEntityMut {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound);
+                return Err(AccessError::EntityNotFound(entity));
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AccessError::ComponentNotFound);
+                return Err(AccessError::ComponentNotFound {
+                    name: type_name::<Signals>(),
+                });
             };
             signals
                 .borrow_sender::<S>()
-                .ok_or(AccessError::SignalNotFound)
+                .ok_or(AccessError::SignalNotFound {
+                    name: type_name::<S>()
+                })
         })
     }
 
@@ -275,14 +284,18 @@ impl AsyncEntityMut {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound);
+                return Err(AccessError::EntityNotFound(entity));
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AccessError::ComponentNotFound);
+                return Err(AccessError::ComponentNotFound {
+                    name: type_name::<Signals>()
+                });
             };
             signals
                 .borrow_receiver::<S>()
-                .ok_or(AccessError::SignalNotFound)
+                .ok_or(AccessError::SignalNotFound {
+                    name: type_name::<S>()
+                })
         })
     }
 
@@ -291,7 +304,7 @@ impl AsyncEntityMut {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound);
+                return Err(AccessError::EntityNotFound(entity));
             };
             let mut signals = match entity.get_mut::<Signals>() {
                 Some(sender) => sender,
@@ -306,7 +319,7 @@ impl AsyncEntityMut {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             let Some(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound);
+                return Err(AccessError::EntityNotFound(entity));
             };
             let mut signals = match entity.get_mut::<Signals>() {
                 Some(sender) => sender,
@@ -360,7 +373,7 @@ impl AsyncEntityMut {
     pub fn child(&self, index: usize) -> AccessResult<AsyncEntityMut> {
         match self.component::<Children>().get(|x| x.get(index).copied()) {
             Ok(Some(entity)) => Ok(self.world().entity(entity)),
-            _ => Err(AccessError::ChildNotFound),
+            _ => Err(AccessError::ChildNotFound { index }),
         }
     }
 
@@ -385,7 +398,7 @@ impl AsyncEntityMut {
 
         match with_world_ref(|world| find_name(world, entity, name.borrow())) {
             Some(entity) => Ok(AsyncEntityMut(entity)),
-            None => Err(AccessError::EntityNotFound),
+            None => Err(AccessError::EntityNotFound(entity)),
         }
     }
 
@@ -438,7 +451,9 @@ impl AsyncEntityMut {
                 }
                 Some(transform.into())
             })
-            .ok_or(AccessError::ComponentNotFound)
+            .ok_or(AccessError::ComponentNotFound {
+                name: type_name::<GlobalTransform>()
+            })
     }
 
     /// Obtain an entity's visibility through traversing the hierarchy.
@@ -448,7 +463,7 @@ impl AsyncEntityMut {
     /// If `Visibility` is missing in one of the target's ancestors.
     #[cfg(feature = "bevy_render")]
     pub fn visibility(&self) -> AccessResult<bool> {
-        use bevy_render::prelude::Visibility;
+        use bevy::render::prelude::Visibility;
         AsyncWorld
             .run(|world| {
                 let entity = world.get_entity(self.0)?;
@@ -466,7 +481,9 @@ impl AsyncEntityMut {
                 }
                 Some(true)
             })
-            .ok_or(AccessError::ComponentNotFound)
+            .ok_or(AccessError::ComponentNotFound {
+                name: type_name::<Visibility>()
+            })
     }
 }
 
@@ -480,7 +497,7 @@ impl NameEntityMap {
             .get(name.borrow())
             .copied()
             .flatten()
-            .ok_or(AccessError::EntityNotFound)
+            .ok_or(AccessError::Custom("named entity missing"))
     }
 
     pub fn into_map(self) -> impl IntoIterator<Item = (String, Entity)> {

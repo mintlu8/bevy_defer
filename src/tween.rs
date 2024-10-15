@@ -1,6 +1,6 @@
 //! Tweening support for `bevy_defer`.
-use bevy_math::Quat;
-use bevy_transform::prelude::Transform;
+use bevy::math::Quat;
+use bevy::transform::prelude::Transform;
 use ref_cast::RefCast;
 use std::{
     ops::{Add, Deref, DerefMut, Mul},

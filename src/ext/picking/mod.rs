@@ -1,7 +1,7 @@
 //! Reactors for cursor interactions.
 
 use crate::signal_ids;
-use bevy_math::Vec2;
+use bevy::math::Vec2;
 
 #[cfg(feature = "bevy_ui")]
 mod ui;

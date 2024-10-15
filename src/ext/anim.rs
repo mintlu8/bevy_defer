@@ -14,13 +14,13 @@ use crate::{
     AccessResult, AsyncAccess,
 };
 use crate::{AccessError, AsyncWorld, OwnedQueryState};
-use bevy_animation::prelude::{AnimationNodeIndex, AnimationTransitions};
-use bevy_animation::AnimationPlayer;
-use bevy_ecs::component::Component;
-use bevy_ecs::entity::{Entity, EntityHashMap};
-use bevy_ecs::query::With;
-use bevy_ecs::system::Local;
-use bevy_ecs::{query::Changed, system::Query};
+use bevy::animation::prelude::{AnimationNodeIndex, AnimationTransitions};
+use bevy::animation::AnimationPlayer;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::{Entity, EntityHashMap};
+use bevy::ecs::query::With;
+use bevy::ecs::system::Local;
+use bevy::ecs::{query::Changed, system::Query};
 use futures::{Future, FutureExt};
 use ref_cast::RefCast;
 use std::ops::{Deref, DerefMut};
@@ -99,7 +99,7 @@ impl AsyncAnimationPlayer {
         let (send, recv) = async_oneshot::oneshot();
         AsyncWorld.run(|w| {
             let Some(mut entity) = w.get_entity_mut(self.0.entity) else {
-                return Err(AccessError::EntityNotFound);
+                return Err(AccessError::EntityNotFound(self.0.entity));
             };
             if let Some(mut reactors) = entity.get_mut::<AnimationReactor>() {
                 reactors.push((event, send));

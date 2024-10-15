@@ -1,7 +1,7 @@
 use async_executor::Task;
-use bevy_ecs::prelude::Resource;
-use bevy_log::error;
-use bevy_state::prelude::{State, States};
+use bevy::ecs::prelude::Resource;
+use bevy::log::error;
+use bevy::state::prelude::{State, States};
 use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::{future::Future, marker::PhantomData};

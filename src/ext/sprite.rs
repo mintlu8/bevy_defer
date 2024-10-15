@@ -1,4 +1,4 @@
-use bevy_sprite::{TextureAtlas, TextureAtlasLayout};
+use bevy::sprite::{TextureAtlas, TextureAtlasLayout};
 
 use crate::access::{traits::WorldDeref, AsyncAsset};
 

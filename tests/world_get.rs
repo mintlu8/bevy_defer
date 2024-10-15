@@ -1,8 +1,5 @@
-use bevy_app::App;
-use bevy_core::FrameCountPlugin;
+use bevy::{prelude::*, time::TimePlugin};
 use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
-use bevy_ecs::component::Component;
-use bevy_time::TimePlugin;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Component)]

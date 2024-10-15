@@ -6,8 +6,8 @@ use bevy_defer::ext::picking::{
 };
 use bevy_defer::reactors::StateMachine;
 use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
-use bevy_tasks::futures_lite::StreamExt;
-use bevy_ui::RelativeCursorPosition;
+use bevy::tasks::futures_lite::StreamExt;
+use bevy::ui::RelativeCursorPosition;
 
 fn main() {
     App::new()
