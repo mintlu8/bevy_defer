@@ -2,7 +2,7 @@ use super::signal_component::Signals;
 use crate::async_systems::AsyncEntityParam;
 use crate::reactors::Reactors;
 use async_shared::Value;
-use bevy_ecs::entity::Entity;
+use bevy::ecs::entity::Entity;
 use futures::future::FusedFuture;
 use futures::stream::FusedStream;
 use futures::FutureExt;
@@ -133,7 +133,7 @@ impl<T: SignalId> AsyncEntityParam for Receiver<T> {
 mod sealed {
     use std::marker::PhantomData;
 
-    use bevy_ecs::query::QueryData;
+    use bevy::ecs::query::QueryData;
 
     use super::{SignalId, Signals};
 

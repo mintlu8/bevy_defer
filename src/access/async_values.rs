@@ -2,11 +2,11 @@ use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::reactors::Reactors;
 use crate::signals::Signals;
-use bevy_asset::Asset;
-use bevy_asset::Handle;
-use bevy_ecs::component::Component;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::system::Resource;
+use bevy::asset::Asset;
+use bevy::asset::Handle;
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::system::Resource;
 use std::marker::PhantomData;
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
@@ -54,7 +54,7 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
     }
 }
 
-/// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
+/// An `AsyncSystemParam` that gets or sets an asset pointed to by a `Handle` component on the current `Entity`.
 #[derive(Debug)]
 pub struct AsyncComponentHandle<A: Asset> {
     pub(crate) entity: Entity,
@@ -98,7 +98,7 @@ impl<A: Asset> AsyncEntityParam for AsyncComponentHandle<A> {
 }
 
 #[allow(unused)]
-pub use bevy_ecs::system::NonSend;
+pub use bevy::ecs::system::NonSend;
 
 /// An `AsyncSystemParam` that gets or sets a `!Send` resource on the `World`.
 #[derive(Debug)]

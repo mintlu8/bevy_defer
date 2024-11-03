@@ -7,23 +7,16 @@ use std::{
 };
 
 use async_shared::Value;
+use bevy::core::FrameCountPlugin;
+use bevy::prelude::*;
+use bevy::tasks::futures_lite::StreamExt;
+use bevy::time::TimePlugin;
 use bevy::MinimalPlugins;
-use bevy_app::{App, PostUpdate, PreUpdate, Startup, Update};
-use bevy_core::FrameCountPlugin;
 use bevy_defer::{
     access::AsyncWorld, async_system, async_systems::AsyncSystems, signal_ids,
     signals::SignalSender, AppReactorExtension, AsyncExtension, AsyncPlugin,
 };
 use bevy_defer::{signals::Signals, systems::run_async_executor};
-use bevy_ecs::{
-    component::Component,
-    event::{Event, EventWriter},
-    query::With,
-    schedule::IntoSystemConfigs,
-    system::{Commands, Local, Query},
-};
-use bevy_tasks::futures_lite::StreamExt;
-use bevy_time::TimePlugin;
 signal_ids! {
     SigText: &'static str,
 }

@@ -1,11 +1,12 @@
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
 use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
-use crate::executor::QUERY_QUEUE;
+use crate::executor::{QUERY_QUEUE, WORLD};
 use crate::in_async_context;
 use crate::reactors::Reactors;
-use bevy_asset::Asset;
-use bevy_ecs::{
+use bevy::asset::Asset;
+use bevy::core::Name;
+use bevy::ecs::{
     component::Component,
     entity::Entity,
     query::{QueryData, QueryFilter},
@@ -13,11 +14,12 @@ use bevy_ecs::{
 };
 use ref_cast::RefCast;
 use std::borrow::Borrow;
+use std::fmt::Display;
 use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 
 #[allow(unused)]
-use bevy_ecs::{system::Commands, world::World};
+use bevy::ecs::{system::Commands, world::World};
 
 #[allow(unused)]
 use crate::{AsyncExecutor, QueryQueue};
@@ -113,6 +115,23 @@ impl AsyncWorld {
 /// [`AsyncExecutor`] and [`QueryQueue`].
 #[derive(Debug, Clone, Copy)]
 pub struct AsyncEntityMut(pub(crate) Entity);
+
+impl Display for AsyncEntityMut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let e = self.0;
+        if WORLD.is_set() {
+            WORLD.with(|world| {
+                if let Some(name) = world.get_entity(e).and_then(|e| e.get::<Name>()) {
+                    write!(f, "Entity(\"{}\", {}, {})", name, e.index(), e.generation())
+                } else {
+                    write!(f, "Entity({}, {})", e.index(), e.generation())
+                }
+            })
+        } else {
+            write!(f, "Entity({}, {})", e.index(), e.generation())
+        }
+    }
+}
 
 impl Borrow<Entity> for AsyncEntityMut {
     fn borrow(&self) -> &Entity {

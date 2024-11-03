@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 
@@ -5,9 +6,9 @@ use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, ASSET_SERVER};
 use crate::sync::oneshot::MaybeChannelOut;
 use crate::{AccessError, AccessResult};
-use bevy_asset::meta::Settings;
-use bevy_asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle, LoadState};
-use bevy_ecs::world::World;
+use bevy::asset::meta::Settings;
+use bevy::asset::{Asset, AssetId, AssetPath, AssetServer, Assets, Handle, LoadState};
+use bevy::ecs::world::World;
 use event_listener::Event;
 use futures::future::{ready, Either};
 
@@ -143,7 +144,9 @@ impl AsyncWorld {
     pub fn add_asset<A: Asset + 'static>(&self, item: A) -> AccessResult<Handle<A>> {
         with_world_mut(|w| {
             Ok(w.get_resource_mut::<Assets<A>>()
-                .ok_or(AccessError::ResourceNotFound)?
+                .ok_or(AccessError::ResourceNotFound {
+                    name: type_name::<Assets<A>>(),
+                })?
                 .add(item))
         })
     }

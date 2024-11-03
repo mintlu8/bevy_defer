@@ -1,14 +1,14 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 use async_shared::Value;
-use bevy_app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
-use bevy_ecs::component::Component;
-use bevy_ecs::event::Event;
-use bevy_ecs::intern::Interned;
-use bevy_ecs::world::Command;
-use bevy_state::prelude::State;
-use bevy_state::state::States;
-use bevy_time::TimeSystem;
+use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
+use bevy::ecs::component::Component;
+use bevy::ecs::event::Event;
+use bevy::ecs::intern::Interned;
+use bevy::ecs::world::Command;
+use bevy::state::prelude::State;
+use bevy::state::state::States;
+use bevy::time::TimeSystem;
 use std::{any::type_name, pin::Pin};
 
 pub mod access;
@@ -31,12 +31,12 @@ pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
-use bevy_ecs::{
+use bevy::ecs::{
     schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
     system::Commands,
     world::World,
 };
-use bevy_reflect::std_traits::ReflectDefault;
+use bevy::reflect::std_traits::ReflectDefault;
 pub use errors::AccessError;
 pub use executor::AsyncExecutor;
 #[allow(deprecated)]
@@ -73,11 +73,11 @@ use std::future::Future;
 pub(crate) static CHANNEL_CLOSED: &str = "channel closed unexpectedly";
 
 #[doc(hidden)]
-pub use bevy_ecs::entity::Entity;
+pub use bevy::ecs::entity::Entity;
 #[doc(hidden)]
-pub use bevy_ecs::system::{NonSend, Res, SystemParam};
+pub use bevy::ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
-pub use bevy_log::error;
+pub use bevy::log::error;
 #[doc(hidden)]
 pub use ref_cast::RefCast;
 
@@ -452,7 +452,7 @@ macro_rules! test_spawn {
         use ::bevy::prelude::*;
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
-        use bevy_state::app::StatesPlugin;
+        use bevy::state::app::StatesPlugin;
         #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct Int(i32);
 

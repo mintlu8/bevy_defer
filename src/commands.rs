@@ -5,16 +5,17 @@ use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
 use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
-use bevy_app::AppExit;
-use bevy_ecs::system::{IntoSystem, SystemId};
-use bevy_ecs::world::{Command, CommandQueue, Mut};
-use bevy_ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
-use bevy_state::state::{FreelyMutableState, NextState, State, States};
-use bevy_tasks::AsyncComputeTaskPool;
+use bevy::app::AppExit;
+use bevy::ecs::system::{IntoSystem, SystemId};
+use bevy::ecs::world::{Command, CommandQueue, FromWorld, Mut};
+use bevy::ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
+use bevy::state::state::{FreelyMutableState, NextState, State, States};
+use bevy::tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
 use futures::stream::FusedStream;
 use rustc_hash::FxHashMap;
+use std::any::type_name;
 use std::time::Duration;
 use std::{
     any::{Any, TypeId},
@@ -23,7 +24,7 @@ use std::{
 };
 
 #[allow(unused)]
-use bevy_ecs::entity::Entity;
+use bevy::ecs::entity::Entity;
 
 impl AsyncWorld {
     /// Apply a command.
@@ -287,6 +288,14 @@ impl AsyncWorld {
         }))
     }
 
+    /// Initializes a new resource.
+    ///
+    /// If the resource already exists, nothing happens.
+    pub fn init_resource<R: Resource + FromWorld>(&self) -> AsyncResource<R> {
+        with_world_mut(move |world: &mut World| world.init_resource::<R>());
+        self.resource()
+    }
+
     /// Inserts a new resource with the given value.
     pub fn insert_resource<R: Resource>(&self, resource: R) -> AsyncResource<R> {
         with_world_mut(move |world: &mut World| world.insert_resource(resource));
@@ -307,7 +316,9 @@ impl AsyncWorld {
             world
                 .get_resource_mut::<NextState<S>>()
                 .map(|mut s| s.set(state))
-                .ok_or(AccessError::ResourceNotFound)
+                .ok_or(AccessError::ResourceNotFound {
+                    name: type_name::<State<S>>(),
+                })
         })
     }
 
@@ -325,7 +336,9 @@ impl AsyncWorld {
             world
                 .get_resource::<State<S>>()
                 .map(|s| s.get().clone())
-                .ok_or(AccessError::ResourceNotFound)
+                .ok_or(AccessError::ResourceNotFound {
+                    name: type_name::<State<S>>(),
+                })
         })
     }
 

@@ -1,15 +1,15 @@
 //! Signals and synchronization primitives for reacting to standard bevy events.
 use async_shared::Value;
-use bevy_ecs::prelude::{EventReader, ResMut};
-use bevy_ecs::{
+use bevy::ecs::prelude::{EventReader, ResMut};
+use bevy::ecs::{
     component::Component,
     entity::Entity,
     event::Event,
     query::{Changed, With},
     system::{Local, Query, Res, Resource},
 };
-use bevy_state::prelude::StateTransitionEvent;
-use bevy_state::state::States;
+use bevy::state::prelude::StateTransitionEvent;
+use bevy::state::state::States;
 use rustc_hash::FxHashMap;
 use std::{
     convert::Infallible,

@@ -7,12 +7,12 @@ use std::{
     time::Duration,
 };
 
-use bevy::utils::ConditionalSendFuture;
-use bevy::MinimalPlugins;
-use bevy_app::App;
-use bevy_asset::{Asset, AssetApp, AssetLoader, AssetPlugin, AsyncReadExt};
+use bevy::prelude::*;
+use bevy::{
+    asset::{AssetLoader, AsyncReadExt},
+    utils::ConditionalSendFuture,
+};
 use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
-use bevy_reflect::TypePath;
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
 pub struct JsonNumber(i64);
@@ -29,9 +29,9 @@ impl AssetLoader for JsonNumberLoader {
 
     fn load<'a>(
         &'a self,
-        reader: &'a mut bevy_asset::io::Reader,
+        reader: &'a mut bevy::asset::io::Reader,
         _: &'a Self::Settings,
-        _: &'a mut bevy_asset::LoadContext,
+        _: &'a mut bevy::asset::LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         Box::pin(async {
             let mut buf = String::new();
