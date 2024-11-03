@@ -1,13 +1,13 @@
 #![allow(clippy::type_complexity)]
 use async_shared::Value;
 use bevy::prelude::*;
+use bevy::tasks::futures_lite::StreamExt;
+use bevy::ui::RelativeCursorPosition;
 use bevy_defer::ext::picking::{
     ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
 };
 use bevy_defer::reactors::StateMachine;
 use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
-use bevy::tasks::futures_lite::StreamExt;
-use bevy::ui::RelativeCursorPosition;
 
 fn main() {
     App::new()

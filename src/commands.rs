@@ -317,7 +317,7 @@ impl AsyncWorld {
                 .get_resource_mut::<NextState<S>>()
                 .map(|mut s| s.set(state))
                 .ok_or(AccessError::ResourceNotFound {
-                    name: type_name::<State<S>>()
+                    name: type_name::<State<S>>(),
                 })
         })
     }
@@ -337,7 +337,7 @@ impl AsyncWorld {
                 .get_resource::<State<S>>()
                 .map(|s| s.get().clone())
                 .ok_or(AccessError::ResourceNotFound {
-                    name: type_name::<State<S>>()
+                    name: type_name::<State<S>>(),
                 })
         })
     }

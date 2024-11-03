@@ -398,7 +398,7 @@ impl<C: Component> AsyncAccess for AsyncComponent<C> {
         world
             .get_mut::<C>(*cx)
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<C>()
+                name: type_name::<C>(),
             })
             .map(|x| x.into_inner())
     }
@@ -418,7 +418,7 @@ impl<C: Component> AsyncReadonlyAccess for AsyncComponent<C> {
             .ok_or(AccessError::EntityNotFound(*cx))?
             .get::<C>()
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<C>()
+                name: type_name::<C>(),
             })
     }
 }
@@ -434,7 +434,7 @@ impl<C: Component> AsyncTake for AsyncComponent<C> {
             .ok_or(AccessError::EntityNotFound(*cx))?
             .take::<C>()
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<C>()
+                name: type_name::<C>(),
             })
     }
 }
@@ -453,13 +453,13 @@ impl<A: Asset> AsyncAccess for AsyncComponentHandle<A> {
         let id = world
             .get::<Handle<A>>(*cx)
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Handle<A>>()
+                name: type_name::<Handle<A>>(),
             })?
             .id();
         let assets = world
             .get_resource_mut::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>()
+                name: type_name::<Assets<A>>(),
             })
             .map(|x| x.into_inner())?;
         Ok((assets, id))
@@ -470,7 +470,7 @@ impl<A: Asset> AsyncAccess for AsyncComponentHandle<A> {
         _: &Self::Cx,
     ) -> AccessResult<Self::RefMut<'t>> {
         assets.get_mut(*id).ok_or(AccessError::AssetNotFound {
-            name: type_name::<A>()
+            name: type_name::<A>(),
         })
     }
 }
@@ -480,17 +480,17 @@ impl<A: Asset> AsyncReadonlyAccess for AsyncComponentHandle<A> {
         let id = world
             .get::<Handle<A>>(*cx)
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Handle<A>>()
+                name: type_name::<Handle<A>>(),
             })?
             .id();
         world
             .get_resource::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>()
+                name: type_name::<Assets<A>>(),
             })?
             .get(id)
             .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>()
+                name: type_name::<A>(),
             })
     }
 }
@@ -504,17 +504,17 @@ impl<A: Asset> AsyncTake for AsyncComponentHandle<A> {
         let id = world
             .get::<Handle<A>>(*cx)
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Handle<A>>()
+                name: type_name::<Handle<A>>(),
             })?
             .id();
         world
             .get_resource_mut::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>()
+                name: type_name::<Assets<A>>(),
             })?
             .remove(id)
             .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>()
+                name: type_name::<A>(),
             })
     }
 }
@@ -528,8 +528,8 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
     fn as_cx(&self) -> Self::Cx {}
 
     fn should_continue(err: AccessError) -> bool {
-        err == AccessError::ResourceNotFound  {
-            name: type_name::<R>()
+        err == AccessError::ResourceNotFound {
+            name: type_name::<R>(),
         }
     }
 
@@ -537,7 +537,7 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
         world
             .get_resource_mut::<R>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<R>()
+                name: type_name::<R>(),
             })
             .map(|x| x.into_inner())
     }
@@ -553,7 +553,7 @@ impl<R: Resource> AsyncAccess for AsyncResource<R> {
 impl<R: Resource> AsyncReadonlyAccess for AsyncResource<R> {
     fn from_ref_world<'t>(world: &'t World, _: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
         world.get_resource().ok_or(AccessError::ResourceNotFound {
-            name: type_name::<R>()
+            name: type_name::<R>(),
         })
     }
 }
@@ -564,9 +564,11 @@ impl<R: Resource> AsyncAccessRef for AsyncResource<R> {
 
 impl<R: Resource> AsyncTake for AsyncResource<R> {
     fn take(world: &mut World, _: &Self::Cx) -> AccessResult<Self::Generic> {
-        world.remove_resource().ok_or(AccessError::ResourceNotFound {
-            name: type_name::<R>()
-        })
+        world
+            .remove_resource()
+            .ok_or(AccessError::ResourceNotFound {
+                name: type_name::<R>(),
+            })
     }
 }
 
@@ -579,8 +581,8 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
     type RefMut<'t> = &'t mut R;
 
     fn should_continue(err: AccessError) -> bool {
-        err == AccessError::ResourceNotFound  {
-            name: type_name::<R>()
+        err == AccessError::ResourceNotFound {
+            name: type_name::<R>(),
         }
     }
 
@@ -590,7 +592,7 @@ impl<R: 'static> AsyncAccess for AsyncNonSend<R> {
         world
             .get_non_send_resource_mut::<R>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<R>()
+                name: type_name::<R>(),
             })
             .map(|x| x.into_inner())
     }
@@ -608,7 +610,7 @@ impl<R: 'static> AsyncReadonlyAccess for AsyncNonSend<R> {
         world
             .get_non_send_resource()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<R>()
+                name: type_name::<R>(),
             })
     }
 }
@@ -624,7 +626,7 @@ impl<R: 'static> AsyncTake for AsyncNonSend<R> {
         world
             .remove_non_send_resource()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<R>()
+                name: type_name::<R>(),
             })
     }
 }
@@ -641,7 +643,7 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
 
     fn should_continue(err: AccessError) -> bool {
         err == AccessError::AssetNotFound {
-            name: type_name::<A>()
+            name: type_name::<A>(),
         }
     }
 
@@ -652,12 +654,12 @@ impl<A: Asset> AsyncAccess for AsyncAsset<A> {
         world
             .get_resource_mut::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>()
+                name: type_name::<Assets<A>>(),
             })?
             .into_inner()
             .get_mut(handle)
             .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>()
+                name: type_name::<A>(),
             })
     }
 
@@ -674,11 +676,11 @@ impl<A: Asset> AsyncReadonlyAccess for AsyncAsset<A> {
         world
             .get_resource::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>()
+                name: type_name::<Assets<A>>(),
             })?
             .get(handle)
             .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>()
+                name: type_name::<A>(),
             })
     }
 }
@@ -692,11 +694,11 @@ impl<A: Asset> AsyncTake for AsyncAsset<A> {
         world
             .get_resource_mut::<Assets<A>>()
             .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>()
+                name: type_name::<Assets<A>>(),
             })?
             .remove(handle)
             .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>()
+                name: type_name::<A>(),
             })
     }
 }
@@ -761,7 +763,8 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         cx: &'t mut Self::RefMutCx<'_>,
         entity: &Entity,
     ) -> AccessResult<Self::RefMut<'t>> {
-        cx.get_mut(*entity).map_err(|_| AccessError::EntityNotFound(*entity))
+        cx.get_mut(*entity)
+            .map_err(|_| AccessError::EntityNotFound(*entity))
     }
 }
 

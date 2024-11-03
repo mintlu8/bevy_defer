@@ -108,9 +108,11 @@ impl AsyncEntityMut {
             world
                 .get_entity_mut(entity)
                 .ok_or(AccessError::EntityNotFound(entity))
-                .and_then(|mut e| e.take::<T>().ok_or(AccessError::ComponentNotFound {
-                    name: type_name::<T>()
-                }))
+                .and_then(|mut e| {
+                    e.take::<T>().ok_or(AccessError::ComponentNotFound {
+                        name: type_name::<T>(),
+                    })
+                })
         })
     }
 
@@ -254,11 +256,21 @@ impl AsyncEntityMut {
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
                 return Err(AccessError::ComponentNotFound {
-                    name: type_name::<S>()
+                    name: type_name::<S>(),
                 });
             };
             Ok(signals.send::<S>(data))
         })
+    }
+
+    /// Get [`Name`] of the entity.
+    pub fn name(&self) -> AccessResult<String> {
+        self.component::<Name>().get(|x| x.to_string())
+    }
+
+    /// Get [`Name`] and index of the entity.
+    pub fn debug_string(&self) -> String {
+        self.to_string()
     }
 
     /// Borrow a sender from an entity with shared read tick.
@@ -276,7 +288,7 @@ impl AsyncEntityMut {
             signals
                 .borrow_sender::<S>()
                 .ok_or(AccessError::SignalNotFound {
-                    name: type_name::<S>()
+                    name: type_name::<S>(),
                 })
         })
     }
@@ -290,13 +302,13 @@ impl AsyncEntityMut {
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
                 return Err(AccessError::ComponentNotFound {
-                    name: type_name::<Signals>()
+                    name: type_name::<Signals>(),
                 });
             };
             signals
                 .borrow_receiver::<S>()
                 .ok_or(AccessError::SignalNotFound {
-                    name: type_name::<S>()
+                    name: type_name::<S>(),
                 })
         })
     }
@@ -454,7 +466,7 @@ impl AsyncEntityMut {
                 Some(transform.into())
             })
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<GlobalTransform>()
+                name: type_name::<GlobalTransform>(),
             })
     }
 
@@ -484,7 +496,7 @@ impl AsyncEntityMut {
                 Some(true)
             })
             .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Visibility>()
+                name: type_name::<Visibility>(),
             })
     }
 }

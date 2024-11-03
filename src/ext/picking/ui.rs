@@ -2,13 +2,13 @@
 
 use crate::reactors::Change;
 use crate::signals::Signals;
-use bevy::ui::{Interaction, RelativeCursorPosition};
 use bevy::ecs::{
     entity::Entity,
     query::{Changed, With},
     system::{Local, Query},
 };
 use bevy::math::Vec2;
+use bevy::ui::{Interaction, RelativeCursorPosition};
 use rustc_hash::FxHashMap;
 
 /// State machine [`Interaction`] changed to a different value.

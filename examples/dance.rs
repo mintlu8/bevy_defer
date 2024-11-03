@@ -1,6 +1,6 @@
+use bevy::prelude::*;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::MinimalPlugins;
-use bevy::prelude::*;
 use bevy_defer::{
     access::{deref::AsyncComponentDeref, AsyncComponent, AsyncWorld},
     signal_ids, AccessError, AppReactorExtension, AsyncAccess, AsyncExtension, AsyncPlugin,
