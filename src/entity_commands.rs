@@ -175,7 +175,7 @@ impl AsyncEntityMut {
     /// # let child = entity.spawn_child(Int(1)).unwrap();
     /// child.parent()
     /// # ;
-    /// # assert_eq!(child.parent().unwrap().id() == entity.id())
+    /// # assert_eq!(child.parent().unwrap().id(), entity.id());
     /// # });
     /// ```
     pub fn parent(&self) -> AccessResult<AsyncEntityMut> {
