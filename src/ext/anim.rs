@@ -88,8 +88,8 @@ impl AsyncAnimationPlayer {
     }
 
     /// Stop playing an animation.
-    pub fn is_playing_animation(&self, clip: AnimationNodeIndex) -> AccessResult<bool> {
-        self.0.get(move |player| player.is_playing_animation(clip))
+    pub fn animation_is_playing(&self, clip: AnimationNodeIndex) -> AccessResult<bool> {
+        self.0.get(move |player| player.animation_is_playing(clip))
     }
 
     pub fn wait(
@@ -98,7 +98,7 @@ impl AsyncAnimationPlayer {
     ) -> AccessResult<impl Future<Output = bool> + 'static> {
         let (send, recv) = async_oneshot::oneshot();
         AsyncWorld.run(|w| {
-            let Some(mut entity) = w.get_entity_mut(self.0.entity) else {
+            let Ok(mut entity) = w.get_entity_mut(self.0.entity) else {
                 return Err(AccessError::EntityNotFound(self.0.entity));
             };
             if let Some(mut reactors) = entity.get_mut::<AnimationReactor>() {
@@ -228,13 +228,13 @@ pub fn react_to_animation(
             reactors.0.retain_mut(|(event, channel)| {
                 let yields = match event {
                     AnimationEvent::OnExit(idx) => {
-                        (!player.is_playing_animation(*idx)).then_some(true)
+                        (!player.animation_is_playing(*idx)).then_some(true)
                     }
                     AnimationEvent::OnEnter(idx) => {
-                        player.is_playing_animation(*idx).then_some(true)
+                        player.animation_is_playing(*idx).then_some(true)
                     }
-                    AnimationEvent::WaitUnitOnExit(idx) => (player.is_playing_animation(*idx)
-                        && !prev.0.is_playing_animation(*idx))
+                    AnimationEvent::WaitUnitOnExit(idx) => (player.animation_is_playing(*idx)
+                        && !prev.0.animation_is_playing(*idx))
                     .then_some(true),
                     AnimationEvent::OnFrame { animation, frame } => {
                         if let Some(prev) = prev.0.animation(*animation) {

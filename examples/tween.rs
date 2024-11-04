@@ -13,12 +13,9 @@ fn main() {
         .add_systems(Startup, setup)
         .spawn_task(async {
             let world = AsyncWorld;
-            let entity = world.spawn_bundle(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::srgb(0., 0., 1.),
-                    custom_size: Some(Vec2::splat(40.0)),
-                    ..Default::default()
-                },
+            let entity = world.spawn_bundle(Sprite {
+                color: Color::srgb(0., 0., 1.),
+                custom_size: Some(Vec2::splat(40.0)),
                 ..Default::default()
             });
             entity
@@ -73,15 +70,14 @@ fn main() {
         })
         .spawn_task(async {
             let world = AsyncWorld;
-            let entity = world.spawn_bundle(SpriteBundle {
-                sprite: Sprite {
+            let entity = world.spawn_bundle((
+                Sprite {
                     color: Color::srgb(0., 1., 0.),
                     custom_size: Some(Vec2::splat(40.0)),
                     ..Default::default()
                 },
-                transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
-                ..Default::default()
-            });
+                Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+            ));
             let cancel = Cancellation::new();
             let comp = entity.component::<Transform>();
             AsyncWorld.spawn_any(comp.interpolate(
@@ -124,5 +120,5 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 }

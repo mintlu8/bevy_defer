@@ -1,9 +1,7 @@
 [workspace]
 members = [ 
     "async_shared",
-    "derive",
-    "http",
-    "picking"
+    "derive", 
 ]
 
 [package]
@@ -22,13 +20,13 @@ A simple asynchronous runtime for executing async coroutines.
 keywords = ["bevy", "async", "defer"]
 
 [features]
-default = ["bevy_ui", "bevy_animation", "bevy_scene","bevy_sprite", "bevy_render", "derive"]
+default = ["bevy_animation", "bevy_scene","bevy_sprite", "bevy_render", "bevy_picking", "derive"]
 derive = ["bevy_defer_derive"]
-bevy_ui = ["bevy/bevy_ui"]
 bevy_animation = ["bevy/bevy_animation"]
 bevy_scene = ["bevy/bevy_scene"]
 bevy_sprite = ["bevy/bevy_sprite"]
 bevy_render = ["bevy/bevy_render"]
+bevy_picking = ["bevy/bevy_picking"]
 ## Displays full type path in `AccessError`s.
 full_types = []
 
@@ -47,10 +45,11 @@ event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.14.0", default-features = false, features = ["bevy_state"] }
+bevy = { version = "0.15.0-rc.2", default-features = false, features = ["bevy_state"] }
 pretty-type-name = "1.0.1"
+flume = { version = "0.11.1", default-features = false, features = ["async", "futures-core"] }
 
 [dev-dependencies]
-bevy = { version = "0.14.0" }
+bevy = { version = "0.15.0-rc.2" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }

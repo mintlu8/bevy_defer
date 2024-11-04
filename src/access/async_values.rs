@@ -2,8 +2,6 @@ use crate::async_systems::AsyncEntityParam;
 use crate::async_systems::AsyncWorldParam;
 use crate::reactors::Reactors;
 use crate::signals::Signals;
-use bevy::asset::Asset;
-use bevy::asset::Handle;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::Resource;
@@ -22,15 +20,6 @@ impl<C: Component> AsyncComponent<C> {
     }
 }
 
-impl<A: Asset> AsyncComponent<Handle<A>> {
-    pub fn into_handle(self) -> AsyncComponentHandle<A> where {
-        AsyncComponentHandle {
-            entity: self.entity,
-            p: PhantomData,
-        }
-    }
-}
-
 impl<C: Component> Copy for AsyncComponent<C> {}
 
 impl<C: Component> Clone for AsyncComponent<C> {
@@ -40,49 +29,6 @@ impl<C: Component> Clone for AsyncComponent<C> {
 }
 
 impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
-    type Signal = ();
-
-    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(entity: Entity, _: &Reactors, _: (), _: &[Entity]) -> Option<Self> {
-        Some(Self {
-            entity,
-            p: PhantomData,
-        })
-    }
-}
-
-/// An `AsyncSystemParam` that gets or sets an asset pointed to by a `Handle` component on the current `Entity`.
-#[derive(Debug)]
-pub struct AsyncComponentHandle<A: Asset> {
-    pub(crate) entity: Entity,
-    pub(crate) p: PhantomData<A>,
-}
-
-impl<A: Asset> AsyncComponentHandle<A> {
-    pub fn entity(&self) -> Entity {
-        self.entity
-    }
-
-    pub fn into_component(self) -> AsyncComponent<Handle<A>> {
-        AsyncComponent {
-            entity: self.entity,
-            p: PhantomData,
-        }
-    }
-}
-
-impl<A: Asset> Copy for AsyncComponentHandle<A> {}
-
-impl<A: Asset> Clone for AsyncComponentHandle<A> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<A: Asset> AsyncEntityParam for AsyncComponentHandle<A> {
     type Signal = ();
 
     fn fetch_signal(_: &Signals) -> Option<Self::Signal> {

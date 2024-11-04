@@ -6,6 +6,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::intern::Interned;
 use bevy::ecs::world::Command;
+use bevy::prelude::EntityCommands;
 use bevy::state::prelude::State;
 use bevy::state::state::States;
 use bevy::time::TimeSystem;
@@ -61,8 +62,6 @@ pub mod systems {
     pub use crate::ext::anim::react_to_animation;
     #[cfg(feature = "bevy_animation")]
     pub use crate::ext::anim::react_to_main_animation_change;
-    #[cfg(feature = "bevy_ui")]
-    pub use crate::ext::picking::react_to_ui;
     #[cfg(feature = "bevy_scene")]
     pub use crate::ext::scene::react_to_scene_load;
 }
@@ -106,8 +105,6 @@ impl Plugin for CoreAsyncPlugin {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
             .init_resource::<Reactors>()
-            .register_type::<async_systems::AsyncSystems>()
-            .register_type_data::<async_systems::AsyncSystems, ReflectDefault>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
             .init_schedule(BeforeAsyncExecutor)
@@ -118,8 +115,6 @@ impl Plugin for CoreAsyncPlugin {
 
         #[cfg(feature = "bevy_scene")]
         app.add_systems(BeforeAsyncExecutor, systems::react_to_scene_load);
-        #[cfg(feature = "bevy_ui")]
-        app.add_systems(BeforeAsyncExecutor, systems::react_to_ui);
         #[cfg(feature = "bevy_animation")]
         app.add_systems(BeforeAsyncExecutor, systems::react_to_animation);
         #[cfg(feature = "bevy_animation")]
@@ -387,7 +382,7 @@ impl AsyncCommandsExtension for Commands<'_, '_> {
         &mut self,
         f: impl (FnOnce() -> F) + Send + 'static,
     ) -> &mut Self {
-        self.add(SpawnFn::new(f));
+        self.queue(SpawnFn::new(f));
         self
     }
 
@@ -396,7 +391,61 @@ impl AsyncCommandsExtension for Commands<'_, '_> {
         state: S,
         f: impl FnOnce() -> F + Send + 'static,
     ) -> &mut Self {
-        self.add(StateScopedSpawnFn::new(state, f));
+        self.queue(StateScopedSpawnFn::new(state, f));
+        self
+    }
+}
+
+/// Extension for [`Commands`].
+pub trait AsyncEntityCommandsExtension {
+    /// Spawn a task to be run on the [`AsyncExecutor`].
+    ///
+    /// Unlike [`AsyncExtension::spawn_task`] this accepts a closure so
+    /// that users can smuggle `!Send` futures across thread boundaries.
+    ///
+    /// ```rust
+    /// # /*
+    /// move || async move {
+    ///     ...
+    /// }
+    /// # */
+    /// ```
+    fn spawn_task<F: Future<Output = AccessResult> + 'static>(
+        &mut self,
+        f: impl FnOnce(Entity) -> F + Send + 'static,
+    ) -> &mut Self;
+
+    /// Spawn a `bevy_defer` compatible future, the future is constrained to a [`States`]
+    /// and will be cancelled upon exiting the state.
+    ///
+    /// # Errors
+    ///
+    /// If not in the specified state.
+    fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
+        &mut self,
+        state: S,
+        fut: impl FnOnce(Entity) -> F + Send + 'static,
+    ) -> &mut Self;
+}
+
+impl AsyncEntityCommandsExtension for EntityCommands<'_> {
+    fn spawn_task<F: Future<Output = AccessResult> + 'static>(
+        &mut self,
+        f: impl (FnOnce(Entity) -> F) + Send + 'static,
+    ) -> &mut Self {
+        let entity = self.id();
+        self.commands().queue(SpawnFn::new(move || f(entity)));
+        self
+    }
+
+    fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
+        &mut self,
+        state: S,
+        f: impl FnOnce(Entity) -> F + Send + 'static,
+    ) -> &mut Self {
+        let entity = self.id();
+        self.commands()
+            .queue(StateScopedSpawnFn::new(state, move || f(entity)));
         self
     }
 }

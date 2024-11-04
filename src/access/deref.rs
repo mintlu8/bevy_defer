@@ -9,8 +9,7 @@ use bevy::ecs::{
 use std::ops::Deref;
 
 use super::{
-    AsyncAsset, AsyncComponent, AsyncComponentHandle, AsyncEntityQuery, AsyncNonSend,
-    AsyncQuerySingle, AsyncResource,
+    AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource,
 };
 
 /// Add method to [`struct@AsyncComponent`] through deref.
@@ -86,25 +85,6 @@ where
 
     fn deref(&self) -> &Self::Target {
         AsyncAssetDeref::async_deref(self)
-    }
-}
-
-/// Add method to [`AsyncAsset`] through deref.
-///
-/// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncComponentHandleDeref: Asset + Sized {
-    type Target;
-    fn async_deref(this: &AsyncComponentHandle<Self>) -> &Self::Target;
-}
-
-impl<C> Deref for AsyncComponentHandle<C>
-where
-    C: AsyncComponentHandleDeref,
-{
-    type Target = <C as AsyncComponentHandleDeref>::Target;
-
-    fn deref(&self) -> &Self::Target {
-        AsyncComponentHandleDeref::async_deref(self)
     }
 }
 

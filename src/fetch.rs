@@ -177,7 +177,8 @@ pub fn fetch<T: FetchEntity<M>, M>(entity: &impl Borrow<Entity>) -> T::Out {
 mod text {
     use crate::AsyncWorld;
     use bevy::asset::{AssetId, Handle};
-    use bevy::prelude::{Entity, GlobalTransform, Image, Msaa, Transform, With};
+    use bevy::diagnostic::SystemInfo;
+    use bevy::prelude::{Entity, GlobalTransform, Image, Transform, With};
 
     #[test]
     fn test_fetch() {
@@ -193,7 +194,7 @@ mod text {
         let _b = fetch!(#e2);
         let _c = fetch!(#e3);
         let _d = fetch!(#e4);
-        let _a = fetch!(Msaa);
+        let _a = fetch!(SystemInfo);
         let _b = fetch!(&Transform);
         let _c = fetch!((&Transform, &GlobalTransform));
         let _d = fetch!((&Transform, With<GlobalTransform>));

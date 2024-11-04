@@ -12,6 +12,7 @@ use bevy::prelude::*;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::time::TimePlugin;
 use bevy::MinimalPlugins;
+#[allow(deprecated)]
 use bevy_defer::{
     access::AsyncWorld, async_system, async_systems::AsyncSystems, signal_ids,
     signals::SignalSender, AppReactorExtension, AsyncExtension, AsyncPlugin,
@@ -45,6 +46,7 @@ pub fn main() {
     assert!(LOCK.load(Ordering::SeqCst))
 }
 
+#[allow(deprecated)]
 pub fn init(mut commands: Commands) {
     let signal = Arc::new(Value::default());
     commands.spawn((Marker1, Signals::from_sender::<SigText>(signal.clone())));

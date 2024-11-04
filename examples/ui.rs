@@ -1,13 +1,9 @@
 #![allow(clippy::type_complexity)]
-use async_shared::Value;
 use bevy::prelude::*;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::ui::RelativeCursorPosition;
-use bevy_defer::ext::picking::{
-    ClickCancelled, Clicked, LostFocus, ObtainedFocus, Pressed, UIInteractionChange,
-};
-use bevy_defer::reactors::StateMachine;
-use bevy_defer::{async_system, async_systems::AsyncSystems, signals::Signals, AsyncPlugin};
+use bevy_defer::AsyncPlugin;
+use bevy_defer::{fetch, AsyncAccess, AsyncEntityCommandsExtension};
 
 fn main() {
     App::new()
@@ -49,141 +45,107 @@ fn button_system(
 
 fn setup(mut commands: Commands) {
     // ui camera
-    commands.spawn(Camera2dBundle::default());
-    let click = Value::new_arc();
-    let press = Value::new_arc();
-    let focus = Value::new_arc();
-    let lose = Value::new_arc();
-    let cancel = Value::new_arc();
-    let state = Value::new_arc();
-    let mut btn_entity = Entity::PLACEHOLDER;
+    commands.spawn(Camera2d);
     commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            },
+        .spawn(Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
             ..default()
         })
         .with_children(|parent| {
-            btn_entity = parent
+            let btn_entity = parent
                 .spawn((
-                    ButtonBundle {
-                        style: Style {
-                            width: Val::Px(150.0),
-                            height: Val::Px(65.0),
-                            border: UiRect::all(Val::Px(5.0)),
-                            // horizontally center child text
-                            justify_content: JustifyContent::Center,
-                            // vertically center child text
-                            align_items: AlignItems::Center,
-                            ..default()
-                        },
-                        border_color: BorderColor(Color::BLACK),
-                        image: UiImage {
-                            color: NORMAL_BUTTON,
-                            ..Default::default()
-                        },
+                    Node {
+                        width: Val::Px(150.0),
+                        height: Val::Px(45.0),
+                        border: UiRect::all(Val::Px(5.0)),
+                        // horizontally center child text
+                        justify_content: JustifyContent::Center,
+                        // vertically center child text
+                        align_items: AlignItems::Center,
                         ..default()
                     },
+                    Button,
+                    BorderColor(Color::BLACK),
+                    UiImage {
+                        color: NORMAL_BUTTON,
+                        ..Default::default()
+                    },
                     RelativeCursorPosition::default(),
-                    Signals::new()
-                        .with_sender::<Clicked>(click.clone())
-                        .with_sender::<Pressed>(press.clone())
-                        .with_sender::<ObtainedFocus>(focus.clone())
-                        .with_sender::<LostFocus>(lose.clone())
-                        .with_sender::<ClickCancelled>(cancel.clone())
-                        .with_sender::<UIInteractionChange>(state.clone()),
-                    AsyncSystems::from_single(async_system!(
-                        |click: Sender<Clicked>,
-                         press: Sender<Pressed>,
-                         focus: Sender<ObtainedFocus>,
-                         lose: Sender<LostFocus>,
-                         cancel: Sender<ClickCancelled>| {
-                            futures::select_biased! {
-                                pos = click.recv() => println!("Clicked at {pos}"),
-                                pos = press.recv() => println!("Pressed at {pos}"),
-                                pos = focus.recv() => println!("Focus obtained at {pos}"),
-                                pos = lose.recv() => println!("Focus lost at {pos}"),
-                                pos = cancel.recv() => println!("Click cancelled at {pos}"),
-                            }
-                        }
-                    )),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        TextBundle::from_section(
-                            "Button",
-                            TextStyle {
-                                font: Default::default(),
-                                font_size: 40.0,
-                                color: Color::srgb(0.9, 0.9, 0.9),
-                            },
-                        ),
-                        Signals::from_receiver::<UIInteractionChange>(state),
-                        AsyncSystems::from_single(async_system!(
-                            |click: StateMachine<Interaction>, this: AsyncComponent<Text>| {
-                                let mut stream = click.into_stream();
-                                while let Some(item) = stream.next().await {
-                                    let variant = format!("{:?}", item.to);
-                                    this.set(move |text| text.sections[0].value = variant)
-                                        .unwrap();
-                                }
-                            }
-                        )),
+                        Text::new("Button"),
+                        TextFont {
+                            font: Default::default(),
+                            font_size: 20.0,
+                            ..Default::default()
+                        },
+                        PickingBehavior {
+                            should_block_lower: false,
+                            is_hoverable: false,
+                        },
                     ));
                 })
                 .id();
-            parent.spawn((
-                TextBundle::from_section(
-                    "Receiving",
-                    TextStyle {
+            parent
+                .spawn((
+                    Text::new("Receiving"),
+                    TextFont {
                         font: Default::default(),
-                        font_size: 40.0,
-                        color: Color::srgb(0.9, 0.9, 0.9),
+                        font_size: 20.0,
+                        ..Default::default()
                     },
-                ),
-                Signals::new()
-                    .with_receiver::<Clicked>(click.clone())
-                    .with_receiver::<Pressed>(press.clone())
-                    .with_receiver::<ObtainedFocus>(focus.clone())
-                    .with_receiver::<LostFocus>(lose.clone())
-                    .with_receiver::<ClickCancelled>(cancel.clone()),
-                AsyncSystems::from_single(async_system!(
-                    |click: Receiver<Clicked>,
-                     press: Receiver<Pressed>,
-                     focus: Receiver<ObtainedFocus>,
-                     lose: Receiver<LostFocus>,
-                     cancel: Receiver<ClickCancelled>,
-                     this: AsyncComponent<Text>| {
-                        futures::select_biased! {
-                            pos = click.recv() => {
-                                let s = format!("Clicked at {pos}");
-                                this.set(move |text| text.sections[0].value = s).unwrap();
-                            },
-                            pos = press.recv() => {
-                                let s = format!("Pressed at {pos}");
-                                this.set(move |text| text.sections[0].value = s).unwrap();
-                            },
-                            pos = focus.recv() => {
-                                let s = format!("Obtained focus at {pos}");
-                                this.set(move |text| text.sections[0].value = s).unwrap();
-                            },
-                            pos = lose.recv() => {
-                                let s = format!("Lose focus at {pos}");
-                                this.set(move |text| text.sections[0].value = s).unwrap();
-                            },
-                            pos = cancel.recv() => {
-                                let s = format!("Click cancelled at {pos}");
-                                this.set(move |text| text.sections[0].value = s).unwrap();
-                            },
-                        }
+                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                ))
+                .spawn_task(move |entity| async move {
+                    let btn = fetch!(#btn_entity);
+                    let mut stream = btn.on::<Click>();
+                    while let Some(item) = stream.next().await {
+                        let s =
+                            format!("Clicked at {}", item.hit.position.unwrap_or_default().xz());
+                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
                     }
-                )),
-            ));
+                    Ok(())
+                })
+                .spawn_task(move |entity| async move {
+                    let btn = fetch!(#btn_entity);
+                    let mut stream = btn.on::<Down>();
+                    while let Some(item) = stream.next().await {
+                        let s = format!(
+                            "Mouse down at {}",
+                            item.hit.position.unwrap_or_default().xz()
+                        );
+                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                    }
+                    Ok(())
+                })
+                .spawn_task(move |entity| async move {
+                    let btn = fetch!(#btn_entity);
+                    let mut stream = btn.on::<Over>();
+                    while let Some(item) = stream.next().await {
+                        let s = format!(
+                            "Hover entered at {}",
+                            item.hit.position.unwrap_or_default().xz()
+                        );
+                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                    }
+                    Ok(())
+                })
+                .spawn_task(move |entity| async move {
+                    let btn = fetch!(#btn_entity);
+                    let mut stream = btn.on::<Out>();
+                    while let Some(item) = stream.next().await {
+                        let s = format!(
+                            "Hover exited at {}",
+                            item.hit.position.unwrap_or_default().xz()
+                        );
+                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                    }
+                    Ok(())
+                });
         });
 }

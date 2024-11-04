@@ -114,7 +114,7 @@ async accessors.
 
 ### Run Systems
 
-You might have noticed `AsyncSystemParam` does not exist (yet).
+You might have noticed `AsyncSystemParam` does not exist.
 In order to run more complicated logic, use one of the one-shot
 system based API, like:
 
@@ -177,12 +177,14 @@ Once sync code sends data through the channel, it will
 wake and resume the corresponding task.
 
 Communicating from async to sync require more thought.
-This usually means mutating the world in an async function,
+This usually means mutating the world or sending an event
+in an async function,
 then a system can listen for that particular change in sync code.
 
 ```rust,ignore
 async {
-    entity.component::<IsJumping>().set(|j| *j == true);
+    fetch!(entity, IsJumping).set(|j| *j == true);
+    AsyncWold.send_event(Jump(entity))
 }
 
 pub fn jump_system(query: Query<Name, Changed<IsJumping>>) {
@@ -216,7 +218,7 @@ fn run_async_executor(world: &mut World) {
     let executor = world.get_executor();
     WORLD_CELL.set(world);
     executor.run();
-    WORLD_CELL.remove(world);
+    WORLD_CELL.clear();
 }
 ```
 
@@ -246,7 +248,8 @@ blocking tasks, so pay extra attention to this.
 |------|--------------------|
 | 0.12 | 0.1                |
 | 0.13 | 0.2-0.11           |
-| 0.14 | 0.12-latest        |
+| 0.14 | 0.12               |
+| 0.15 | 0.13-latest        |
 
 ## License
 
