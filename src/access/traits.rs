@@ -700,7 +700,7 @@ impl<T: InfallibleQuery + 'static> InfallibleQuery for AsyncNonSend<T> {}
 pub trait WorldDeref {
     type Target: 'static;
 
-    /// Returns a world accessor like [`AsyncAsset`] or [`AsyncComponent`].
+    /// Returns a world accessor like [`AsyncAsset`] or [`struct@AsyncComponent`].
     fn deref_to(&self) -> Self::Target;
 }
 

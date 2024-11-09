@@ -139,7 +139,7 @@ impl AsyncEntityMut {
         Ok(AsyncWorld.entity(entity))
     }
 
-    /// Adds a single child.
+    /// Adds a single child, returns the parent [`AsyncEntityMut`].
     ///
     /// # Example
     ///

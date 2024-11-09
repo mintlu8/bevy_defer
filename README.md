@@ -69,7 +69,7 @@ Here is an example:
 ```rust, ignore
 commands.spawn_task(|| async move {
     AsyncWorld.sleep(500.0).await;
-    println("Hello, World!")
+    println!("Hello, World!");
     Ok(())
 });
 ```

@@ -41,19 +41,19 @@ macro_rules! fetch {
     };
 }
 
-pub trait FetchWorld<M> {
+pub trait FetchWorld<M = ()> {
     type Out;
 
     fn fetch() -> Self::Out;
 }
 
-pub trait FetchEntity<M> {
+pub trait FetchEntity<M = ()> {
     type Out;
 
     fn fetch(entity: &impl Borrow<Entity>) -> Self::Out;
 }
 
-pub trait FetchOne<M> {
+pub trait FetchOne<M = ()> {
     type Out;
 
     fn fetch(&self) -> Self::Out;

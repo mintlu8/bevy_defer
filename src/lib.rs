@@ -47,6 +47,8 @@ pub use fetch::{fetch, fetch0, fetch1, FetchEntity, FetchOne, FetchWorld};
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;
+#[doc(hidden)]
+pub mod spawn_macro;
 
 pub mod systems {
     //! Systems in `bevy_defer`.
