@@ -1,11 +1,11 @@
-use crate::AsyncWorld;
+use std::ops::DerefMut;
 use bevy::{
     asset::{Asset, AssetPath, Handle},
     ecs::component::{ComponentHooks, StorageType},
     prelude::{BuildChildren, Bundle, Component},
 };
 pub use default_constructor;
-use std::ops::DerefMut;
+use crate::AsyncWorld;
 
 /// Add an asset from its type, returns its [`Handle`].
 pub fn add<T: Asset>(item: T) -> Handle<T> {
@@ -17,30 +17,6 @@ pub fn add<T: Asset>(item: T) -> Handle<T> {
 /// Load an asset from its [`AssetPath`], returns its [`Handle`].
 pub fn load<T: Asset>(item: AssetPath<'static>) -> Handle<T> {
     AsyncWorld.load_asset::<T>(item).into_handle()
-}
-
-#[derive(Debug, Default)]
-pub enum SpawnChild<B: Bundle> {
-    Child(B),
-    #[default]
-    None,
-}
-
-impl<B: Bundle> Component for SpawnChild<B> {
-    const STORAGE_TYPE: StorageType = StorageType::Table;
-
-    fn register_component_hooks(hooks: &mut ComponentHooks) {
-        hooks.on_add(|mut world, entity, _| {
-            if let Some(mut spawn) = world.entity_mut(entity).get_mut::<SpawnChild<B>>() {
-                match std::mem::take(spawn.deref_mut()) {
-                    SpawnChild::Child(bundle) => {
-                        world.commands().entity(entity).with_child(bundle);
-                    }
-                    SpawnChild::None => todo!(),
-                };
-            }
-        });
-    }
 }
 
 /// Spawn a bundle using `bevy_defer`'s [`AsyncWorld`].
@@ -55,6 +31,7 @@ impl<B: Bundle> Component for SpawnChild<B> {
 /// # Panics
 ///
 /// If used outside of a `bevy_defer` future.
+#[cfg_attr(docsrs, doc(cfg(feature = "spawn_macro")))]
 #[macro_export]
 macro_rules! spawn {
     ($($tt: tt)*) => {
@@ -84,6 +61,6 @@ mod test {
                 color: Srgba::RED,
             },
             Mesh2d(@load "Mesh.gltf#Scene0"),
-        );
+        ).add_child(child);
     }
 }

@@ -1,5 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 use async_shared::Value;
 use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
@@ -39,15 +40,14 @@ use bevy::ecs::{
 };
 use bevy::reflect::std_traits::ReflectDefault;
 pub use errors::AccessError;
-pub use executor::AsyncExecutor;
-#[allow(deprecated)]
-pub use executor::{in_async_context, spawn};
+pub use executor::{AsyncExecutor, in_async_context};
 #[doc(hidden)]
 pub use fetch::{fetch, fetch0, fetch1, FetchEntity, FetchOne, FetchWorld};
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;
 #[doc(hidden)]
+#[cfg(feature = "spawn_macro")]
 pub mod spawn_macro;
 
 pub mod systems {

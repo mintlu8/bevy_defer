@@ -19,6 +19,10 @@ A simple asynchronous runtime for executing async coroutines.
 """
 keywords = ["bevy", "async", "defer"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["bevy_animation", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
 derive = ["bevy_defer_derive"]
@@ -29,10 +33,10 @@ bevy_render = ["bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text"]
 bevy_picking = ["bevy/bevy_picking"]
 bevy_pbr = ["bevy/bevy_pbr"]
+# Enable the `default_constructor` macro.
+spawn_macro = ["default-constructor"]
 # Displays full type path in `AccessError`s.
 full_types = []
-# Enable the `default_constructor` macro.
-spawn = []
 
 [dependencies]
 async_shared = {version = "0.2", path = "./async_shared"}
@@ -49,12 +53,12 @@ event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.15.0-rc.2", default-features = false, features = ["bevy_state", "bevy_asset"] }
+bevy = { version = "0.15.0-rc.3", default-features = false, features = ["bevy_state", "bevy_asset"] }
 pretty-type-name = "1.0.1"
 flume = { version = "0.11.1", default-features = false, features = ["async", "futures-core"] }
-default-constructor = { version = "0.4" }
+default-constructor = { version = "0.4", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.15.0-rc.2" }
+bevy = { version = "0.15.0-rc.3" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }

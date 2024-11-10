@@ -88,8 +88,8 @@ impl AsyncAnimationPlayer {
     }
 
     /// Stop playing an animation.
-    pub fn animation_is_playing(&self, clip: AnimationNodeIndex) -> AccessResult<bool> {
-        self.0.get(move |player| player.animation_is_playing(clip))
+    pub fn is_playing_animation(&self, clip: AnimationNodeIndex) -> AccessResult<bool> {
+        self.0.get(move |player| player.is_playing_animation(clip))
     }
 
     pub fn wait(
@@ -156,6 +156,7 @@ pub enum AnimationEvent {
     },
 }
 
+/// Stores the animation player of the last frame,
 #[derive(Component, Clone, Default)]
 pub struct PreviousAnimationPlayer(AnimationPlayer);
 
@@ -167,6 +168,7 @@ impl Deref for PreviousAnimationPlayer {
     }
 }
 
+/// Component that wake futures waiting on animation events.
 #[derive(Component)]
 pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<bool>)>);
 
@@ -228,13 +230,13 @@ pub fn react_to_animation(
             reactors.0.retain_mut(|(event, channel)| {
                 let yields = match event {
                     AnimationEvent::OnExit(idx) => {
-                        (!player.animation_is_playing(*idx)).then_some(true)
+                        (!player.is_playing_animation(*idx)).then_some(true)
                     }
                     AnimationEvent::OnEnter(idx) => {
-                        player.animation_is_playing(*idx).then_some(true)
+                        player.is_playing_animation(*idx).then_some(true)
                     }
-                    AnimationEvent::WaitUnitOnExit(idx) => (player.animation_is_playing(*idx)
-                        && !prev.0.animation_is_playing(*idx))
+                    AnimationEvent::WaitUnitOnExit(idx) => (player.is_playing_animation(*idx)
+                        && !prev.0.is_playing_animation(*idx))
                     .then_some(true),
                     AnimationEvent::OnFrame { animation, frame } => {
                         if let Some(prev) = prev.0.animation(*animation) {
