@@ -14,6 +14,8 @@ use bevy::ecs::{
 use std::any::type_name;
 use std::{borrow::Borrow, marker::PhantomData, ops::Deref};
 
+use super::AsyncEntityMut;
+
 /// Async version of [`Query`]
 #[derive(Debug)]
 pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()>(pub(crate) PhantomData<(T, F)>);
@@ -31,6 +33,12 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncQuery<T, F> {
 pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
     pub(crate) p: PhantomData<(T, F)>,
+}
+
+impl<T: QueryData, F: QueryFilter> AsyncEntityQuery<T, F> {
+    pub fn entity(&self) -> AsyncEntityMut {
+        AsyncEntityMut(self.entity)
+    }
 }
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncEntityQuery<T, F> {}

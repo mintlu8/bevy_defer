@@ -107,7 +107,7 @@ fn setup(mut commands: Commands) {
                     while let Some(item) = stream.next().await {
                         let s =
                             format!("Clicked at {}", item.hit.position.unwrap_or_default().xz());
-                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                        fetch!(entity, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                     Ok(())
                 })
@@ -119,7 +119,7 @@ fn setup(mut commands: Commands) {
                             "Mouse down at {}",
                             item.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                        fetch!(entity, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                     Ok(())
                 })
@@ -131,7 +131,7 @@ fn setup(mut commands: Commands) {
                             "Hover entered at {}",
                             item.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                        fetch!(entity, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                     Ok(())
                 })
@@ -143,7 +143,7 @@ fn setup(mut commands: Commands) {
                             "Hover exited at {}",
                             item.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(entity, Text).set(move |text| text.0 = s).unwrap();
+                        fetch!(entity, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                     Ok(())
                 });

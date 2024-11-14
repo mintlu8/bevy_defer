@@ -105,13 +105,19 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result.
-    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
+    fn get_mut<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
         let cx = self.as_cx();
         with_world_mut(|w| {
             let mut mut_cx = Self::from_mut_world(w, &cx)?;
             let cx = Self::from_mut_cx(&mut mut_cx, &cx)?;
             Ok(f(cx))
         })
+    }
+
+    /// Run a function on this item and obtain the result.
+    #[deprecated = "Use `get_mut` instead."]
+    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
+        self.get_mut(f)
     }
 
     /// Run a function if the query is infallible.
@@ -144,7 +150,7 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result once loaded.
-    fn set_on_load<T: 'static>(
+    fn get_mut_on_load<T: 'static>(
         &self,
         mut f: impl FnMut(Self::RefMut<'_>) -> T + 'static,
     ) -> ChannelOut<AccessResult<T>>
@@ -161,6 +167,18 @@ pub trait AsyncAccess {
             Err(err) if Self::should_continue(err) => None,
             Err(err) => Some(Err(err)),
         })
+    }
+
+    /// Run a function on this item and obtain the result once loaded.
+    #[deprecated = "Use `get_mut_on_load`."]
+    fn set_on_load<T: 'static>(
+        &self,
+        f: impl FnMut(Self::RefMut<'_>) -> T + 'static,
+    ) -> ChannelOut<AccessResult<T>>
+    where
+        Self: AsyncLoad,
+    {
+        self.get_mut_on_load(f)
     }
 
     /// Run a function on this item until it returns `Some`.

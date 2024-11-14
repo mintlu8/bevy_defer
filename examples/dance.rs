@@ -69,7 +69,7 @@ pub struct AsyncAnimator(AsyncComponent<Animator>);
 impl AsyncAnimator {
     pub async fn animate(&self, name: &'static str) -> Result<(), AccessError> {
         let len = name.len();
-        self.0.set(move |comp| {
+        self.0.get_mut(move |comp| {
             println!("Animating from {} to {}", &comp.0, name);
             name.clone_into(&mut comp.0);
         })?;
@@ -148,7 +148,7 @@ pub fn main() {
             .get(|res| *res.get("Richard").unwrap())?;
         let richard = world.entity(richard_entity);
         // We can also mutate the world asynchronously.
-        richard.component::<HP>().set(|hp| hp.set(500))?;
+        richard.component::<HP>().get_mut(|hp| hp.set(500))?;
         // Implementing `AsyncComponentDeref` allows you to add functions to `AsyncComponent`.
         let animator = richard.component::<Animator>();
         animator.animate("Wave").await?;

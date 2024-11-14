@@ -102,7 +102,7 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
             _ => parse_error!(),
         };
         let method = if is_mut {
-            quote! {set}
+            quote! {get_mut}
         } else {
             quote! {get}
         };

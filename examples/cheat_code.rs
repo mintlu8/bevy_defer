@@ -42,7 +42,7 @@ fn main() {
             }
             AsyncWorld
                 .query_single::<&mut Text2d>()
-                .set(|mut x| x.0 = "You dirty cheater!".into())?;
+                .get_mut(|mut x| x.0 = "You dirty cheater!".into())?;
             Ok(())
         })
         .run();

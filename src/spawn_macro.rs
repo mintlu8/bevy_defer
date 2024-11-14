@@ -5,6 +5,7 @@ use bevy::{
     prelude::{BuildChildren, Bundle, Component},
 };
 pub use default_constructor;
+pub use default_constructor::InferInto;
 use crate::AsyncWorld;
 
 /// Add an asset from its type, returns its [`Handle`].

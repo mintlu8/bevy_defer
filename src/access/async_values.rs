@@ -15,8 +15,8 @@ pub struct AsyncComponent<C: Component> {
 }
 
 impl<C: Component> AsyncComponent<C> {
-    pub fn entity(&self) -> Entity {
-        self.entity
+    pub fn entity(&self) -> AsyncEntityMut {
+        AsyncEntityMut(self.entity)
     }
 }
 
@@ -45,6 +45,8 @@ impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
 
 #[allow(unused)]
 pub use bevy::ecs::system::NonSend;
+
+use super::AsyncEntityMut;
 
 /// An `AsyncSystemParam` that gets or sets a `!Send` resource on the `World`.
 #[derive(Debug)]
