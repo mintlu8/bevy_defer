@@ -199,13 +199,13 @@ impl AsyncEntityMut {
     /// entity.set_parent(child);
     /// # });
     /// ```
-    pub fn set_parent(&self, parent: Entity) -> AccessResult<AsyncEntityMut> {
+    pub fn set_parent(&self, parent: impl Borrow<Entity>) -> AccessResult<AsyncEntityMut> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
-                    entity.set_parent(parent);
+                    entity.set_parent(*parent.borrow());
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;
@@ -398,6 +398,18 @@ impl AsyncEntityMut {
             Ok(Some(entity)) => Ok(self.world().entity(entity)),
             _ => Err(AccessError::ChildNotFound { index }),
         }
+    }
+
+    /// Collect [`Children`] into a [`Vec`].
+    pub fn children_vec(&self) -> Vec<Entity> {
+        let entity = self.0;
+        with_world_ref(|world| {
+            world
+                .entity(entity)
+                .get::<Children>()
+                .map(|x| x.iter().copied().collect())
+                .unwrap_or_default()
+        })
     }
 
     /// Obtain a child entity by [`Name`].

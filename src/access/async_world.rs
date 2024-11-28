@@ -149,6 +149,12 @@ impl Borrow<Entity> for &AsyncEntityMut {
     }
 }
 
+impl Borrow<Entity> for &&AsyncEntityMut {
+    fn borrow(&self) -> &Entity {
+        &self.0
+    }
+}
+
 impl AsyncEntityMut {
     /// Obtain the underlying [`Entity`] id.
     pub fn id(&self) -> Entity {

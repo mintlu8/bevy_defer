@@ -42,7 +42,7 @@ use bevy::reflect::std_traits::ReflectDefault;
 pub use errors::AccessError;
 pub use executor::{AsyncExecutor, in_async_context};
 #[doc(hidden)]
-pub use fetch::{fetch, fetch0, fetch1, FetchEntity, FetchOne, FetchWorld};
+pub use fetch::{fetch, fetch0, fetch1, fetch2, FetchEntity, FetchOne, FetchWorld};
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;

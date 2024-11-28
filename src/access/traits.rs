@@ -20,6 +20,9 @@ use bevy::ecs::{
     system::Resource,
     world::World,
 };
+use bevy::pbr::{Material, MeshMaterial3d};
+use bevy::prelude::{Mesh, Mesh3d};
+use bevy::sprite::{Material2d, MeshMaterial2d};
 use futures::future::{ready, Either};
 use std::any::type_name;
 use std::{borrow::BorrowMut, cell::OnceCell};
@@ -727,5 +730,29 @@ impl<T: Asset> WorldDeref for Handle<T> {
 
     fn deref_to(&self) -> Self::Target {
         AsyncAsset(self.clone_weak())
+    }
+}
+
+impl WorldDeref for Mesh3d {
+    type Target = AsyncAsset<Mesh>;
+
+    fn deref_to(&self) -> Self::Target {
+        AsyncAsset(self.0.clone_weak())
+    }
+}
+
+impl<T: Material2d> WorldDeref for MeshMaterial2d<T> {
+    type Target = AsyncAsset<T>;
+
+    fn deref_to(&self) -> Self::Target {
+        AsyncAsset(self.0.clone_weak())
+    }
+}
+
+impl<T: Material> WorldDeref for MeshMaterial3d<T> {
+    type Target = AsyncAsset<T>;
+
+    fn deref_to(&self) -> Self::Target {
+        AsyncAsset(self.0.clone_weak())
     }
 }

@@ -36,8 +36,11 @@ macro_rules! fetch {
     (#$expr: expr) => {
         $crate::fetch1(&$expr)
     };
-    ($entity: expr, $comp: ty) => {
+    ($entity: expr, $comp: ty $(,)?) => {
         $crate::fetch::<$comp, _>(&$entity)
+    };
+    ($entity: expr, $data: ty, $filter: ty $(,)?) => {
+        $crate::fetch2::<$data, $filter>(&$entity)
     };
 }
 
@@ -105,14 +108,6 @@ impl<T: QueryData> FetchEntity<QueryMarker> for T {
     }
 }
 
-impl<T: QueryData, F: QueryFilter> FetchEntity<QueryFilteredMarker> for (T, F) {
-    type Out = AsyncEntityQuery<T, F>;
-
-    fn fetch(entity: &impl Borrow<Entity>) -> Self::Out {
-        AsyncWorld.entity(*entity.borrow()).query_filtered::<T, F>()
-    }
-}
-
 impl<T: Borrow<Entity>> FetchOne<ComponentMarker> for T {
     type Out = AsyncEntityMut;
 
@@ -169,6 +164,10 @@ pub fn fetch1<T: FetchOne<M>, M>(item: &T) -> T::Out {
     T::fetch(item)
 }
 
+pub fn fetch2<Q: QueryData, F: QueryFilter>(entity: impl Borrow<Entity>) -> AsyncEntityQuery<Q, F> {
+    AsyncWorld.entity(*entity.borrow()).query_filtered::<Q, F>()
+}
+
 pub fn fetch<T: FetchEntity<M>, M>(entity: &impl Borrow<Entity>) -> T::Out {
     T::fetch(entity)
 }
@@ -189,7 +188,7 @@ mod text {
         let _a = fetch!(e1, Transform);
         let _b = fetch!(e2, &Transform);
         let _c = fetch!(e3, (&Transform, &GlobalTransform));
-        let _d = fetch!(e4, (&Transform, With<GlobalTransform>));
+        let _d = fetch!(e4, &Transform, With<GlobalTransform>);
         let _a = fetch!(#e1);
         let _b = fetch!(#e2);
         let _c = fetch!(#e3);
