@@ -62,6 +62,8 @@
 //! # */
 //! ```
 //!
+//!
+#![allow(deprecated)]
 use super::AccessError;
 #[allow(unused)]
 use crate::{
@@ -110,12 +112,14 @@ use std::{
 /// # */
 /// ```
 #[macro_export]
+#[deprecated = "Consider using `Observer`s for UI interaction."]
 macro_rules! async_system {
     (|$($field: ident : $ty: ty),* $(,)?| $body: expr) => {
         {
             use $crate::access::*;
             use $crate::AsyncAccess;
             use $crate::signals::{Sender, Receiver};
+            #[allow(deprecated)]
             $crate::async_systems::AsyncSystem::new(move |entity: $crate::Entity, reactors: &$crate::reactors::Reactors, signals: &$crate::signals::Signals, children: &[$crate::Entity]| {
                 $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::fetch_signal(signals)?;)*
                 $(let $field = <$ty as $crate::async_systems::AsyncEntityParam>::from_async_context(entity, &reactors, $field, children)?;)*
@@ -190,6 +194,7 @@ impl Drop for ChildAlive {
 type PinnedFut = Pin<Box<dyn Future<Output = Result<(), AccessError>> + 'static>>;
 
 /// An async system function.
+#[deprecated = "Consider using `Observer`s for UI interaction."]
 pub struct AsyncSystem {
     pub(crate) function:
         Box<dyn FnMut(Entity, &Reactors, &Signals, &[Entity]) -> Option<PinnedFut> + Send + Sync>,
@@ -228,6 +233,7 @@ impl Debug for AsyncSystem {
 
 /// A component containing an entity's `AsyncSystem`s.
 #[derive(Debug, Component, Default, Reflect)]
+#[deprecated = "Consider using `Observer`s for UI interaction."]
 pub struct AsyncSystems {
     #[reflect(ignore)]
     pub systems: Vec<AsyncSystem>,

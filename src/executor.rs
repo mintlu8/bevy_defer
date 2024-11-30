@@ -1,4 +1,3 @@
-use crate::access::AsyncWorld;
 use crate::queue::QueryQueue;
 use crate::reactors::Reactors;
 use async_executor::{LocalExecutor, Task};
@@ -32,18 +31,6 @@ scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASSET_SERVER: AssetServer
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static QUERY_QUEUE: QueryQueue);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'static>);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
-
-/// Spawn a `bevy_defer` compatible future.
-///
-/// The spawned future will not be dropped until finished.
-///
-/// # Panics
-///
-/// If used outside a `bevy_defer` future.
-#[deprecated = "Use AsyncWorldMut::spawn instead."]
-pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) {
-    AsyncWorld.spawn_any(fut)
-}
 
 /// Returns `true` if in async context, for diagnostics purpose only.
 pub fn in_async_context() -> bool {

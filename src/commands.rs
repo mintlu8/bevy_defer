@@ -9,6 +9,7 @@ use bevy::app::AppExit;
 use bevy::ecs::system::{IntoSystem, SystemId};
 use bevy::ecs::world::{Command, CommandQueue, FromWorld, Mut};
 use bevy::ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
+use bevy::prelude::SystemInput;
 use bevy::state::state::{FreelyMutableState, NextState, State, States};
 use bevy::tasks::AsyncComputeTaskPool;
 use futures::future::ready;
@@ -139,10 +140,15 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.register_system(|time: Res<Time>| println!("{}", time.delta_seconds()))
+    /// AsyncWorld.register_system(|time: Res<Time>| println!("{}", time.delta_secs()))
     /// # );
     /// ```
-    pub fn register_system<I: 'static, O: 'static, M, S: IntoSystem<I, O, M> + 'static>(
+    pub fn register_system<
+        I: SystemInput + 'static,
+        O: 'static,
+        M,
+        S: IntoSystem<I, O, M> + 'static,
+    >(
         &self,
         system: S,
     ) -> SystemId<I, O> {
@@ -155,7 +161,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let id = AsyncWorld.register_system(|time: Res<Time>| println!("{}", time.delta_seconds()));
+    /// let id = AsyncWorld.register_system(|time: Res<Time>| println!("{}", time.delta_secs()));
     /// AsyncWorld.run_system(id).unwrap();
     /// # });
     /// ```
@@ -169,14 +175,14 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// let id = AsyncWorld.register_system(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input);
+    /// let id = AsyncWorld.register_system(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input);
     /// AsyncWorld.run_system_with_input(id, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_system_with_input<I: 'static, O: 'static>(
+    pub fn run_system_with_input<I: SystemInput + 'static, O: 'static>(
         &self,
         system: SystemId<I, O>,
-        input: I,
+        input: I::Inner<'_>,
     ) -> AccessResult<O> {
         with_world_mut(move |world: &mut World| {
             world
@@ -196,7 +202,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_cached_system(|time: Res<Time>| println!("{}", time.delta_seconds())).unwrap();
+    /// AsyncWorld.run_cached_system(|time: Res<Time>| println!("{}", time.delta_secs())).unwrap();
     /// # });
     /// ```
     pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
@@ -217,18 +223,18 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_seconds() + *input, 4.0).unwrap();
+    /// AsyncWorld.run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
     /// # });
     /// ```
     pub fn run_cached_system_with_input<
-        I: 'static,
+        I: SystemInput + 'static,
         O: 'static,
         M,
         S: IntoSystem<I, O, M> + 'static,
     >(
         &self,
         system: S,
-        input: I,
+        input: I::Inner<'_>,
     ) -> AccessResult<O> {
         #[derive(Debug, Resource, Default)]
         struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);

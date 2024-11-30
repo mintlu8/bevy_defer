@@ -14,6 +14,8 @@ use bevy::ecs::{
 use std::any::type_name;
 use std::{borrow::Borrow, marker::PhantomData, ops::Deref};
 
+use super::AsyncEntityMut;
+
 /// Async version of [`Query`]
 #[derive(Debug)]
 pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()>(pub(crate) PhantomData<(T, F)>);
@@ -31,6 +33,12 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncQuery<T, F> {
 pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
     pub(crate) p: PhantomData<(T, F)>,
+}
+
+impl<T: QueryData, F: QueryFilter> AsyncEntityQuery<T, F> {
+    pub fn entity(&self) -> AsyncEntityMut {
+        AsyncEntityMut(self.entity)
+    }
 }
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncEntityQuery<T, F> {}
@@ -151,7 +159,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
     }
 }
 
-impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D, F> {
+impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
     pub fn new(world: &mut World) -> OwnedQueryState<D, F> {
         OwnedQueryState {
             state: match world.remove_resource::<ResQueryCache<D, F>>() {
@@ -243,8 +251,8 @@ impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'t, D
     }
 }
 
-impl<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
-    for &'s mut OwnedQueryState<'w, D, F>
+impl<'s, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
+    for &'s mut OwnedQueryState<'_, D, F>
 {
     type Item = D::Item<'s>;
     type IntoIter = QueryIter<'s, 's, D, F>;
@@ -254,7 +262,7 @@ impl<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
     }
 }
 
-impl<'t, D: QueryData + 'static, F: QueryFilter + 'static> Drop for OwnedQueryState<'t, D, F> {
+impl<D: QueryData + 'static, F: QueryFilter + 'static> Drop for OwnedQueryState<'_, D, F> {
     fn drop(&mut self) {
         self.world
             .insert_resource(ResQueryCache(self.state.take().unwrap()))

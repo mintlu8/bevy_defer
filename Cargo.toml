@@ -1,9 +1,7 @@
 [workspace]
 members = [ 
     "async_shared",
-    "derive",
-    "http",
-    "picking"
+    "derive", 
 ]
 
 [package]
@@ -21,20 +19,28 @@ A simple asynchronous runtime for executing async coroutines.
 """
 keywords = ["bevy", "async", "defer"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
-default = ["bevy_ui", "bevy_animation", "bevy_scene","bevy_sprite", "bevy_render", "derive"]
+default = ["bevy_animation", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
 derive = ["bevy_defer_derive"]
-bevy_ui = ["bevy/bevy_ui"]
 bevy_animation = ["bevy/bevy_animation"]
 bevy_scene = ["bevy/bevy_scene"]
-bevy_sprite = ["bevy/bevy_sprite"]
-bevy_render = ["bevy/bevy_render"]
-## Displays full type path in `AccessError`s.
+bevy_sprite = ["bevy/bevy_sprite", "bevy_image"]
+bevy_render = ["bevy/bevy_render", "bevy_image"]
+bevy_text = ["bevy/bevy_text"]
+bevy_picking = ["bevy/bevy_picking"]
+bevy_pbr = ["bevy/bevy_pbr"]
+# Enable the `default_constructor` macro.
+spawn_macro = ["default-constructor"]
+# Displays full type path in `AccessError`s.
 full_types = []
 
 [dependencies]
 async_shared = {version = "0.2", path = "./async_shared"}
-bevy_defer_derive = { version = "0.1", path = "./derive", optional = true }
+bevy_defer_derive = { version = "0.2", path = "./derive", optional = true }
 futures = { version = "0.3.30", default-features = false }
 async-executor = "1.10.0"
 
@@ -47,10 +53,13 @@ event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.14.0", default-features = false, features = ["bevy_state"] }
+bevy = { version = "0.15.0", default-features = false, features = ["bevy_state", "bevy_asset"] }
+bevy_image = { version = "0.15.0", default-features = false, optional = true }
 pretty-type-name = "1.0.1"
+flume = { version = "0.11.1", default-features = false, features = ["async", "futures-core"] }
+default-constructor = { version = "0.5.1", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.14.0" }
+bevy = { version = "0.15.0" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }

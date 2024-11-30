@@ -27,17 +27,17 @@ impl AssetLoader for JsonNumberLoader {
 
     type Error = Infallible;
 
-    fn load<'a>(
-        &'a self,
-        reader: &'a mut bevy::asset::io::Reader,
-        _: &'a Self::Settings,
-        _: &'a mut bevy::asset::LoadContext,
+    fn load(
+        &self,
+        reader: &mut dyn bevy::asset::io::Reader,
+        _: &Self::Settings,
+        _: &mut bevy::asset::LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-        Box::pin(async {
+        async {
             let mut buf = String::new();
             reader.read_to_string(&mut buf).await.unwrap();
             Ok(JsonNumber(buf.parse().unwrap()))
-        })
+        }
     }
 }
 

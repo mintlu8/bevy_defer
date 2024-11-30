@@ -4,7 +4,6 @@ use crate::async_systems::AsyncWorldParam;
 use crate::executor::{QUERY_QUEUE, WORLD};
 use crate::in_async_context;
 use crate::reactors::Reactors;
-use bevy::asset::Asset;
 use bevy::core::Name;
 use bevy::ecs::{
     component::Component,
@@ -24,7 +23,7 @@ use bevy::ecs::{system::Commands, world::World};
 #[allow(unused)]
 use crate::{AsyncExecutor, QueryQueue};
 
-use super::AsyncComponentHandle;
+use super::AsyncQuerySingle;
 
 /// Async version of [`World`] or [`Commands`].
 ///
@@ -88,6 +87,11 @@ impl AsyncWorld {
         AsyncQuery(PhantomData)
     }
 
+    /// Obtain an [`AsyncQuerySingle`].
+    pub fn query_single<Q: QueryData>(&self) -> AsyncQuerySingle<Q> {
+        AsyncQuerySingle(PhantomData)
+    }
+
     /// Obtain an [`AsyncQuery`].
     pub fn query_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuery<Q, F> {
         AsyncQuery(PhantomData)
@@ -121,7 +125,7 @@ impl Display for AsyncEntityMut {
         let e = self.0;
         if WORLD.is_set() {
             WORLD.with(|world| {
-                if let Some(name) = world.get_entity(e).and_then(|e| e.get::<Name>()) {
+                if let Some(name) = world.get_entity(e).ok().and_then(|e| e.get::<Name>()) {
                     write!(f, "Entity(\"{}\", {}, {})", name, e.index(), e.generation())
                 } else {
                     write!(f, "Entity({}, {})", e.index(), e.generation())
@@ -145,6 +149,12 @@ impl Borrow<Entity> for &AsyncEntityMut {
     }
 }
 
+impl Borrow<Entity> for &&AsyncEntityMut {
+    fn borrow(&self) -> &Entity {
+        &self.0
+    }
+}
+
 impl AsyncEntityMut {
     /// Obtain the underlying [`Entity`] id.
     pub fn id(&self) -> Entity {
@@ -163,19 +173,6 @@ impl AsyncEntityMut {
     /// This does not mean the component or the entity exists in the world.
     pub fn component<C: Component>(&self) -> AsyncComponent<C> {
         AsyncComponent {
-            entity: self.0,
-            p: PhantomData,
-        }
-    }
-
-    /// Get an [`AsyncComponentHandle`](crate::access::AsyncComponentHandle) on this entity.
-    /// This is similar to `AsyncComponent<Handle<T>>` but point to the asset instead.
-    ///
-    /// # Note
-    ///
-    /// This does not mean the component, asset or entity exist in the world.
-    pub fn component_handle<A: Asset>(&self) -> AsyncComponentHandle<A> {
-        AsyncComponentHandle {
             entity: self.0,
             p: PhantomData,
         }

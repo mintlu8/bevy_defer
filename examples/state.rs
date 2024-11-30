@@ -78,13 +78,10 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: RED.into(),
-            custom_size: Some(Vec2::new(100., 100.)),
-            ..Default::default()
-        },
+    commands.spawn(Camera2d);
+    commands.spawn(Sprite {
+        color: RED.into(),
+        custom_size: Some(Vec2::new(100., 100.)),
         ..Default::default()
     });
 }
@@ -94,5 +91,5 @@ fn set_color(color: In<Color>, mut query: Query<&mut Sprite>) {
 }
 
 fn spin(time: ResMut<Time>, mut query: Query<&mut Transform, With<Sprite>>) {
-    query.single_mut().rotate_z(time.delta_seconds());
+    query.single_mut().rotate_z(time.delta_secs());
 }

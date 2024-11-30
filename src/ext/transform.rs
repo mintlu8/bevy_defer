@@ -33,15 +33,15 @@ impl AsyncTransform {
     }
 
     pub fn set_translation(&self, translation: Vec3) -> AccessResult {
-        self.0.set(|x| x.translation = translation)
+        self.0.get_mut(|x| x.translation = translation)
     }
 
     pub fn set_rotation(&self, rotation: Quat) -> AccessResult {
-        self.0.set(|x| x.rotation = rotation)
+        self.0.get_mut(|x| x.rotation = rotation)
     }
 
     pub fn set_scale(&self, scale: Vec3) -> AccessResult {
-        self.0.set(|x| x.scale = scale)
+        self.0.get_mut(|x| x.scale = scale)
     }
 
     pub fn forward(&self) -> AccessResult<Dir3> {
@@ -69,54 +69,54 @@ impl AsyncTransform {
     }
 
     pub fn look_at(&self, target: Vec3, up: impl TryInto<Dir3>) -> AccessResult {
-        self.0.set(|x| x.look_at(target, up))
+        self.0.get_mut(|x| x.look_at(target, up))
     }
 
     pub fn look_to(&self, direction: impl TryInto<Dir3>, up: impl TryInto<Dir3>) -> AccessResult {
-        self.0.set(|x| x.look_to(direction, up))
+        self.0.get_mut(|x| x.look_to(direction, up))
     }
 
     pub fn translate_by(&self, translation: Vec3) -> AccessResult {
-        self.0.set(|x| x.translation += translation)
+        self.0.get_mut(|x| x.translation += translation)
     }
 
     pub fn rotate_by(&self, rotation: Quat) -> AccessResult {
-        self.0.set(|x| x.rotate(rotation))
+        self.0.get_mut(|x| x.rotate(rotation))
     }
 
     pub fn scale_by(&self, scale: Vec3) -> AccessResult {
-        self.0.set(|x| x.scale *= scale)
+        self.0.get_mut(|x| x.scale *= scale)
     }
 
     pub fn rotate_around(&self, point: Vec3, rotation: Quat) -> AccessResult {
-        self.0.set(|x| x.rotate_around(point, rotation))
+        self.0.get_mut(|x| x.rotate_around(point, rotation))
     }
 
     pub fn rotate_local_axis(&self, axis: Dir3, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_local_axis(axis, value))
+        self.0.get_mut(|x| x.rotate_local_axis(axis, value))
     }
 
     pub fn rotate_x_by(&self, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_x(value))
+        self.0.get_mut(|x| x.rotate_x(value))
     }
 
     pub fn rotate_y_by(&self, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_y(value))
+        self.0.get_mut(|x| x.rotate_y(value))
     }
 
     pub fn rotate_z_by(&self, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_z(value))
+        self.0.get_mut(|x| x.rotate_z(value))
     }
 
     pub fn rotate_local_x_by(&self, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_local_x(value))
+        self.0.get_mut(|x| x.rotate_local_x(value))
     }
 
     pub fn rotate_local_y_by(&self, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_local_y(value))
+        self.0.get_mut(|x| x.rotate_local_y(value))
     }
 
     pub fn rotate_local_z_by(&self, value: f32) -> AccessResult {
-        self.0.set(|x| x.rotate_local_z(value))
+        self.0.get_mut(|x| x.rotate_local_z(value))
     }
 }

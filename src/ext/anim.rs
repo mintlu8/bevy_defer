@@ -54,35 +54,35 @@ impl AsyncComponentDeref for AnimationTransitions {
 impl AsyncAnimationPlayer {
     /// Start playing an animation, restarting it if necessary.
     pub fn start(&self, clip: AnimationNodeIndex) -> AccessResult {
-        self.0.set(move |player| {
+        self.0.get_mut(move |player| {
             player.start(clip);
         })
     }
 
     /// Start playing an animation.
     pub fn play(&self, clip: AnimationNodeIndex) -> AccessResult {
-        self.0.set(move |player| {
+        self.0.get_mut(move |player| {
             player.play(clip);
         })
     }
 
     /// Start playing an animation and repeat.
     pub fn play_repeat(&self, clip: AnimationNodeIndex) -> AccessResult {
-        self.0.set(move |player| {
+        self.0.get_mut(move |player| {
             player.play(clip).repeat();
         })
     }
 
     /// Stop playing an animation.
     pub fn stop(&self, clip: AnimationNodeIndex) -> AccessResult {
-        self.0.set(move |player| {
+        self.0.get_mut(move |player| {
             player.stop(clip);
         })
     }
 
     /// Stop playing all animations.
     pub fn stop_all(&self) -> AccessResult {
-        self.0.set(move |player| {
+        self.0.get_mut(move |player| {
             player.stop_all();
         })
     }
@@ -98,7 +98,7 @@ impl AsyncAnimationPlayer {
     ) -> AccessResult<impl Future<Output = bool> + 'static> {
         let (send, recv) = async_oneshot::oneshot();
         AsyncWorld.run(|w| {
-            let Some(mut entity) = w.get_entity_mut(self.0.entity) else {
+            let Ok(mut entity) = w.get_entity_mut(self.0.entity) else {
                 return Err(AccessError::EntityNotFound(self.0.entity));
             };
             if let Some(mut reactors) = entity.get_mut::<AnimationReactor>() {
@@ -117,7 +117,7 @@ impl AsyncAnimationTransitions {
         AsyncWorld.run(|w| {
             let mut query =
                 OwnedQueryState::<(&mut AnimationPlayer, &mut AnimationTransitions), ()>::new(w);
-            if let Ok((mut player, mut transitions)) = query.get_mut(self.0.entity()) {
+            if let Ok((mut player, mut transitions)) = query.get_mut(self.0.entity().id()) {
                 transitions.play(&mut player, animation, transition.as_duration());
             }
         })
@@ -156,6 +156,7 @@ pub enum AnimationEvent {
     },
 }
 
+/// Stores the animation player of the last frame,
 #[derive(Component, Clone, Default)]
 pub struct PreviousAnimationPlayer(AnimationPlayer);
 
@@ -167,6 +168,7 @@ impl Deref for PreviousAnimationPlayer {
     }
 }
 
+/// Component that wake futures waiting on animation events.
 #[derive(Component)]
 pub struct AnimationReactor(Vec<(AnimationEvent, async_oneshot::Sender<bool>)>);
 
@@ -194,7 +196,7 @@ impl AnimationReactor {
 impl AsyncAnimationReactor {
     /// Wait for an [`AnimationEvent`] to happen.
     pub async fn react_to(&self, event: AnimationEvent) -> AccessResult<bool> {
-        Ok(self.0.set(|x| x.react_to(event))?.await)
+        Ok(self.0.get_mut(|x| x.react_to(event))?.await)
     }
 }
 

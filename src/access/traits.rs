@@ -12,7 +12,7 @@ use crate::{
     sync::oneshot::{ChannelOut, InterpolateOut, MaybeChannelOut},
     AccessError, AccessResult,
 };
-use bevy::asset::{Asset, AssetId, Assets, Handle};
+use bevy::asset::{Asset, Assets, Handle};
 use bevy::ecs::{
     component::Component,
     entity::Entity,
@@ -23,8 +23,6 @@ use bevy::ecs::{
 use futures::future::{ready, Either};
 use std::any::type_name;
 use std::{borrow::BorrowMut, cell::OnceCell};
-
-use super::async_values::AsyncComponentHandle;
 
 /// Obtain readonly access from a readonly `&World`.
 pub trait AsyncReadonlyAccess: AsyncAccess {
@@ -107,13 +105,19 @@ pub trait AsyncAccess {
     }
 
     /// Run a function on this item and obtain the result.
-    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
+    fn get_mut<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
         let cx = self.as_cx();
         with_world_mut(|w| {
             let mut mut_cx = Self::from_mut_world(w, &cx)?;
             let cx = Self::from_mut_cx(&mut mut_cx, &cx)?;
             Ok(f(cx))
         })
+    }
+
+    /// Run a function on this item and obtain the result.
+    #[deprecated = "Use `get_mut` instead."]
+    fn set<T>(&self, f: impl FnOnce(Self::RefMut<'_>) -> T) -> AccessResult<T> {
+        self.get_mut(f)
     }
 
     /// Run a function if the query is infallible.
@@ -129,24 +133,8 @@ pub trait AsyncAccess {
         })
     }
 
-    /// Obtain an underlying world accessor from an item using [`WorldDeref`].
-    ///
-    /// An example is obtaining `AsyncAsset<T>` from `AsyncComponent<Handle<T>>`.
-    fn chain(&self) -> AccessResult<<Self::Generic as WorldDeref>::Target>
-    where
-        Self: AsyncAccessRef,
-        Self::Generic: WorldDeref,
-    {
-        let cx = self.as_cx();
-        with_world_mut(|w| {
-            let mut mut_cx = Self::from_mut_world(w, &cx)?;
-            let cx = Self::from_mut_cx(&mut mut_cx, &cx)?;
-            Ok(WorldDeref::deref_to(cx))
-        })
-    }
-
     /// Run a function on this item and obtain the result once loaded.
-    fn set_on_load<T: 'static>(
+    fn get_mut_on_load<T: 'static>(
         &self,
         mut f: impl FnMut(Self::RefMut<'_>) -> T + 'static,
     ) -> ChannelOut<AccessResult<T>>
@@ -163,6 +151,18 @@ pub trait AsyncAccess {
             Err(err) if Self::should_continue(err) => None,
             Err(err) => Some(Err(err)),
         })
+    }
+
+    /// Run a function on this item and obtain the result once loaded.
+    #[deprecated = "Use `get_mut_on_load`."]
+    fn set_on_load<T: 'static>(
+        &self,
+        f: impl FnMut(Self::RefMut<'_>) -> T + 'static,
+    ) -> ChannelOut<AccessResult<T>>
+    where
+        Self: AsyncLoad,
+    {
+        self.get_mut_on_load(f)
     }
 
     /// Run a function on this item until it returns `Some`.
@@ -415,7 +415,7 @@ impl<C: Component> AsyncReadonlyAccess for AsyncComponent<C> {
     fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
         world
             .get_entity(*cx)
-            .ok_or(AccessError::EntityNotFound(*cx))?
+            .map_err(|_| AccessError::EntityNotFound(*cx))?
             .get::<C>()
             .ok_or(AccessError::ComponentNotFound {
                 name: type_name::<C>(),
@@ -431,90 +431,10 @@ impl<C: Component> AsyncTake for AsyncComponent<C> {
     fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic> {
         world
             .get_entity_mut(*cx)
-            .ok_or(AccessError::EntityNotFound(*cx))?
+            .map_err(|_| AccessError::EntityNotFound(*cx))?
             .take::<C>()
             .ok_or(AccessError::ComponentNotFound {
                 name: type_name::<C>(),
-            })
-    }
-}
-
-impl<A: Asset> AsyncAccess for AsyncComponentHandle<A> {
-    type Cx = Entity;
-    type RefMutCx<'t> = (&'t mut Assets<A>, AssetId<A>);
-    type Ref<'t> = &'t A;
-    type RefMut<'t> = &'t mut A;
-
-    fn as_cx(&self) -> Self::Cx {
-        self.entity
-    }
-
-    fn from_mut_world<'t>(world: &'t mut World, cx: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>> {
-        let id = world
-            .get::<Handle<A>>(*cx)
-            .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Handle<A>>(),
-            })?
-            .id();
-        let assets = world
-            .get_resource_mut::<Assets<A>>()
-            .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>(),
-            })
-            .map(|x| x.into_inner())?;
-        Ok((assets, id))
-    }
-
-    fn from_mut_cx<'t>(
-        (assets, id): &'t mut Self::RefMutCx<'_>,
-        _: &Self::Cx,
-    ) -> AccessResult<Self::RefMut<'t>> {
-        assets.get_mut(*id).ok_or(AccessError::AssetNotFound {
-            name: type_name::<A>(),
-        })
-    }
-}
-
-impl<A: Asset> AsyncReadonlyAccess for AsyncComponentHandle<A> {
-    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
-        let id = world
-            .get::<Handle<A>>(*cx)
-            .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Handle<A>>(),
-            })?
-            .id();
-        world
-            .get_resource::<Assets<A>>()
-            .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>(),
-            })?
-            .get(id)
-            .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>(),
-            })
-    }
-}
-
-impl<A: Asset> AsyncAccessRef for AsyncComponentHandle<A> {
-    type Generic = A;
-}
-
-impl<A: Asset> AsyncTake for AsyncComponentHandle<A> {
-    fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic> {
-        let id = world
-            .get::<Handle<A>>(*cx)
-            .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Handle<A>>(),
-            })?
-            .id();
-        world
-            .get_resource_mut::<Assets<A>>()
-            .ok_or(AccessError::ResourceNotFound {
-                name: type_name::<Assets<A>>(),
-            })?
-            .remove(id)
-            .ok_or(AccessError::AssetNotFound {
-                name: type_name::<A>(),
             })
     }
 }
@@ -777,19 +697,3 @@ impl<T: QueryData, F: QueryFilter> InfallibleQuery for AsyncQuery<T, F> {}
 impl<T: Resource + InfallibleQuery> InfallibleQuery for AsyncResource<T> {}
 
 impl<T: InfallibleQuery + 'static> InfallibleQuery for AsyncNonSend<T> {}
-
-/// Signifies an item points to another item in the [`World`].
-pub trait WorldDeref {
-    type Target: 'static;
-
-    /// Returns a world accessor like [`AsyncAsset`] or [`AsyncComponent`].
-    fn deref_to(&self) -> Self::Target;
-}
-
-impl<T: Asset> WorldDeref for Handle<T> {
-    type Target = AsyncAsset<T>;
-
-    fn deref_to(&self) -> Self::Target {
-        AsyncAsset(self.clone_weak())
-    }
-}
