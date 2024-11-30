@@ -1,4 +1,4 @@
-use std::ops::DerefMut;
+use crate::AsyncWorld;
 use bevy::{
     asset::{Asset, AssetPath, Handle},
     ecs::component::{ComponentHooks, StorageType},
@@ -6,7 +6,7 @@ use bevy::{
 };
 pub use default_constructor;
 pub use default_constructor::InferInto;
-use crate::AsyncWorld;
+use std::ops::DerefMut;
 
 /// Add an asset from its type, returns its [`Handle`].
 pub fn add<T: Asset>(item: T) -> Handle<T> {
@@ -62,6 +62,7 @@ mod test {
                 color: Srgba::RED,
             },
             Mesh2d(@load "Mesh.gltf#Scene0"),
-        ).add_child(child);
+        )
+        .add_child(child);
     }
 }
