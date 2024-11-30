@@ -91,7 +91,7 @@ impl<M: bevy::pbr::Material> AsAssetId for bevy::pbr::MeshMaterial3d<M> {
 
 #[cfg(feature = "bevy_sprite")]
 impl AsAssetId for bevy::sprite::Sprite {
-    type Asset = bevy::prelude::Image;
+    type Asset = bevy_image::Image;
 
     fn as_asset_id(&self) -> AssetId<Self::Asset> {
         self.image.id()

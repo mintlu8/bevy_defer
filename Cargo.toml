@@ -28,8 +28,8 @@ default = ["bevy_animation", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_t
 derive = ["bevy_defer_derive"]
 bevy_animation = ["bevy/bevy_animation"]
 bevy_scene = ["bevy/bevy_scene"]
-bevy_sprite = ["bevy/bevy_sprite"]
-bevy_render = ["bevy/bevy_render"]
+bevy_sprite = ["bevy/bevy_sprite", "bevy_image"]
+bevy_render = ["bevy/bevy_render", "bevy_image"]
 bevy_text = ["bevy/bevy_text"]
 bevy_picking = ["bevy/bevy_picking"]
 bevy_pbr = ["bevy/bevy_pbr"]
@@ -54,6 +54,7 @@ event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
 bevy = { version = "0.15.0", default-features = false, features = ["bevy_state", "bevy_asset"] }
+bevy_image = { version = "0.15.0", default-features = false, optional = true }
 pretty-type-name = "1.0.1"
 flume = { version = "0.11.1", default-features = false, features = ["async", "futures-core"] }
 default-constructor = { version = "0.5.1", optional = true }
