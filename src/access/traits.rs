@@ -20,9 +20,6 @@ use bevy::ecs::{
     system::Resource,
     world::World,
 };
-use bevy::pbr::{Material, MeshMaterial3d};
-use bevy::prelude::{Mesh, Mesh3d};
-use bevy::sprite::{Material2d, MeshMaterial2d};
 use futures::future::{ready, Either};
 use std::any::type_name;
 use std::{borrow::BorrowMut, cell::OnceCell};
@@ -133,22 +130,6 @@ pub trait AsyncAccess {
             let mut mut_cx = Self::from_mut_world(w, &cx).expect("Should be infallible");
             let cx = Self::from_mut_cx(&mut mut_cx, &cx).expect("Should be infallible");
             f(cx)
-        })
-    }
-
-    /// Obtain an underlying world accessor from an item using [`WorldDeref`].
-    ///
-    /// An example is obtaining `AsyncAsset<T>` from `AsyncComponent<Handle<T>>`.
-    fn chain(&self) -> AccessResult<<Self::Generic as WorldDeref>::Target>
-    where
-        Self: AsyncAccessRef,
-        Self::Generic: WorldDeref,
-    {
-        let cx = self.as_cx();
-        with_world_mut(|w| {
-            let mut mut_cx = Self::from_mut_world(w, &cx)?;
-            let cx = Self::from_mut_cx(&mut mut_cx, &cx)?;
-            Ok(WorldDeref::deref_to(cx))
         })
     }
 
@@ -716,43 +697,3 @@ impl<T: QueryData, F: QueryFilter> InfallibleQuery for AsyncQuery<T, F> {}
 impl<T: Resource + InfallibleQuery> InfallibleQuery for AsyncResource<T> {}
 
 impl<T: InfallibleQuery + 'static> InfallibleQuery for AsyncNonSend<T> {}
-
-/// Signifies an item points to another item in the [`World`].
-pub trait WorldDeref {
-    type Target: 'static;
-
-    /// Returns a world accessor like [`AsyncAsset`] or [`struct@AsyncComponent`].
-    fn deref_to(&self) -> Self::Target;
-}
-
-impl<T: Asset> WorldDeref for Handle<T> {
-    type Target = AsyncAsset<T>;
-
-    fn deref_to(&self) -> Self::Target {
-        AsyncAsset(self.clone_weak())
-    }
-}
-
-impl WorldDeref for Mesh3d {
-    type Target = AsyncAsset<Mesh>;
-
-    fn deref_to(&self) -> Self::Target {
-        AsyncAsset(self.0.clone_weak())
-    }
-}
-
-impl<T: Material2d> WorldDeref for MeshMaterial2d<T> {
-    type Target = AsyncAsset<T>;
-
-    fn deref_to(&self) -> Self::Target {
-        AsyncAsset(self.0.clone_weak())
-    }
-}
-
-impl<T: Material> WorldDeref for MeshMaterial3d<T> {
-    type Target = AsyncAsset<T>;
-
-    fn deref_to(&self) -> Self::Target {
-        AsyncAsset(self.0.clone_weak())
-    }
-}

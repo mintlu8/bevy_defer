@@ -70,7 +70,7 @@ fn setup(mut commands: Commands) {
                     },
                     Button,
                     BorderColor(Color::BLACK),
-                    UiImage {
+                    ImageNode {
                         color: NORMAL_BUTTON,
                         ..Default::default()
                     },
