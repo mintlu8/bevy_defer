@@ -101,7 +101,7 @@ To set some data:
 
 ```rust, ignore
 let richard = AsyncWorld.entity(richard_entity);
-richard.component::<HP>().set(|hp| hp.set(500))?;
+richard.component::<HP>().get_mut(|hp| hp.set(500))?;
 ```
 
 This works for all the bevy things you expect, `Resource`, `Query`, etc.
