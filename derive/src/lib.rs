@@ -4,8 +4,8 @@ use proc_macro_crate::{crate_name, FoundCrate};
 use proc_macro_error::{abort, proc_macro_error};
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, parse_quote, spanned::Spanned, token::RArrow, DeriveInput, FnArg, Ident,
-    ItemImpl, Pat, ReturnType, TraitItemFn, Type,
+    parse_macro_input, parse_quote, spanned::Spanned, token::RArrow, DeriveInput, FnArg,
+    GenericParam, Ident, ItemImpl, Pat, ReturnType, TraitItemFn, Type,
 };
 
 fn import_crate() -> TokenStream {
@@ -276,21 +276,24 @@ pub fn async_dyn(_: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
     for item in &mut func.sig.inputs {
         match item {
             FnArg::Receiver(receiver) => {
-                if let Some(r) = &mut receiver.reference {
-                    if r.1.is_none() {
-                        capture_life_time = true;
-                        break;
-                    }
+                if receiver.reference.is_some() {
+                    capture_life_time = true;
+                    break;
                 }
             }
             FnArg::Typed(pat_type) => {
-                if let Type::Reference(r) = pat_type.ty.as_mut() {
-                    if r.lifetime.is_none() {
-                        capture_life_time = true;
-                        break;
-                    }
+                if let Type::Reference(_) = pat_type.ty.as_mut() {
+                    capture_life_time = true;
+                    break;
                 }
             }
+        }
+    }
+
+    for param in &func.sig.generics.params {
+        if let GenericParam::Lifetime(_) = param {
+            capture_life_time = true;
+            break;
         }
     }
 
