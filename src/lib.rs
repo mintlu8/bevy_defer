@@ -86,7 +86,7 @@ use queue::run_fixed_queue;
 use signals::{SignalId, Signals};
 
 #[cfg(feature = "derive")]
-pub use bevy_defer_derive::async_access;
+pub use bevy_defer_derive::{async_access, async_dyn};
 
 /// Result type of spawned tasks.
 pub type AccessResult<T = ()> = Result<T, AccessError>;

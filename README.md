@@ -16,7 +16,10 @@ which is pretty powerful!
 * So who needs `bevy_defer`?
 
 `bevy_defer` is not for every use case as it is somewhat opposite to `ecs`s
-design goal, if you have a game that might not want ecs only, `bevy_defer`
+design goal. If your game is a lot of simple conditionals,
+`ecs` likely suits your need just fine.
+But if you have a game that does a lot of sequential actions or use a lot of
+complicated state machines, `bevy_defer`
 might help you make your life easier.
 
 ## Common use cases

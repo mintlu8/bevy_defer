@@ -1,8 +1,12 @@
 use proc_macro::TokenStream as TokenStream1;
 use proc_macro2::TokenStream;
 use proc_macro_crate::{crate_name, FoundCrate};
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, token::RArrow, DeriveInput, FnArg, Ident, ItemImpl, Pat, ReturnType};
+use proc_macro_error::{abort, proc_macro_error};
+use quote::{format_ident, quote};
+use syn::{
+    parse_macro_input, parse_quote, spanned::Spanned, token::RArrow, DeriveInput, FnArg, Ident,
+    ItemImpl, Pat, ReturnType, TraitItemFn, Type,
+};
 
 fn import_crate() -> TokenStream {
     let found_crate = crate_name("bevy_defer").expect("bevy_defer is not present in `Cargo.toml`");
@@ -13,6 +17,16 @@ fn import_crate() -> TokenStream {
             let ident = format_ident!("{}", name);
             quote!( #ident )
         }
+    }
+}
+
+fn type_to_ident(ty: &Type) -> Ident {
+    match ty {
+        Type::Path(type_path) => match type_path.path.get_ident() {
+            Some(ident) => ident.clone(),
+            None => abort!(ty.span(), "Expected a single ident."),
+        },
+        _ => abort!(ty.span(), "Expected a single ident."),
     }
 }
 
@@ -52,39 +66,24 @@ fn import_crate() -> TokenStream {
 ///     Useful on resources that should always be available.
 #[proc_macro_attribute]
 pub fn async_access(args: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
-    async_access2(args.into(), tokens.into()).into()
-}
-
-fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
-    let unwraps = match syn::parse2::<Ident>(args) {
+    let unwraps = match syn::parse::<Ident>(args) {
         Ok(ident) => ident == format_ident!("must_exist"),
         Err(_) => false,
     };
-    let Ok(impl_block) = syn::parse2::<ItemImpl>(tokens.clone()) else {
-        return quote! {#tokens compile_error!("Expected impl block.")};
-    };
-
+    let original: TokenStream = tokens.clone().into();
+    let impl_block = parse_macro_input!(tokens as ItemImpl);
     let bevy_defer = import_crate();
-    let ty = match syn::parse2::<Ident>(impl_block.self_ty.into_token_stream()) {
-        Ok(type_name) => type_name,
-        Err(_) => return quote! {#tokens compile_error!("Expected type name ident.")},
-    };
-
+    let ty = type_to_ident(&impl_block.self_ty);
     let async_ty = format_ident!("Async{ty}");
 
     let (impl_generics, ty_generics, where_clause) = &impl_block.generics.split_for_impl();
 
     let mut functions = Vec::new();
 
-    macro_rules! parse_error {
-        () => {
-            return quote! {#tokens compile_error!("Only supports fn with &self or &mut self parameters.")}
-        };
-    }
     for item in &impl_block.items {
         let mut item_fn = match item {
             syn::ImplItem::Fn(f) => f.clone(),
-            _ => parse_error!(),
+            _ => abort!(item.span(), "Expected function."),
         };
 
         let attrs = &item_fn.attrs;
@@ -93,13 +92,13 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
         let is_mut = match item_fn.sig.inputs.first_mut() {
             Some(FnArg::Receiver(receiver)) => {
                 if receiver.reference.is_none() {
-                    parse_error!();
+                    abort!(receiver.span(), "Expected &self or &mut self.");
                 }
                 let result = receiver.mutability.is_some();
                 *receiver = parse_quote!(&self);
                 result
             }
-            _ => parse_error!(),
+            _ => abort!(item_fn.sig.inputs.span(), "Expected &self or &mut self."),
         };
         let method = if is_mut {
             quote! {get_mut}
@@ -132,7 +131,7 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
             })
             .collect::<Result<Vec<_>, _>>()
         else {
-            parse_error!()
+            abort!(item_fn.sig.inputs.span(), "Error parsing arguments.");
         };
 
         for pat in &mut args {
@@ -150,7 +149,7 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
     }
 
     quote! {
-        #tokens
+        #original
         #[allow(unused_mut)]
         const _: () = {
             impl #impl_generics #async_ty #ty_generics #where_clause {
@@ -158,6 +157,7 @@ fn async_access2(args: TokenStream, tokens: TokenStream) -> TokenStream {
             }
         };
     }
+    .into()
 }
 
 /// Generate type `Async{TypeName}` as a `AsyncComponentDeref` implementation.
@@ -245,4 +245,91 @@ fn de_mutify(pat: &mut Pat) {
         // Might be incomplete? Make an issue if needed.
         _ => (),
     }
+}
+
+/// Turn an `async` function into a dyn compatible `Pin<Box<dyn Future>>`.
+///
+/// This is similar to `async-trait` but more tailored to `bevy_defer`'s game development needs.
+///
+/// # Key Differences
+///
+/// * Annotate functions instead of traits.
+/// * Resulting future is by default `?Send`.
+///
+/// # Static-ness
+///
+/// In order for a resulting future to be static, the `self` receiver must be
+/// `self: Rc<Self>` or `self: Arc<Self>`. Additionally no other lifetime
+/// must be captured.
+#[proc_macro_error]
+#[proc_macro_attribute]
+pub fn async_dyn(_: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
+    let mut func = parse_macro_input!(tokens as TraitItemFn);
+
+    let mut capture_life_time = false;
+
+    if func.sig.asyncness.is_none() {
+        abort!(func.sig.fn_token.span, "Expected async function.");
+    }
+    func.sig.asyncness = None;
+
+    for item in &mut func.sig.inputs {
+        match item {
+            FnArg::Receiver(receiver) => {
+                if let Some(r) = &mut receiver.reference {
+                    if r.1.is_none() {
+                        capture_life_time = true;
+                        break;
+                    }
+                }
+            }
+            FnArg::Typed(pat_type) => {
+                if let Type::Reference(r) = pat_type.ty.as_mut() {
+                    if r.lifetime.is_none() {
+                        capture_life_time = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let lt = if capture_life_time {
+        quote! {+ '_}
+    } else {
+        quote! {}
+    };
+
+    match func.sig.output {
+        ReturnType::Default => {
+            func.sig.output = parse_quote!(
+                -> ::core::pin::Pin<::std::boxed::Box<dyn ::core::future::Future<
+                    Output = ()
+                > #lt>>
+            );
+            if let Some(body) = func.default {
+                func.default = Some(parse_quote!({
+                    ::std::boxed::Box::pin(async move {#body})
+                }))
+            }
+        }
+        ReturnType::Type(_, out) => {
+            func.sig.output = parse_quote!(
+                -> ::core::pin::Pin<::std::boxed::Box<dyn ::core::future::Future<
+                    Output = #out
+                > #lt>>
+            );
+            if let Some(body) = func.default {
+                func.default = Some(parse_quote!({
+                    ::std::boxed::Box::pin(async move {
+                        let _out: #out = #body;
+                        #[allow(unreachable_code)]
+                        _out
+                    })
+                }))
+            }
+        }
+    }
+
+    quote! {#func}.into()
 }
