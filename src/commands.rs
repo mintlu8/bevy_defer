@@ -15,11 +15,9 @@ use bevy::tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
 use futures::stream::FusedStream;
-use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::time::Duration;
 use std::{
-    any::{Any, TypeId},
     future::{poll_fn, Future},
     task::Poll,
 };
@@ -205,11 +203,14 @@ impl AsyncWorld {
     /// AsyncWorld.run_cached_system(|time: Res<Time>| println!("{}", time.delta_secs())).unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
+    pub fn run_system_cached<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
         &self,
         system: S,
     ) -> AccessResult<O> {
-        self.run_cached_system_with_input(system, ())
+        with_world_mut(move |world: &mut World| {
+            world.run_system_cached(system)
+                .map_err(|_| AccessError::SystemIdNotFound)
+        })
     }
 
     /// Run a system with input that will be stored and reused upon repeated usage.
@@ -226,7 +227,7 @@ impl AsyncWorld {
     /// AsyncWorld.run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system_with_input<
+    pub fn run_system_cached_with_input<
         I: SystemInput + 'static,
         O: 'static,
         M,
@@ -236,31 +237,9 @@ impl AsyncWorld {
         system: S,
         input: I::Inner<'_>,
     ) -> AccessResult<O> {
-        #[derive(Debug, Resource, Default)]
-        struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
-
         with_world_mut(move |world: &mut World| {
-            let res = world.get_resource_or_insert_with::<SystemCache>(Default::default);
-            let type_id = TypeId::of::<S>();
-            if let Some(id) = res
-                .0
-                .get(&type_id)
-                .and_then(|x| x.downcast_ref::<SystemId<I, O>>())
-                .copied()
-            {
-                world
-                    .run_system_with_input(id, input)
-                    .map_err(|_| AccessError::SystemIdNotFound)
-            } else {
-                let id = world.register_system(system);
-                world
-                    .resource_mut::<SystemCache>()
-                    .0
-                    .insert(type_id, Box::new(id));
-                world
-                    .run_system_with_input(id, input)
-                    .map_err(|_| AccessError::SystemIdNotFound)
-            }
+            world.run_system_cached_with(system, input)
+                .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
 
