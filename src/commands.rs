@@ -208,7 +208,8 @@ impl AsyncWorld {
         system: S,
     ) -> AccessResult<O> {
         with_world_mut(move |world: &mut World| {
-            world.run_system_cached(system)
+            world
+                .run_system_cached(system)
                 .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
@@ -238,7 +239,8 @@ impl AsyncWorld {
         input: I::Inner<'_>,
     ) -> AccessResult<O> {
         with_world_mut(move |world: &mut World| {
-            world.run_system_cached_with(system, input)
+            world
+                .run_system_cached_with(system, input)
                 .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
