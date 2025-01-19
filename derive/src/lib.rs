@@ -206,10 +206,10 @@ fn async_access_deref(tokens: TokenStream, ty: Ident, ty_deref: Ident) -> TokenS
     quote! {
         #[derive(Debug, #bevy_defer::RefCast)]
         #[repr(transparent)]
-        #vis struct #async_name #generics (pub #bevy_defer::access::#ty<#name>);
+        #vis struct #async_name #generics (pub #bevy_defer::access::#ty<#name #ty_generics>);
 
         impl #impl_generics #bevy_defer::access::deref::#ty_deref for #name #ty_generics #where_clause{
-            type Target = #async_name;
+            type Target = #async_name #ty_generics;
 
             fn async_deref(this: &#bevy_defer::access::#ty<Self>) -> &Self::Target {
                 use #bevy_defer::RefCast;
