@@ -176,7 +176,8 @@ impl AsyncWorld {
     /// immediate world access.
     ///
     /// The function is guaranteed to return immediately when awaited.
-    /// The result might be a task that runs concurrently so it must be awaited again.
+    /// The result might be a task that runs concurrently so it must be awaited again,
+    /// or call `detach` to make it run independently.
     ///
     /// # Example
     ///
@@ -207,7 +208,7 @@ impl AsyncWorld {
     pub async fn spawn_polled<T: 'static>(
         &self,
         fut: impl Future<Output = T> + 'static,
-    ) -> impl Future<Output = T> + 'static {
+    ) -> ReadyOrTask<T> {
         PollOnceThenSpawn(Box::pin(fut)).await
     }
 }
@@ -219,6 +220,15 @@ pub struct PollOnceThenSpawn<T: 'static>(Pin<Box<dyn Future<Output = T>>>);
 pub enum ReadyOrTask<T: 'static> {
     Ready(Option<T>),
     Spawned(Task<T>),
+}
+
+impl<T: 'static> ReadyOrTask<T> {
+    pub fn detach(self) {
+        match self {
+            ReadyOrTask::Ready(_) => (),
+            ReadyOrTask::Spawned(task) => task.detach(),
+        }
+    }
 }
 
 impl<T: 'static> Unpin for ReadyOrTask<T> {}

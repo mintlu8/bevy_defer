@@ -78,7 +78,7 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     /// Run a function on the iterator.
-    pub fn for_each(&self, mut f: impl FnMut(T::Item<'_>) + 'static) {
+    pub fn for_each(&self, mut f: impl FnMut(T::Item<'_>)) {
         with_world_mut(move |w| {
             let mut state = OwnedQueryState::<T, F>::new(w);
             for item in state.iter_mut() {
