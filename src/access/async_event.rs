@@ -130,10 +130,10 @@ pub fn react_to_event<E: Event + Clone>(
 ) {
     let buffers = cached.get_or_init(|| reactors.get_event::<E>());
     buffers.tick.fetch_add(1, Ordering::AcqRel);
+    let mut lock = buffers.buffer.write().unwrap();
+    lock.clear();
     if !reader.is_empty() {
         buffers.notify.notify(usize::MAX);
-        let mut lock = buffers.buffer.write().unwrap();
-        lock.drain(..);
         lock.extend(reader.read().cloned());
     };
 }
