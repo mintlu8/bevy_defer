@@ -19,6 +19,7 @@ pub mod cancellation;
 mod commands;
 mod entity_commands;
 mod errors;
+mod event;
 mod executor;
 pub mod ext;
 mod fetch;
@@ -26,10 +27,9 @@ mod queue;
 pub mod reactors;
 pub mod signals;
 mod spawn;
-pub mod sync;
+pub(crate) mod sync;
 pub mod tween;
 pub use access::async_asset::AssetSet;
-pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
@@ -40,6 +40,7 @@ use bevy::ecs::{
 };
 use bevy::reflect::std_traits::ReflectDefault;
 pub use errors::AccessError;
+pub use event::EventChannel;
 pub use executor::{in_async_context, AsyncExecutor};
 #[doc(hidden)]
 pub use fetch::{fetch, fetch0, fetch1, fetch2, FetchEntity, FetchOne, FetchWorld};
@@ -54,8 +55,8 @@ pub mod systems {
     //! Systems in `bevy_defer`.
     //!
     //! Systems named `react_to_*` must be added manually.
-    pub use crate::access::async_event::react_to_event;
     pub use crate::async_systems::push_async_systems;
+    pub use crate::event::react_to_event;
     pub use crate::executor::run_async_executor;
     pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
     pub use crate::reactors::{react_to_component_change, react_to_state};
@@ -331,6 +332,7 @@ pub trait AppReactorExtension {
 
 impl AppReactorExtension for App {
     fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self {
+        self.init_resource::<EventChannel<E>>();
         self.add_systems(BeforeAsyncExecutor, systems::react_to_event::<E>);
         self
     }

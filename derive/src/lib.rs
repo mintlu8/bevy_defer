@@ -86,6 +86,8 @@ pub fn async_access(args: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
             _ => abort!(item.span(), "Expected function."),
         };
 
+        item_fn.sig.constness = None;
+
         let attrs = &item_fn.attrs;
         let vis = &item_fn.vis;
         let name = &item_fn.sig.ident;

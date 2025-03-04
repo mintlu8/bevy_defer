@@ -6,6 +6,7 @@ use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tw
 use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
 use bevy::app::AppExit;
+use bevy::ecs::event::{Event, EventId};
 use bevy::ecs::system::{IntoSystem, SystemId};
 use bevy::ecs::world::{Command, CommandQueue, FromWorld, Mut};
 use bevy::ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
@@ -200,7 +201,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_cached_system(|time: Res<Time>| println!("{}", time.delta_secs())).unwrap();
+    /// AsyncWorld.run_system_cached(|time: Res<Time>| println!("{}", time.delta_secs())).unwrap();
     /// # });
     /// ```
     pub fn run_system_cached<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
@@ -225,7 +226,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
+    /// AsyncWorld.run_system_cached_with_input(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
     /// # });
     /// ```
     pub fn run_system_cached_with_input<
@@ -354,6 +355,17 @@ impl AsyncWorld {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();
         signal.into_stream()
+    }
+
+    /// Send an [`Event`].
+    pub fn send_event<E: Event>(&self, event: E) -> AccessResult<EventId<E>> {
+        with_world_mut(move |world: &mut World| {
+            world
+                .send_event(event)
+                .ok_or(AccessError::EventNotRegistered {
+                    name: type_name::<E>(),
+                })
+        })
     }
 
     /// Perform a blocking operation on [`AsyncComputeTaskPool`].

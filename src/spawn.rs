@@ -170,7 +170,7 @@ impl AsyncWorld {
 
     /// Spawn a `bevy_defer` compatible future.
     ///
-    /// Unlike `spawn_task`, this ensures the async function segment before the first `.await` is ran
+    /// Unlike `spawn_task`, this ensures the async function segment before the first pending `.await` is ran
     /// immediately when this function is awaited. This can be useful if the future is generated
     /// inside a world access scope, but wants to context switch into a `bevy_defer` scope for
     /// immediate world access.
