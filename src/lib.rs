@@ -246,6 +246,9 @@ pub trait AsyncExtension {
         fut: impl Future<Output = AccessResult> + 'static,
     ) -> AccessResult;
 
+    /// Initialize [`EventChannel<E>`].
+    fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self;
+
     /// Obtain a named signal.
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
 
@@ -280,6 +283,11 @@ impl AsyncExtension for World {
         Ok(())
     }
 
+    fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self {
+        self.init_resource::<EventChannel<E>>();
+        self
+    }
+
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
@@ -305,6 +313,11 @@ impl AsyncExtension for App {
         self.world_mut().spawn_state_scoped(state, fut)
     }
 
+    fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self {
+        self.world_mut().register_oneshot_event::<E>();
+        self
+    }
+
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
         self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
@@ -320,7 +333,9 @@ impl AsyncExtension for App {
 
 /// Extension for [`App`] to add reactors.
 pub trait AppReactorExtension {
-    /// React to changes in a [`Event`].
+    /// React to changes in an [`Event`] by duplicating events to [`EventChannel<E>`].
+    ///
+    /// Initializes the resource [`EventChannel<E>`].
     fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self;
 
     /// React to changes in a [`States`].
@@ -332,7 +347,7 @@ pub trait AppReactorExtension {
 
 impl AppReactorExtension for App {
     fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self {
-        self.init_resource::<EventChannel<E>>();
+        self.register_oneshot_event::<E>();
         self.add_systems(BeforeAsyncExecutor, systems::react_to_event::<E>);
         self
     }

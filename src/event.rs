@@ -7,6 +7,16 @@ use event_listener::Event;
 use std::collections::VecDeque;
 
 /// An event queue that functions as a Mpmc channel.
+///
+/// Unlike bevy's events, each event can be read at most once, which is
+/// more consistent for the async use case.
+///
+/// Items can be pushed and popped synchronously in systems via [`ResMut<EventChannel<E>>`]
+/// or asynchronously in a `bevy_defer` future.
+/// Use [`AsyncWorld::send_oneshot_event`] to send and
+/// [`AsyncWorld::next_event`] to read as a stream.
+///
+/// Add [`react_to_event`] to react to actual bevy events.
 #[derive(Debug, Resource)]
 pub struct EventChannel<T: Send + Sync> {
     queue: VecDeque<T>,
