@@ -139,10 +139,7 @@ pub fn events() {
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = AsyncWorld;
-        assert_eq!(
-            world.next_event::<AliceChat>().await.unwrap().0,
-            "Hello, Alice."
-        );
+        assert_eq!(world.next_event::<AliceChat>().await.0, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(BobChat("Hello, Bob.".to_owned()))?;
         ALICE.store(true, Ordering::Relaxed);
@@ -152,10 +149,7 @@ pub fn events() {
         let world = AsyncWorld;
         world.sleep(Duration::from_millis(16)).await;
         world.send_event(AliceChat("Hello, Alice.".to_owned()))?;
-        assert_eq!(
-            world.next_event::<BobChat>().await.unwrap().0,
-            "Hello, Bob."
-        );
+        assert_eq!(world.next_event::<BobChat>().await.0, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
     });
@@ -182,17 +176,17 @@ pub fn stream() {
     app.add_plugins(AsyncPlugin::default_settings());
     app.react_to_event::<Chat>();
     app.spawn_task(async {
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('r')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('u')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('s')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('t')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat(' ')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('n')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat(' ')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('b')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('e')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('v')));
-        assert_eq!(AsyncWorld.next_event::<Chat>().await, Ok(Chat('y')));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('r'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('u'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('s'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('t'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat(' '));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('n'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat(' '));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('b'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('e'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('v'));
+        assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('y'));
         DONE.store(true, Ordering::Release);
         AsyncWorld.quit();
         Ok(())
@@ -223,7 +217,8 @@ pub fn event_stream() {
     app.react_to_event::<IntegerEvent>();
     app.spawn_task(async {
         let mut i = 0;
-        while let Ok(val) = AsyncWorld.next_event::<IntegerEvent>().await {
+        loop {
+            let val = AsyncWorld.next_event::<IntegerEvent>().await;
             assert_eq!(val.0, i);
             i += 1;
             if i > 100 {

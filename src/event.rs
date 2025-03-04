@@ -59,7 +59,31 @@ impl<T: Send + Sync> Extend<T> for EventChannel<T> {
 
 impl AsyncWorld {
     /// Obtain and remove the next event from a [`EventChannel`].
-    pub async fn next_event<E: Clone + Send + Sync + 'static>(&self) -> AccessResult<E> {
+    ///
+    /// # Panics
+    ///
+    /// If the event is not registered.
+    /// Call `react_to_event` if that happens.
+    pub async fn next_event<E: Clone + Send + Sync + 'static>(&self) -> E {
+        loop {
+            let result = AsyncWorld
+                .resource::<EventChannel<E>>()
+                .get_mut(|x| x.take())
+                .expect("Event not registered");
+            if let Some(result) = result {
+                return result;
+            } else {
+                AsyncWorld
+                    .resource::<EventChannel<E>>()
+                    .get(|x| x.event.listen())
+                    .expect("Event not registered")
+                    .await;
+            }
+        }
+    }
+
+    /// Obtain and remove the next event from a [`EventChannel`].
+    pub async fn get_next_event<E: Clone + Send + Sync + 'static>(&self) -> AccessResult<E> {
         loop {
             let result = AsyncWorld
                 .resource::<EventChannel<E>>()

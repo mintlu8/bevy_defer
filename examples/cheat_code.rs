@@ -30,7 +30,8 @@ fn main() {
                 KeyCode::KeyA,
             ];
             let mut idx = 0;
-            while let Ok(item) = AsyncWorld.next_event::<KeyboardInput>().await {
+            loop {
+                let item = AsyncWorld.next_event::<KeyboardInput>().await;
                 if phrase[idx] == item.key_code {
                     idx += 1;
                     if idx >= phrase.len() {
