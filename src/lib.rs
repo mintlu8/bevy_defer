@@ -6,11 +6,13 @@ use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::intern::Interned;
+use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::ecs::world::Command;
 use bevy::prelude::EntityCommands;
 use bevy::state::prelude::State;
 use bevy::state::state::States;
 use bevy::time::TimeSystem;
+use std::fmt::Formatter;
 use std::{any::type_name, pin::Pin};
 
 pub mod access;
@@ -23,7 +25,9 @@ mod event;
 mod executor;
 pub mod ext;
 mod fetch;
+mod inspect;
 mod queue;
+pub use inspect::{EntityInspectors, InspectEntity};
 pub mod reactors;
 pub mod signals;
 mod spawn;
@@ -108,6 +112,7 @@ impl Plugin for CoreAsyncPlugin {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
             .init_resource::<Reactors>()
+            .init_resource::<EntityInspectors>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
             .init_schedule(BeforeAsyncExecutor)
@@ -249,6 +254,34 @@ pub trait AsyncExtension {
     /// Initialize [`EventChannel<E>`].
     fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self;
 
+    /// Registers a method that prints an entity in `bevy_defer`.
+    ///
+    /// This method will be used for printing [`AccessError`].
+    /// [`InspectEntity`] can be used for custom debug printing
+    ///  in `bevy_defer`'s scope.
+    ///
+    /// Only the first successful formatting function will be called according to their priorities.
+    /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
+    fn register_inspect_entity_by_component<C: Component>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Entity, &C, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self;
+
+    /// Registers a method that prints an entity in `bevy_defer`.
+    ///
+    /// This method will be used for printing [`AccessError`].
+    /// [`InspectEntity`] can be used for custom debug printing
+    ///  in `bevy_defer`'s scope.
+    ///
+    /// Only the first successful formatting function will be called according to their priorities.
+    /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
+    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self;
+
     /// Obtain a named signal.
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
 
@@ -283,6 +316,25 @@ impl AsyncExtension for World {
         Ok(())
     }
 
+    fn register_inspect_entity_by_component<C: Component>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Entity, &C, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.resource_mut::<EntityInspectors>().push(priority, f);
+        self
+    }
+
+    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.resource_mut::<EntityInspectors>()
+            .push_query::<Q, F>(priority, f);
+        self
+    }
+
     fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self {
         self.init_resource::<EventChannel<E>>();
         self
@@ -315,6 +367,26 @@ impl AsyncExtension for App {
 
     fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self {
         self.world_mut().register_oneshot_event::<E>();
+        self
+    }
+
+    fn register_inspect_entity_by_component<C: Component>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Entity, &C, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.world_mut()
+            .register_inspect_entity_by_component(priority, f);
+        self
+    }
+
+    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.world_mut()
+            .register_inspect_entity_by_query::<Q, F>(priority, f);
         self
     }
 

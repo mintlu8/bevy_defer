@@ -1,8 +1,7 @@
+use crate::InspectEntity;
 use bevy::ecs::entity::Entity;
 use bevy::log::error;
 use std::any::type_name;
-
-use crate::access::AsyncEntityMut;
 
 #[cfg(feature = "full_types")]
 fn fmt(s: &str) -> &str {
@@ -24,7 +23,7 @@ fn fmt(s: &str) -> String {
 pub enum AccessError {
     #[error("async channel closed")]
     ChannelClosed,
-    #[error("entity {} not found", AsyncEntityMut(*.0))]
+    #[error("entity {} not found", InspectEntity(*.0))]
     EntityNotFound(Entity),
     #[error("single entity not found in query {}", fmt(query))]
     NoEntityFound { query: &'static str },

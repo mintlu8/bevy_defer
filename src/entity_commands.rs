@@ -5,7 +5,7 @@ use crate::{
     signals::{SignalId, Signals},
     AccessError, AccessResult,
 };
-use crate::{AsyncAccess, OwnedQueryState};
+use crate::{AsyncAccess, InspectEntity, OwnedQueryState};
 use async_shared::Value;
 use bevy::core::Name;
 use bevy::ecs::world::Command;
@@ -279,7 +279,7 @@ impl AsyncEntityMut {
 
     /// Get [`Name`] and index of the entity.
     pub fn debug_string(&self) -> String {
-        self.to_string()
+        InspectEntity(self.0).to_string()
     }
 
     /// Borrow a sender from an entity with shared read tick.
