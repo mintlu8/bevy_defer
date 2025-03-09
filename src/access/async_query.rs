@@ -1,6 +1,4 @@
-use crate::reactors::Reactors;
-use crate::{async_systems::AsyncEntityParam, AccessError};
-use crate::{async_systems::AsyncWorldParam, executor::with_world_mut, signals::Signals};
+use crate::{executor::with_world_mut, AccessError};
 use bevy::ecs::query::QuerySingleError;
 #[allow(unused)]
 use bevy::ecs::system::Query;
@@ -84,33 +82,6 @@ impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
             for item in state.iter_mut() {
                 f(item);
             }
-        })
-    }
-}
-
-impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuery<T, F> {
-    fn from_async_context(_: &Reactors) -> Option<Self> {
-        Some(Self(PhantomData))
-    }
-}
-
-impl<T: QueryData, F: QueryFilter> AsyncWorldParam for AsyncQuerySingle<T, F> {
-    fn from_async_context(_: &Reactors) -> Option<Self> {
-        Some(Self(PhantomData))
-    }
-}
-
-impl<T: QueryData, F: QueryFilter> AsyncEntityParam for AsyncEntityQuery<T, F> {
-    type Signal = ();
-
-    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(entity: Entity, _: &Reactors, _: (), _: &[Entity]) -> Option<Self> {
-        Some(Self {
-            entity,
-            p: PhantomData,
         })
     }
 }

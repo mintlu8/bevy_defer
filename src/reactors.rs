@@ -18,7 +18,7 @@ use std::{
 use ty_map_gen::type_map;
 
 use crate::{
-    signals::{Receiver, SignalId, SignalSender, Signals},
+    signals::{SignalId, SignalSender, Signals},
     ScopedTasks,
 };
 
@@ -140,8 +140,3 @@ pub fn react_to_component_change<M: Component + Clone + PartialEq>(
         prev.insert(entity, state.clone());
     }
 }
-
-/// Alias for the [`Change<T>`] signal receiver, that reacts to a change in a component.
-///
-/// Requires corresponding [`react_to_component_change`] system.
-pub type StateMachine<T> = Receiver<Change<T>>;

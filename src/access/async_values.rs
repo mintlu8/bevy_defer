@@ -1,7 +1,3 @@
-use crate::async_systems::AsyncEntityParam;
-use crate::async_systems::AsyncWorldParam;
-use crate::reactors::Reactors;
-use crate::signals::Signals;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::Resource;
@@ -28,21 +24,6 @@ impl<C: Component> Clone for AsyncComponent<C> {
     }
 }
 
-impl<C: Component> AsyncEntityParam for AsyncComponent<C> {
-    type Signal = ();
-
-    fn fetch_signal(_: &Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(entity: Entity, _: &Reactors, _: (), _: &[Entity]) -> Option<Self> {
-        Some(Self {
-            entity,
-            p: PhantomData,
-        })
-    }
-}
-
 #[allow(unused)]
 pub use bevy::ecs::system::NonSend;
 
@@ -60,12 +41,6 @@ impl<R: 'static> Clone for AsyncNonSend<R> {
     }
 }
 
-impl<R: 'static> AsyncWorldParam for AsyncNonSend<R> {
-    fn from_async_context(_: &Reactors) -> Option<Self> {
-        Some(Self(PhantomData))
-    }
-}
-
 /// An `AsyncSystemParam` that gets or sets a resource on the `World`.
 #[derive(Debug)]
 pub struct AsyncResource<R: Resource>(pub(crate) PhantomData<R>);
@@ -75,11 +50,5 @@ impl<R: Resource> Copy for AsyncResource<R> {}
 impl<R: Resource> Clone for AsyncResource<R> {
     fn clone(&self) -> Self {
         *self
-    }
-}
-
-impl<R: Resource> AsyncWorldParam for AsyncResource<R> {
-    fn from_async_context(_: &Reactors) -> Option<Self> {
-        Some(Self(PhantomData))
     }
 }

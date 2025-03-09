@@ -16,7 +16,6 @@ use std::fmt::Formatter;
 use std::{any::type_name, pin::Pin};
 
 pub mod access;
-pub mod async_systems;
 pub mod cancellation;
 mod commands;
 mod entity_commands;
@@ -56,10 +55,6 @@ pub use spawn::ScopedTasks;
 pub mod spawn_macro;
 
 pub mod systems {
-    //! Systems in `bevy_defer`.
-    //!
-    //! Systems named `react_to_*` must be added manually.
-    pub use crate::async_systems::push_async_systems;
     pub use crate::event::react_to_event;
     pub use crate::executor::run_async_executor;
     pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
@@ -117,7 +112,6 @@ impl Plugin for CoreAsyncPlugin {
             .register_type_data::<Signals, ReflectDefault>()
             .init_schedule(BeforeAsyncExecutor)
             .add_systems(First, systems::run_time_series.after(TimeSystem))
-            .add_systems(First, systems::push_async_systems)
             .add_systems(Update, run_fixed_queue)
             .add_systems(BeforeAsyncExecutor, systems::run_watch_queries);
 

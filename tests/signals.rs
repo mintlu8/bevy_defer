@@ -9,13 +9,12 @@ use std::{
 use async_shared::Value;
 use bevy::core::FrameCountPlugin;
 use bevy::prelude::*;
-use bevy::tasks::futures_lite::StreamExt;
 use bevy::time::TimePlugin;
 use bevy::MinimalPlugins;
 #[allow(deprecated)]
 use bevy_defer::{
-    access::AsyncWorld, async_system, async_systems::AsyncSystems, signal_ids,
-    signals::SignalSender, AppReactorExtension, AsyncExtension, AsyncPlugin,
+    access::AsyncWorld, signal_ids, signals::SignalSender, AppReactorExtension, AsyncExtension,
+    AsyncPlugin,
 };
 use bevy_defer::{signals::Signals, systems::run_async_executor};
 signal_ids! {
