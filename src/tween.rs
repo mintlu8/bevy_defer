@@ -60,6 +60,13 @@ impl AsSeconds for Duration {
 #[repr(transparent)]
 pub struct MakeLerp<T>(pub T);
 
+impl<T> MakeLerp<T> {
+    /// Cast a mutable reference to [`MakeLerp`].
+    pub fn make(this: &mut T) -> &mut Self {
+        MakeLerp::ref_cast_mut(this)
+    }
+}
+
 impl<T> StableInterpolate for MakeLerp<T>
 where
     T: Clone + Add<T, Output = T> + Mul<f32, Output = T>,
