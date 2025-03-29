@@ -4,7 +4,7 @@ use crate::access::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
     AsyncResource, AsyncWorld,
 };
-use crate::tween::{AsSeconds, Lerp, Playback};
+use crate::tween::{AsSeconds, Playback};
 use crate::OwnedQueryState;
 use crate::{
     cancellation::TaskCancellation,
@@ -20,6 +20,7 @@ use bevy::ecs::{
     system::Resource,
     world::World,
 };
+use bevy::math::StableInterpolate;
 use futures::future::{ready, Either};
 use std::any::type_name;
 use std::{borrow::BorrowMut, cell::OnceCell};
@@ -281,7 +282,7 @@ pub trait AsyncAccess {
     }
 
     /// Interpolate to a new value from the previous value.
-    fn interpolate_to<V: Lerp>(
+    fn interpolate_to<V: StableInterpolate + 'static>(
         &self,
         to: V,
         mut get: impl FnMut(Self::Ref<'_>) -> V + Send + 'static,
@@ -314,7 +315,7 @@ pub trait AsyncAccess {
                         Some(Ok(()))
                     } else {
                         let fac = curve(t / duration);
-                        set(item.borrow_mut(), V::lerp(source, to.clone(), fac));
+                        set(item.borrow_mut(), V::interpolate_stable(&source, &to, fac));
                         None
                     }
                 },

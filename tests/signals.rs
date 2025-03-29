@@ -16,7 +16,8 @@ use bevy_defer::{
     access::AsyncWorld, signal_ids, signals::SignalSender, AppReactorExtension, AsyncExtension,
     AsyncPlugin,
 };
-use bevy_defer::{signals::Signals, systems::run_async_executor};
+use bevy_defer::{signals::Signals, systems::run_async_executor, AsyncCommandsExtension};
+use futures::StreamExt;
 signal_ids! {
     SigText: &'static str,
 }
@@ -48,19 +49,17 @@ pub fn main() {
 #[allow(deprecated)]
 pub fn init(mut commands: Commands) {
     let signal = Arc::new(Value::default());
+    let signal2 = signal.clone();
     commands.spawn((Marker1, Signals::from_sender::<SigText>(signal.clone())));
-    commands.spawn((
-        Marker2,
-        Signals::from_receiver::<SigText>(signal.clone()),
-        AsyncSystems::from_single(async_system!(|sig: Receiver<SigText>| {
-            let mut stream = sig.into_stream();
-            assert_eq!(stream.next().await, Some("hello"));
-            assert_eq!(stream.next().await, Some("rust"));
-            assert_eq!(stream.next().await, Some("and"));
-            assert_eq!(stream.next().await, Some("bevy"));
-            LOCK.store(true, Ordering::SeqCst)
-        })),
-    ));
+    commands.spawn_task(|| async move {
+        let mut stream = signal2.into_stream_arc();
+        assert_eq!(stream.next().await, Some("hello"));
+        assert_eq!(stream.next().await, Some("rust"));
+        assert_eq!(stream.next().await, Some("and"));
+        assert_eq!(stream.next().await, Some("bevy"));
+        LOCK.store(true, Ordering::SeqCst);
+        Ok(())
+    });
 }
 
 fn update(mut i: Local<usize>, q: Query<SignalSender<SigText>, With<Marker1>>) {

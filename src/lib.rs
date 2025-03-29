@@ -36,6 +36,7 @@ pub use access::async_asset::AssetSet;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
+pub use async_executor::Task;
 use bevy::ecs::{
     schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
     system::Commands,
