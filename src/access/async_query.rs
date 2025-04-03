@@ -1,12 +1,13 @@
 use crate::{executor::with_world_mut, AccessError};
+use bevy::ecs::entity::EntityEquivalent;
 use bevy::ecs::query::QuerySingleError;
 #[allow(unused)]
 use bevy::ecs::system::Query;
 use bevy::ecs::world::CommandQueue;
 use bevy::ecs::{
     entity::Entity,
-    query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState, WorldQuery},
-    system::Resource,
+    query::{QueryData, QueryFilter, QueryIter, QueryManyIter, QueryState},
+    resource::Resource,
     world::World,
 };
 use std::any::type_name;
@@ -141,11 +142,11 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
         }
     }
 
-    pub fn single(&mut self) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AccessError> {
+    pub fn single(&mut self) -> Result<<D::ReadOnly as QueryData>::Item<'_>, AccessError> {
         self.state
             .as_mut()
             .unwrap()
-            .get_single(self.world)
+            .single(self.world)
             .map_err(|e| match e {
                 QuerySingleError::NoEntities(_) => AccessError::NoEntityFound {
                     query: type_name::<D>(),
@@ -160,7 +161,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
         self.state
             .as_mut()
             .unwrap()
-            .get_single_mut(self.world)
+            .single_mut(self.world)
             .map_err(|e| match e {
                 QuerySingleError::NoEntities(_) => AccessError::NoEntityFound {
                     query: type_name::<D>(),
@@ -174,7 +175,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
     pub fn get(
         &mut self,
         entity: Entity,
-    ) -> Result<<D::ReadOnly as WorldQuery>::Item<'_>, AccessError> {
+    ) -> Result<<D::ReadOnly as QueryData>::Item<'_>, AccessError> {
         self.state
             .as_mut()
             .unwrap()
@@ -190,23 +191,17 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             .map_err(|_| AccessError::EntityNotFound(entity))
     }
 
-    pub fn iter_many<E: IntoIterator>(
+    pub fn iter_many<E: IntoIterator<Item: EntityEquivalent>>(
         &mut self,
         entities: E,
-    ) -> QueryManyIter<'_, '_, D::ReadOnly, F, E::IntoIter>
-    where
-        E::Item: Borrow<Entity>,
-    {
+    ) -> QueryManyIter<'_, '_, D::ReadOnly, F, E::IntoIter> {
         self.state.as_mut().unwrap().iter_many(self.world, entities)
     }
 
-    pub fn iter_many_mut<E: IntoIterator>(
+    pub fn iter_many_mut<E: IntoIterator<Item: EntityEquivalent>>(
         &mut self,
         entities: E,
-    ) -> QueryManyIter<'_, '_, D, F, E::IntoIter>
-    where
-        E::Item: Borrow<Entity>,
-    {
+    ) -> QueryManyIter<'_, '_, D, F, E::IntoIter> {
         self.state
             .as_mut()
             .unwrap()

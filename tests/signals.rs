@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_shared::Value;
-use bevy::core::FrameCountPlugin;
+use bevy::diagnostic::FrameCountPlugin;
 use bevy::prelude::*;
 use bevy::time::TimePlugin;
 use bevy::MinimalPlugins;
@@ -65,7 +65,7 @@ pub fn init(mut commands: Commands) {
 fn update(mut i: Local<usize>, q: Query<SignalSender<SigText>, With<Marker1>>) {
     let s = ["hello", "rust", "and", "bevy"];
     if let Some(s) = s.get(*i) {
-        dbg!(q.single().send(*s));
+        dbg!(q.single().unwrap().send(*s));
     }
     *i += 1;
 }
@@ -194,7 +194,7 @@ pub fn stream() {
 
     app.add_systems(Update, move |mut w: EventWriter<Chat>| {
         if let Some(s) = msgs.pop() {
-            w.send_batch(s.chars().map(Chat));
+            w.write_batch(s.chars().map(Chat));
         };
     });
 
@@ -236,6 +236,6 @@ pub fn event_stream() {
 
 fn sys_update(mut event: EventWriter<IntegerEvent>) {
     for _ in 0..fastrand::usize(0..5) {
-        event.send(IntegerEvent(CELL.fetch_add(1, Ordering::SeqCst)));
+        event.write(IntegerEvent(CELL.fetch_add(1, Ordering::SeqCst)));
     }
 }

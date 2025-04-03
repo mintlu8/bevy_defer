@@ -7,11 +7,8 @@ use std::{
     time::Duration,
 };
 
-use bevy::prelude::*;
-use bevy::{
-    asset::{AssetLoader, AsyncReadExt},
-    utils::ConditionalSendFuture,
-};
+use bevy::asset::{AssetLoader, AsyncReadExt};
+use bevy::{prelude::*, tasks::ConditionalSendFuture};
 use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]

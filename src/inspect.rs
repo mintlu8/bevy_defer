@@ -3,14 +3,12 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use bevy::{
-    core::Name,
-    ecs::{
-        component::Component,
-        entity::Entity,
-        query::{QueryData, QueryFilter},
-        system::Resource,
-    },
+use bevy::ecs::{
+    component::Component,
+    entity::Entity,
+    name::Name,
+    query::{QueryData, QueryFilter},
+    resource::Resource,
 };
 use ref_cast::RefCast;
 
@@ -84,7 +82,7 @@ impl EntityInspectors {
                     AsyncWorld
                         .entity(entity)
                         .component::<C>()
-                        .get_mut(|x| f(entity, x, fmt))
+                        .get(|x| f(entity, x, fmt))
                         .is_ok()
                 }),
             ),

@@ -2,7 +2,7 @@ use crate::executor::QUERY_QUEUE;
 use crate::sync::oneshot::ChannelOutOrCancel;
 use crate::sync::waitlist::WaitList;
 use crate::{access::AsyncWorld, cancellation::TaskCancellation, channel, sync::oneshot::Sender};
-use bevy::core::FrameCount;
+use bevy::diagnostic::FrameCount;
 use bevy::ecs::system::NonSend;
 use bevy::ecs::system::Res;
 use bevy::ecs::world::World;

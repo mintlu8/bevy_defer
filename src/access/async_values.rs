@@ -1,6 +1,6 @@
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::system::Resource;
+use bevy::ecs::resource::Resource;
 use std::marker::PhantomData;
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.

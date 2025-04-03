@@ -7,7 +7,8 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::intern::Interned;
 use bevy::ecs::query::{QueryData, QueryFilter};
-use bevy::ecs::world::Command;
+use bevy::ecs::schedule::IntoScheduleConfigs as _;
+use bevy::ecs::system::Command;
 use bevy::prelude::EntityCommands;
 use bevy::state::prelude::State;
 use bevy::state::state::States;
@@ -38,7 +39,7 @@ pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
 pub use async_executor::Task;
 use bevy::ecs::{
-    schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
+    schedule::{ScheduleLabel, SystemSet},
     system::Commands,
     world::World,
 };
@@ -588,10 +589,10 @@ macro_rules! test_spawn {
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
         use bevy::state::app::StatesPlugin;
-        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
         pub struct Int(i32);
 
-        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
         pub struct Str(&'static str);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]

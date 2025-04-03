@@ -1,12 +1,12 @@
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
 use crate::executor::{QUERY_QUEUE, WORLD};
 use crate::in_async_context;
-use bevy::core::Name;
 use bevy::ecs::{
     component::Component,
     entity::Entity,
+    name::Name,
     query::{QueryData, QueryFilter},
-    system::Resource,
+    resource::Resource,
 };
 use ref_cast::RefCast;
 use std::borrow::Borrow;

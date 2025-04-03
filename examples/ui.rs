@@ -84,7 +84,7 @@ fn setup(mut commands: Commands) {
                             font_size: 20.0,
                             ..Default::default()
                         },
-                        PickingBehavior {
+                        Pickable {
                             should_block_lower: false,
                             is_hoverable: false,
                         },
@@ -115,7 +115,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Down>();
+                    let mut stream = btn.on::<Pressed>();
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Mouse down at {}",

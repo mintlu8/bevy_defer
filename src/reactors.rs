@@ -5,7 +5,8 @@ use bevy::ecs::{
     component::Component,
     entity::Entity,
     query::{Changed, With},
-    system::{Local, Query, Res, Resource},
+    resource::Resource,
+    system::{Local, Query, Res},
 };
 use bevy::state::prelude::StateTransitionEvent;
 use bevy::state::state::States;

@@ -7,9 +7,9 @@ use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
 use bevy::app::AppExit;
 use bevy::ecs::event::{Event, EventId};
-use bevy::ecs::system::{IntoSystem, SystemId};
-use bevy::ecs::world::{Command, CommandQueue, FromWorld, Mut};
-use bevy::ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
+use bevy::ecs::system::{Command, IntoSystem, SystemId};
+use bevy::ecs::world::{CommandQueue, FromWorld, Mut};
+use bevy::ecs::{bundle::Bundle, resource::Resource, schedule::ScheduleLabel, world::World};
 use bevy::prelude::SystemInput;
 use bevy::state::state::{FreelyMutableState, NextState, State, States};
 use bevy::tasks::AsyncComputeTaskPool;
@@ -165,7 +165,7 @@ impl AsyncWorld {
     /// # });
     /// ```
     pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> AccessResult<O> {
-        self.run_system_with_input(system, ())
+        self.run_system_with(system, ())
     }
 
     /// Run a stored system by their [`SystemId`] with input.
@@ -175,17 +175,17 @@ impl AsyncWorld {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// let id = AsyncWorld.register_system(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input);
-    /// AsyncWorld.run_system_with_input(id, 4.0).unwrap();
+    /// AsyncWorld.run_system_with(id, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_system_with_input<I: SystemInput + 'static, O: 'static>(
+    pub fn run_system_with<I: SystemInput + 'static, O: 'static>(
         &self,
         system: SystemId<I, O>,
         input: I::Inner<'_>,
     ) -> AccessResult<O> {
         with_world_mut(move |world: &mut World| {
             world
-                .run_system_with_input(system, input)
+                .run_system_with(system, input)
                 .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
@@ -226,10 +226,10 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_system_cached_with_input(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
+    /// AsyncWorld.run_system_cached_with(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_system_cached_with_input<
+    pub fn run_system_cached_with<
         I: SystemInput + 'static,
         O: 'static,
         M,
@@ -267,7 +267,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.spawn_bundle(SpriteBundle::default())
+    /// AsyncWorld.spawn_bundle(Int(4))
     /// # );
     /// ```
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMut {

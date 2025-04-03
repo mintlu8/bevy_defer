@@ -1,8 +1,5 @@
 use crate::{AccessResult, AsyncAccess, AsyncWorld};
-use bevy::ecs::{
-    event::EventReader,
-    system::{ResMut, Resource},
-};
+use bevy::ecs::{event::EventReader, resource::Resource, system::ResMut};
 use event_listener::Event;
 use std::collections::VecDeque;
 

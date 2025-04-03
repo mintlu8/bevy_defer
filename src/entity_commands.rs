@@ -2,12 +2,12 @@ use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
 use crate::{access::AsyncEntityMut, AccessError, AccessResult};
 use crate::{AsyncAccess, InspectEntity, OwnedQueryState};
-use bevy::core::Name;
+use bevy::ecs::bundle::BundleFromComponents;
 use bevy::ecs::component::Component;
-use bevy::ecs::world::Command;
+use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ecs::name::Name;
+use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
-use bevy::hierarchy::{Children, DespawnChildrenRecursive, DespawnRecursive, Parent};
-use bevy::prelude::{BuildChildren, ChildBuild};
 use bevy::transform::components::{GlobalTransform, Transform};
 use event_listener::Event;
 use futures::future::Either;
@@ -104,7 +104,7 @@ impl AsyncEntityMut {
     /// entity.take::<Int>();
     /// # });
     /// ```
-    pub fn take<T: Bundle>(&self) -> Result<T, AccessError> {
+    pub fn take<T: Bundle + BundleFromComponents>(&self) -> Result<T, AccessError> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -186,7 +186,7 @@ impl AsyncEntityMut {
             world
                 .get_entity(entity)
                 .ok()
-                .and_then(|entity| entity.get::<Parent>().map(|x| x.get()))
+                .and_then(|entity| entity.get::<ChildOf>().map(|x| x.get()))
                 .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(child))
@@ -209,7 +209,9 @@ impl AsyncEntityMut {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
-                    entity.set_parent(*parent.borrow());
+                    entity.insert(ChildOf {
+                        parent: *parent.borrow(),
+                    });
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;
@@ -256,11 +258,7 @@ impl AsyncEntityMut {
     pub fn despawn(&self) {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
-            DespawnRecursive {
-                entity,
-                warn: false,
-            }
-            .apply(world);
+            world.despawn(entity);
         })
     }
 
@@ -271,17 +269,15 @@ impl AsyncEntityMut {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// # let entity = AsyncWorld.spawn_bundle(Int(1));
-    /// entity.despawn_descendants();
+    /// entity.despawn_related::<Children>();
     /// # });
     /// ```
-    pub fn despawn_descendants(&self) {
+    pub fn despawn_related<R: RelationshipTarget>(&self) {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
-            DespawnChildrenRecursive {
-                entity,
-                warn: false,
+            if let Ok(mut entity) = world.get_entity_mut(entity) {
+                entity.despawn_related::<R>();
             }
-            .apply(world)
         })
     }
 
@@ -307,7 +303,7 @@ impl AsyncEntityMut {
                 return;
             };
             if let Some(children) = entity.get::<Children>() {
-                result.extend(children.iter().cloned());
+                result.extend(children.iter());
                 for child in children {
                     get_children(world, *child, result);
                 }
@@ -327,11 +323,12 @@ impl AsyncEntityMut {
     pub fn debug_print(&self) -> String {
         let e = self.id();
         AsyncWorld.run(|w| {
-            if w.get_entity(e).is_err() {
-                return format!("Entity {e} missing!");
+            if let Ok(i) = w.inspect_entity(e) {
+                let v: Vec<_> = i.map(|x| x.name()).collect();
+                v.join(", ")
+            } else {
+                format!("Entity {e} missing!")
             }
-            let v: Vec<_> = w.inspect_entity(e).map(|x| x.name()).collect();
-            v.join(", ")
         })
     }
 
@@ -350,7 +347,7 @@ impl AsyncEntityMut {
             world
                 .entity(entity)
                 .get::<Children>()
-                .map(|x| x.iter().copied().collect())
+                .map(|x| x.iter().collect())
                 .unwrap_or_default()
         })
     }
@@ -366,7 +363,7 @@ impl AsyncEntityMut {
                 return Some(parent);
             }
             if let Some(children) = entity.get::<Children>() {
-                let children: Vec<_> = children.iter().cloned().collect();
+                let children: Vec<_> = children.iter().collect();
                 children.into_iter().find_map(|e| find_name(world, e, name))
             } else {
                 None
@@ -409,7 +406,7 @@ impl AsyncEntityMut {
             .run(|world| {
                 let mut entity = world.get_entity(self.0).ok()?;
                 let mut transform = *entity.get::<Transform>()?;
-                while let Some(parent) = entity.get::<Parent>().map(|x| x.get()) {
+                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.get()) {
                     entity = world.get_entity(parent).ok()?;
                     transform = entity.get::<Transform>()?.mul_transform(transform)
                 }
@@ -436,7 +433,7 @@ impl AsyncEntityMut {
                     Visibility::Hidden => return Some(false),
                     Visibility::Visible => return Some(true),
                 }
-                while let Some(parent) = entity.get::<Parent>().map(|x| x.get()) {
+                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.get()) {
                     match world.get_entity(parent).ok()?.get::<Visibility>()? {
                         Visibility::Inherited => (),
                         Visibility::Hidden => return Some(false),
