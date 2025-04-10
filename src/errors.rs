@@ -25,6 +25,8 @@ pub enum AccessError {
     ChannelClosed,
     #[error("entity {} not found", InspectEntity(*.0))]
     EntityNotFound(Entity),
+    #[error("Query condition not met for entity {}", InspectEntity(*.0))]
+    QueryConditionNotMet(Entity),
     #[error("single entity not found in query {}", fmt(query))]
     NoEntityFound { query: &'static str },
     #[error("too many entities")]

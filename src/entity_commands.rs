@@ -143,6 +143,34 @@ impl AsyncEntityMut {
         Ok(AsyncWorld.entity(entity))
     }
 
+    /// Spawns an entity with the given bundle and inserts it into the parent entity's Children.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// let child = entity.spawn_related::<ChildOf>(Str("bevy"));
+    /// # });
+    /// ```
+    pub fn spawn_related<R: Relationship>(
+        &self,
+        bundle: impl Bundle,
+    ) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        let entity = with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map(|mut entity| {
+                    let mut id = Entity::PLACEHOLDER;
+                    entity.with_related::<R>(|spawn| id = spawn.spawn(bundle).id());
+                    id
+                })
+                .map_err(|_| AccessError::EntityNotFound(entity))
+        })?;
+        Ok(AsyncWorld.entity(entity))
+    }
+
     /// Adds a single child, returns the parent [`AsyncEntityMut`].
     ///
     /// # Example
@@ -161,6 +189,30 @@ impl AsyncEntityMut {
                 .get_entity_mut(entity)
                 .map(|mut entity| {
                     entity.add_child(child);
+                })
+                .map_err(|_| AccessError::EntityNotFound(entity))
+        })?;
+        Ok(AsyncEntityMut(entity))
+    }
+
+    /// Adds a single child, returns the parent [`AsyncEntityMut`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = AsyncWorld.spawn_bundle(Int(1)).id();
+    /// entity.add_child(child);
+    /// # });
+    /// ```
+    pub fn add_related<R: Relationship>(&self, child: Entity) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map(|mut entity| {
+                    entity.add_related::<R>(&[child]);
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;

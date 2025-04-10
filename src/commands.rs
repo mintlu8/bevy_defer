@@ -310,6 +310,29 @@ impl AsyncWorld {
         })
     }
 
+    /// Transition to a new [`States`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// AsyncWorld.set_state(MyState::A)
+    /// # });
+    /// ```
+    pub fn set_state_if_changed<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
+        with_world_mut(move |world: &mut World| {
+            if world.get_resource::<State<S>>().is_some_and(|x| x == &state) {
+                return Ok(());
+            }
+            world
+                .get_resource_mut::<NextState<S>>()
+                .map(|mut s| s.set(state))
+                .ok_or(AccessError::ResourceNotFound {
+                    name: type_name::<State<S>>(),
+                })
+        })
+    }
+
     /// Obtain a [`States`].
     ///
     /// # Example

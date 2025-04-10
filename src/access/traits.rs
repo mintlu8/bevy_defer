@@ -73,7 +73,7 @@ pub trait AsyncAccess {
 
     /// Obtain a mutable reference from the borrow guard.
     fn from_mut_cx<'t>(
-        cx: &'t mut Self::RefMutCx<'_>,
+        mut_cx: &'t mut Self::RefMutCx<'_>,
         cx: &Self::Cx,
     ) -> AccessResult<Self::RefMut<'t>>;
 
@@ -711,6 +711,18 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
     ) -> AccessResult<Self::RefMut<'t>> {
         cx.get_mut(*entity)
             .map_err(|_| AccessError::EntityNotFound(*entity))
+    }
+}
+
+impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncReadonlyAccess
+    for AsyncEntityQuery<D, F>
+{
+    fn from_ref_world<'t>(world: &'t World, cx: &Self::Cx) -> AccessResult<Self::Ref<'t>> {
+        world
+            .get_entity(*cx)
+            .map_err(|_| AccessError::EntityNotFound(*cx))?
+            .get_components::<D::ReadOnly>()
+            .ok_or(AccessError::QueryConditionNotMet(*cx))
     }
 }
 

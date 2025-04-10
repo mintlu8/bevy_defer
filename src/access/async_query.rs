@@ -120,8 +120,8 @@ pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, 
 ///
 /// Since [`QueryState`] cannot be constructed from `&World`, readonly access is not supported.
 pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
-    world: &'t mut World,
-    state: Option<QueryState<D, F>>,
+    pub(crate) world: &'t mut World,
+    pub(crate) state: Option<QueryState<D, F>>,
 }
 
 impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
