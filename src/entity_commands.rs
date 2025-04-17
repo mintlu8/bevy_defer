@@ -4,12 +4,14 @@ use crate::{access::AsyncEntityMut, AccessError, AccessResult};
 use crate::{AsyncAccess, InspectEntity, OwnedQueryState};
 use bevy::ecs::bundle::BundleFromComponents;
 use bevy::ecs::component::Component;
+use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
+use bevy::ecs::system::IntoObserverSystem;
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy::transform::components::{GlobalTransform, Transform};
-use event_listener::Event;
+use event_listener::Event as AsyncEvent;
 use futures::future::Either;
 use rustc_hash::FxHashMap;
 use std::any::type_name;
@@ -115,6 +117,32 @@ impl AsyncEntityMut {
                         name: type_name::<T>(),
                     })
                 })
+        })
+    }
+
+    /// Creates an `Observer` listening for events of type `E` targeting this entity. 
+    /// 
+    /// In order to trigger the callback the entity must also match the query when the event is fired.
+    pub fn observe<E: Event, B: Bundle, M>(&self, observer: impl IntoObserverSystem<E, B, M>) -> AccessResult {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?
+                .observe(observer);
+            Ok(())
+        })
+    }
+
+    /// Triggers the given event for this entity, which will run any observers watching for it.
+    pub fn trigger<E: Event>(&self, event: E) -> AccessResult {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?
+                .trigger(event);
+            Ok(())
         })
     }
 
@@ -273,7 +301,7 @@ impl AsyncEntityMut {
     /// Returns a future that yields when the entity is despawned.
     pub fn on_despawn(&self) -> impl Future + use<> + 'static {
         #[derive(Component)]
-        struct OnDespawn(Event);
+        struct OnDespawn(AsyncEvent);
 
         impl Drop for OnDespawn {
             fn drop(&mut self) {
@@ -289,7 +317,7 @@ impl AsyncEntityMut {
             if let Some(event) = entity.get::<OnDespawn>() {
                 Either::Right(event.0.listen())
             } else {
-                let on_despawn = OnDespawn(Event::new());
+                let on_despawn = OnDespawn(AsyncEvent::new());
                 let event = on_despawn.0.listen();
                 entity.insert(on_despawn);
                 Either::Right(event)
