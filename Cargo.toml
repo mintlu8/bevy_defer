@@ -53,7 +53,7 @@ event-listener = "5.3.0"
 event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.16.0", default-features = false, features = ["bevy_state", "bevy_asset"] }
+bevy = { version = "0.16.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
 pretty-type-name = "1.0.1"
 flume = { version = "0.11.1", default-features = false, features = ["async", "futures-core"] }
 default-constructor = { version = "0.5.1", optional = true }
