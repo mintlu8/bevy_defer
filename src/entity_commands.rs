@@ -8,7 +8,7 @@ use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
-use bevy::ecs::system::IntoObserverSystem;
+use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy::transform::components::{GlobalTransform, Transform};
 use event_listener::Event as AsyncEvent;
@@ -19,6 +19,19 @@ use std::borrow::Borrow;
 use std::future::{ready, Future};
 
 impl AsyncEntityMut {
+    /// Apply an [`EntityCommand`].
+    pub fn apply_command(&self, command: impl EntityCommand) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        with_world_mut(|w| {
+            if let Ok(e) = w.get_entity_mut(entity) {
+                command.apply(e);
+                Ok(AsyncEntityMut(entity))
+            } else {
+                Err(AccessError::EntityNotFound(entity))
+            }
+        })
+    }
+
     /// Check if an [`Entity`] exists.
     pub fn exists(&self) -> bool {
         let entity = self.0;
@@ -120,10 +133,13 @@ impl AsyncEntityMut {
         })
     }
 
-    /// Creates an `Observer` listening for events of type `E` targeting this entity. 
-    /// 
+    /// Creates an `Observer` listening for events of type `E` targeting this entity.
+    ///
     /// In order to trigger the callback the entity must also match the query when the event is fired.
-    pub fn observe<E: Event, B: Bundle, M>(&self, observer: impl IntoObserverSystem<E, B, M>) -> AccessResult {
+    pub fn observe<E: Event, B: Bundle, M>(
+        &self,
+        observer: impl IntoObserverSystem<E, B, M>,
+    ) -> AccessResult {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -191,7 +207,7 @@ impl AsyncEntityMut {
                 .get_entity_mut(entity)
                 .map(|mut entity| {
                     let mut id = Entity::PLACEHOLDER;
-                    entity.with_related::<R>(|spawn| id = spawn.spawn(bundle).id());
+                    entity.with_related_entities::<R>(|spawn| id = spawn.spawn(bundle).id());
                     id
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
@@ -266,7 +282,7 @@ impl AsyncEntityMut {
             world
                 .get_entity(entity)
                 .ok()
-                .and_then(|entity| entity.get::<ChildOf>().map(|x| x.get()))
+                .and_then(|entity| entity.get::<ChildOf>().map(|x| x.parent()))
                 .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(child))
@@ -289,9 +305,7 @@ impl AsyncEntityMut {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
-                    entity.insert(ChildOf {
-                        parent: *parent.borrow(),
-                    });
+                    entity.insert(ChildOf(*parent.borrow()));
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;
@@ -486,7 +500,7 @@ impl AsyncEntityMut {
             .run(|world| {
                 let mut entity = world.get_entity(self.0).ok()?;
                 let mut transform = *entity.get::<Transform>()?;
-                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.get()) {
+                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
                     entity = world.get_entity(parent).ok()?;
                     transform = entity.get::<Transform>()?.mul_transform(transform)
                 }
@@ -513,7 +527,7 @@ impl AsyncEntityMut {
                     Visibility::Hidden => return Some(false),
                     Visibility::Visible => return Some(true),
                 }
-                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.get()) {
+                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
                     match world.get_entity(parent).ok()?.get::<Visibility>()? {
                         Visibility::Inherited => (),
                         Visibility::Hidden => return Some(false),

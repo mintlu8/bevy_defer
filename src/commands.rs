@@ -321,7 +321,10 @@ impl AsyncWorld {
     /// ```
     pub fn set_state_if_changed<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
-            if world.get_resource::<State<S>>().is_some_and(|x| x == &state) {
+            if world
+                .get_resource::<State<S>>()
+                .is_some_and(|x| x == &state)
+            {
                 return Ok(());
             }
             world

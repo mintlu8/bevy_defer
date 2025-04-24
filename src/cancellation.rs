@@ -4,7 +4,7 @@ use std::{
     cell::Cell,
     rc::Rc,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc,
     },
 };
@@ -74,6 +74,8 @@ impl SyncCancellation {
 pub enum TaskCancellation {
     Unsync(Cancellation),
     Sync(SyncCancellation),
+    CancelPrevious(CancelPrevious, u32),
+    SyncCancelPrevious(SyncCancelPrevious, u32),
     None,
 }
 
@@ -83,6 +85,8 @@ impl TaskCancellation {
         match self {
             TaskCancellation::Unsync(cell) => cell.0.get(),
             TaskCancellation::Sync(b) => b.0.load(Ordering::Relaxed),
+            TaskCancellation::CancelPrevious(c, v) => c.0.get() != *v,
+            TaskCancellation::SyncCancelPrevious(c, v) => c.0.load(Ordering::Relaxed) != *v,
             TaskCancellation::None => false,
         }
     }
@@ -127,5 +131,53 @@ impl From<&CancelOnDrop> for TaskCancellation {
 impl From<&CancelOnDropSync> for TaskCancellation {
     fn from(val: &CancelOnDropSync) -> Self {
         TaskCancellation::Sync(val.0.clone())
+    }
+}
+
+/// When used in interpolation, cancel the previous interpolation.
+#[derive(Debug, Clone, Default)]
+pub struct CancelPrevious(Rc<Cell<u32>>);
+
+impl CancelPrevious {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Drop for CancelPrevious {
+    fn drop(&mut self) {
+        let t = self.0.get().wrapping_add(1);
+        self.0.set(t);
+    }
+}
+
+impl From<&CancelPrevious> for TaskCancellation {
+    fn from(value: &CancelPrevious) -> Self {
+        let t = value.0.get().wrapping_add(1);
+        value.0.set(t);
+        TaskCancellation::CancelPrevious(value.clone(), t)
+    }
+}
+
+/// When used in interpolation, cancel the previous interpolation.
+#[derive(Debug, Clone, Default)]
+pub struct SyncCancelPrevious(Arc<AtomicU32>);
+
+impl SyncCancelPrevious {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Drop for SyncCancelPrevious {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+impl From<&SyncCancelPrevious> for TaskCancellation {
+    fn from(value: &SyncCancelPrevious) -> Self {
+        let t = value.0.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
+        TaskCancellation::SyncCancelPrevious(value.clone(), t)
     }
 }
