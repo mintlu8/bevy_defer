@@ -278,9 +278,11 @@ pub trait AsyncExtension {
         f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
     ) -> &mut Self;
 
+    #[deprecated = "UI centric features like signals are being phased out, use observers and events instead."]
     /// Obtain a named signal.
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
 
+    #[deprecated = "UI centric features like signals are being phased out, use observers and events instead."]
     /// Obtain a named signal.
     fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data>;
 }

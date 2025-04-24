@@ -2,12 +2,8 @@ use async_executor::Task;
 use bevy::ecs::prelude::Resource;
 use bevy::log::error;
 use bevy::state::prelude::{State, States};
-use bevy::tasks::futures_lite::FutureExt;
 use rustc_hash::FxHashMap;
 use std::any::type_name;
-use std::mem;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::{future::Future, marker::PhantomData};
 
 use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
@@ -166,98 +162,5 @@ impl AsyncWorld {
             })
             .detach();
         });
-    }
-
-    /// Spawn a `bevy_defer` compatible future.
-    ///
-    /// Unlike `spawn_task`, this ensures the async function segment before the first pending `.await` is ran
-    /// immediately when this function is awaited. This can be useful if the future is generated
-    /// inside a world access scope, but wants to context switch into a `bevy_defer` scope for
-    /// immediate world access.
-    ///
-    /// The function is guaranteed to return immediately when awaited.
-    /// The result might be a task that runs concurrently so it must be awaited again,
-    /// or call `detach` to make it run independently.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # fn calculate_damage(_a: i32, _b: i32) -> i32 {0}
-    /// # fn set_hp(_hp: i32) {}
-    /// # async fn display_damage(_hp: i32) {}
-    ///
-    /// # bevy_defer::test_spawn!({
-    /// # let attacker = 0;
-    /// # let defender1 = 0;
-    /// # let defender2 = 0;
-    /// let task1 = AsyncWorld.spawn_polled(async move {
-    ///     let damage = calculate_damage(attacker, defender1);
-    ///     set_hp(damage);
-    ///     display_damage(damage).await;
-    /// }).await;
-    /// let task2 = AsyncWorld.spawn_polled(async move {
-    ///     let damage = calculate_damage(attacker, defender2);
-    ///     set_hp(damage);
-    ///     display_damage(damage).await;
-    /// }).await;
-    /// // Both damage will be calculated with no delay,
-    /// // then we wait for `display_damage` to complete.
-    /// futures::join! { task1, task2 }
-    /// # });
-    /// ```
-    pub async fn spawn_polled<T: 'static>(
-        &self,
-        fut: impl Future<Output = T> + 'static,
-    ) -> ReadyOrTask<T> {
-        PollOnceThenSpawn(Box::pin(fut)).await
-    }
-}
-
-#[doc(hidden)]
-pub struct PollOnceThenSpawn<T: 'static>(Pin<Box<dyn Future<Output = T>>>);
-
-#[doc(hidden)]
-pub enum ReadyOrTask<T: 'static> {
-    Ready(Option<T>),
-    Spawned(Task<T>),
-}
-
-impl<T: 'static> ReadyOrTask<T> {
-    pub fn detach(self) {
-        match self {
-            ReadyOrTask::Ready(_) => (),
-            ReadyOrTask::Spawned(task) => task.detach(),
-        }
-    }
-}
-
-impl<T: 'static> Unpin for ReadyOrTask<T> {}
-
-impl<T: 'static> Future for PollOnceThenSpawn<T> {
-    type Output = ReadyOrTask<T>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
-        Poll::Ready(match self.0.poll(cx) {
-            Poll::Ready(result) => ReadyOrTask::Ready(Some(result)),
-            Poll::Pending => {
-                // Pending is a zst so this is free.
-                let fut = mem::replace(&mut self.0, Box::pin(core::future::pending()));
-                ReadyOrTask::Spawned(SPAWNER.with(|s| s.spawn(fut)))
-            }
-        })
-    }
-}
-
-impl<T: 'static> Future for ReadyOrTask<T> {
-    type Output = T;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match &mut *self {
-            ReadyOrTask::Ready(result) => match result.take() {
-                Some(result) => Poll::Ready(result),
-                None => Poll::Pending,
-            },
-            ReadyOrTask::Spawned(task) => task.poll(cx),
-        }
     }
 }
