@@ -28,9 +28,64 @@
 mod signal_component;
 mod signal_utils;
 
+use std::{any::type_name, sync::Arc};
+
 pub use async_shared::Value;
+use bevy::ecs::world::World;
 pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 
+use crate::{access::AsyncEntityMut, executor::with_world_mut, AccessError, AccessResult};
+
 #[deprecated = "Use `async_shared::Value` instead."]
 pub type Signal<T> = Value<T>;
+
+impl AsyncEntityMut {
+    /// Send data through a signal on this entity.
+    ///
+    /// Returns `true` if the signal exists.
+    pub fn send_signal<S: SignalId>(&self, data: S::Data) -> AccessResult<bool> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
+                return Err(AccessError::EntityNotFound(entity));
+            };
+            let Some(signals) = entity.get_mut::<Signals>() else {
+                return Err(AccessError::ComponentNotFound {
+                    name: type_name::<S>(),
+                });
+            };
+            Ok(signals.send::<S>(data))
+        })
+    }
+
+    /// Init or borrow a sender from an entity with shared read tick.
+    pub fn signal_sender<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
+                return Err(AccessError::EntityNotFound(entity));
+            };
+            let mut signals = match entity.get_mut::<Signals>() {
+                Some(sender) => sender,
+                None => entity.insert(Signals::new()).get_mut::<Signals>().unwrap(),
+            };
+            Ok(signals.init_sender::<S>())
+        })
+    }
+
+    /// Init or borrow a receiver from an entity with shared read tick.
+    pub fn signal_receiver<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            let Ok(mut entity) = world.get_entity_mut(entity) else {
+                return Err(AccessError::EntityNotFound(entity));
+            };
+            let mut signals = match entity.get_mut::<Signals>() {
+                Some(sender) => sender,
+                None => entity.insert(Signals::new()).get_mut::<Signals>().unwrap(),
+            };
+            Ok(signals.init_receiver::<S>())
+        })
+    }
+}

@@ -76,6 +76,12 @@ impl<A: Asset> Clone for AsyncAsset<A> {
     }
 }
 
+impl<A: Asset> AsyncAsset<A> {
+    pub fn clone_weak(&self) -> Self {
+        Self(self.0.clone_weak())
+    }
+}
+
 impl<A: Asset> From<Handle<A>> for AsyncAsset<A> {
     fn from(value: Handle<A>) -> Self {
         AsyncAsset(value)

@@ -4,9 +4,9 @@ use bevy::ecs::prelude::{EventReader, ResMut};
 use bevy::ecs::{
     component::Component,
     entity::Entity,
-    event::Event,
     query::{Changed, With},
-    system::{Local, Query, Res, Resource},
+    resource::Resource,
+    system::{Local, Query, Res},
 };
 use bevy::state::prelude::StateTransitionEvent;
 use bevy::state::state::States;
@@ -18,9 +18,8 @@ use std::{
 };
 use ty_map_gen::type_map;
 
-use crate::access::async_event::EventBuffer;
 use crate::{
-    signals::{Receiver, SignalId, SignalSender, Signals},
+    signals::{SignalId, SignalSender, Signals},
     ScopedTasks,
 };
 
@@ -46,18 +45,11 @@ type_map!(
     pub NamedSignalMap where (T, String) [SignalId] => Value<T::Data> [Send + Sync] as FxHashMap
 );
 
-type_map!(
-    /// A type map of signals.
-    #[derive(Clone)]
-    pub EventBufferMap where E [Event] => Arc<EventBuffer<E>> [Clone + Send + Sync] as FxHashMap
-);
-
 /// Named or typed synchronization primitives of `bevy_defer`.
 #[derive(Default)]
 pub(crate) struct ReactorsInner {
     typed: Mutex<SignalMap>,
     named: Mutex<NamedSignalMap>,
-    event_buffers: Mutex<EventBufferMap>,
 }
 
 impl std::fmt::Debug for ReactorsInner {
@@ -91,18 +83,6 @@ impl Reactors {
         } else {
             let signal = Value::<T::Data>::default();
             lock.insert::<T>(name.to_owned(), signal.clone_raw());
-            signal
-        }
-    }
-
-    /// Obtain an event buffer by event type.
-    pub fn get_event<E: Event + Clone>(&self) -> Arc<EventBuffer<E>> {
-        let mut lock = self.0.event_buffers.lock().unwrap();
-        if let Some(data) = lock.get::<E>() {
-            data.clone()
-        } else {
-            let signal = <Arc<EventBuffer<E>>>::default();
-            lock.insert::<E>(signal.clone());
             signal
         }
     }
@@ -161,8 +141,3 @@ pub fn react_to_component_change<M: Component + Clone + PartialEq>(
         prev.insert(entity, state.clone());
     }
 }
-
-/// Alias for the [`Change<T>`] signal receiver, that reacts to a change in a component.
-///
-/// Requires corresponding [`react_to_component_change`] system.
-pub type StateMachine<T> = Receiver<Change<T>>;

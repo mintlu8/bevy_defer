@@ -2,7 +2,6 @@ use bevy::{
     app::{App, Startup},
     input::keyboard::KeyboardInput,
     prelude::{Camera2d, KeyCode, World},
-    tasks::futures_lite::StreamExt,
     text::Text2d,
     DefaultPlugins,
 };
@@ -30,9 +29,9 @@ fn main() {
                 KeyCode::KeyB,
                 KeyCode::KeyA,
             ];
-            let mut stream = AsyncWorld.event_stream::<KeyboardInput>();
             let mut idx = 0;
-            while let Some(item) = stream.next().await {
+            loop {
+                let item = AsyncWorld.next_event::<KeyboardInput>().await;
                 if phrase[idx] == item.key_code {
                     idx += 1;
                     if idx >= phrase.len() {

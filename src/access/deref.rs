@@ -4,7 +4,7 @@ use bevy::asset::Asset;
 use bevy::ecs::{
     component::Component,
     query::{QueryData, QueryFilter},
-    system::Resource,
+    resource::Resource,
 };
 use std::ops::Deref;
 

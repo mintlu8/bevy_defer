@@ -1,15 +1,12 @@
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
-use crate::async_systems::AsyncEntityParam;
-use crate::async_systems::AsyncWorldParam;
 use crate::executor::{QUERY_QUEUE, WORLD};
 use crate::in_async_context;
-use crate::reactors::Reactors;
-use bevy::core::Name;
 use bevy::ecs::{
     component::Component,
     entity::Entity,
+    name::Name,
     query::{QueryData, QueryFilter},
-    system::Resource,
+    resource::Resource,
 };
 use ref_cast::RefCast;
 use std::borrow::Borrow;
@@ -203,29 +200,6 @@ impl AsyncEntityMut {
     }
 }
 
-impl AsyncWorldParam for AsyncWorld {
-    fn from_async_context(_: &Reactors) -> Option<Self> {
-        Some(AsyncWorld)
-    }
-}
-
-impl AsyncEntityParam for AsyncEntityMut {
-    type Signal = ();
-
-    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(
-        entity: Entity,
-        _: &Reactors,
-        _: Self::Signal,
-        _: &[Entity],
-    ) -> Option<Self> {
-        Some(AsyncEntityMut(entity))
-    }
-}
-
 /// [`AsyncEntityParam`] on an indexed child.
 #[derive(Debug, Clone, RefCast)]
 #[repr(transparent)]
@@ -236,22 +210,5 @@ impl Deref for AsyncChild {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl<const N: usize> AsyncEntityParam for AsyncChild<N> {
-    type Signal = ();
-
-    fn fetch_signal(_: &crate::signals::Signals) -> Option<Self::Signal> {
-        Some(())
-    }
-
-    fn from_async_context(
-        _: Entity,
-        _: &Reactors,
-        _: Self::Signal,
-        children: &[Entity],
-    ) -> Option<Self> {
-        Some(AsyncChild(AsyncEntityMut(children.get(N).copied()?)))
     }
 }

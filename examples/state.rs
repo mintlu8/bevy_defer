@@ -39,19 +39,19 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(OnEnter(MainState::Red), |world: &mut World| {
             let _ = world.spawn_state_scoped(MainState::Red, async {
-                AsyncWorld.run_cached_system_with_input(set_color, RED.into())?;
+                AsyncWorld.run_system_cached_with(set_color, RED.into())?;
                 AccessResult::Ok(())
             });
         })
         .add_systems(OnEnter(MainState::Green), |world: &mut World| {
             let _ = world.spawn_state_scoped(MainState::Green, async {
-                AsyncWorld.run_cached_system_with_input(set_color, GREEN.into())?;
+                AsyncWorld.run_system_cached_with(set_color, GREEN.into())?;
                 AccessResult::Ok(())
             });
         })
         .add_systems(OnEnter(MainState::Blue), |world: &mut World| {
             let _ = world.spawn_state_scoped(MainState::Blue, async {
-                AsyncWorld.run_cached_system_with_input(set_color, BLUE.into())?;
+                AsyncWorld.run_system_cached_with(set_color, BLUE.into())?;
                 AccessResult::Ok(())
             });
         })
@@ -59,7 +59,7 @@ fn main() {
             // Coroutine :)
             let _ = world.spawn_state_scoped(Spin, async {
                 loop {
-                    AsyncWorld.run_cached_system(spin)?;
+                    AsyncWorld.run_system_cached(spin)?;
                     AsyncWorld.yield_now().await;
                 }
             });
@@ -87,9 +87,9 @@ fn setup(mut commands: Commands) {
 }
 
 fn set_color(color: In<Color>, mut query: Query<&mut Sprite>) {
-    query.single_mut().color = color.0;
+    query.single_mut().unwrap().color = color.0;
 }
 
 fn spin(time: ResMut<Time>, mut query: Query<&mut Transform, With<Sprite>>) {
-    query.single_mut().rotate_z(time.delta_secs());
+    query.single_mut().unwrap().rotate_z(time.delta_secs());
 }

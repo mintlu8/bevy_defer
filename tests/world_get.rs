@@ -1,4 +1,4 @@
-use bevy::{prelude::*, time::TimePlugin};
+use bevy::{diagnostic::FrameCountPlugin, prelude::*, time::TimePlugin};
 use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
 use std::sync::atomic::{AtomicBool, Ordering};
 

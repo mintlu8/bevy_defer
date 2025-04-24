@@ -6,20 +6,19 @@ use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tw
 use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
 use bevy::app::AppExit;
-use bevy::ecs::system::{IntoSystem, SystemId};
-use bevy::ecs::world::{Command, CommandQueue, FromWorld, Mut};
-use bevy::ecs::{bundle::Bundle, schedule::ScheduleLabel, system::Resource, world::World};
+use bevy::ecs::event::{Event, EventId};
+use bevy::ecs::system::{Command, IntoSystem, SystemId};
+use bevy::ecs::world::{CommandQueue, FromWorld, Mut};
+use bevy::ecs::{bundle::Bundle, resource::Resource, schedule::ScheduleLabel, world::World};
 use bevy::prelude::SystemInput;
 use bevy::state::state::{FreelyMutableState, NextState, State, States};
 use bevy::tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
 use futures::stream::FusedStream;
-use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::time::Duration;
 use std::{
-    any::{Any, TypeId},
     future::{poll_fn, Future},
     task::Poll,
 };
@@ -166,7 +165,7 @@ impl AsyncWorld {
     /// # });
     /// ```
     pub fn run_system<O: 'static>(&self, system: SystemId<(), O>) -> AccessResult<O> {
-        self.run_system_with_input(system, ())
+        self.run_system_with(system, ())
     }
 
     /// Run a stored system by their [`SystemId`] with input.
@@ -176,17 +175,17 @@ impl AsyncWorld {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// let id = AsyncWorld.register_system(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input);
-    /// AsyncWorld.run_system_with_input(id, 4.0).unwrap();
+    /// AsyncWorld.run_system_with(id, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_system_with_input<I: SystemInput + 'static, O: 'static>(
+    pub fn run_system_with<I: SystemInput + 'static, O: 'static>(
         &self,
         system: SystemId<I, O>,
         input: I::Inner<'_>,
     ) -> AccessResult<O> {
         with_world_mut(move |world: &mut World| {
             world
-                .run_system_with_input(system, input)
+                .run_system_with(system, input)
                 .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
@@ -202,14 +201,18 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_cached_system(|time: Res<Time>| println!("{}", time.delta_secs())).unwrap();
+    /// AsyncWorld.run_system_cached(|time: Res<Time>| println!("{}", time.delta_secs())).unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
+    pub fn run_system_cached<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
         &self,
         system: S,
     ) -> AccessResult<O> {
-        self.run_cached_system_with_input(system, ())
+        with_world_mut(move |world: &mut World| {
+            world
+                .run_system_cached(system)
+                .map_err(|_| AccessError::SystemIdNotFound)
+        })
     }
 
     /// Run a system with input that will be stored and reused upon repeated usage.
@@ -223,10 +226,10 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.run_cached_system_with_input(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
+    /// AsyncWorld.run_system_cached_with(|input: In<f32>, time: Res<Time>| time.delta_secs() + *input, 4.0).unwrap();
     /// # });
     /// ```
-    pub fn run_cached_system_with_input<
+    pub fn run_system_cached_with<
         I: SystemInput + 'static,
         O: 'static,
         M,
@@ -236,31 +239,10 @@ impl AsyncWorld {
         system: S,
         input: I::Inner<'_>,
     ) -> AccessResult<O> {
-        #[derive(Debug, Resource, Default)]
-        struct SystemCache(FxHashMap<TypeId, Box<dyn Any + Send + Sync>>);
-
         with_world_mut(move |world: &mut World| {
-            let res = world.get_resource_or_insert_with::<SystemCache>(Default::default);
-            let type_id = TypeId::of::<S>();
-            if let Some(id) = res
-                .0
-                .get(&type_id)
-                .and_then(|x| x.downcast_ref::<SystemId<I, O>>())
-                .copied()
-            {
-                world
-                    .run_system_with_input(id, input)
-                    .map_err(|_| AccessError::SystemIdNotFound)
-            } else {
-                let id = world.register_system(system);
-                world
-                    .resource_mut::<SystemCache>()
-                    .0
-                    .insert(type_id, Box::new(id));
-                world
-                    .run_system_with_input(id, input)
-                    .map_err(|_| AccessError::SystemIdNotFound)
-            }
+            world
+                .run_system_cached_with(system, input)
+                .map_err(|_| AccessError::SystemIdNotFound)
         })
     }
 
@@ -285,7 +267,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.spawn_bundle(SpriteBundle::default())
+    /// AsyncWorld.spawn_bundle(Int(4))
     /// # );
     /// ```
     pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMut {
@@ -319,6 +301,32 @@ impl AsyncWorld {
     /// ```
     pub fn set_state<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
+            world
+                .get_resource_mut::<NextState<S>>()
+                .map(|mut s| s.set(state))
+                .ok_or(AccessError::ResourceNotFound {
+                    name: type_name::<State<S>>(),
+                })
+        })
+    }
+
+    /// Transition to a new [`States`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// AsyncWorld.set_state(MyState::A)
+    /// # });
+    /// ```
+    pub fn set_state_if_changed<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
+        with_world_mut(move |world: &mut World| {
+            if world
+                .get_resource::<State<S>>()
+                .is_some_and(|x| x == &state)
+            {
+                return Ok(());
+            }
             world
                 .get_resource_mut::<NextState<S>>()
                 .map(|mut s| s.set(state))
@@ -373,6 +381,17 @@ impl AsyncWorld {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();
         signal.into_stream()
+    }
+
+    /// Send an [`Event`].
+    pub fn send_event<E: Event>(&self, event: E) -> AccessResult<EventId<E>> {
+        with_world_mut(move |world: &mut World| {
+            world
+                .send_event(event)
+                .ok_or(AccessError::EventNotRegistered {
+                    name: type_name::<E>(),
+                })
+        })
     }
 
     /// Perform a blocking operation on [`AsyncComputeTaskPool`].

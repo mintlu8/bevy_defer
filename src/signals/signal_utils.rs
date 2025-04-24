@@ -1,12 +1,4 @@
 use super::signal_component::Signals;
-use crate::async_systems::AsyncEntityParam;
-use crate::reactors::Reactors;
-use async_shared::Value;
-use bevy::ecs::entity::Entity;
-use futures::future::FusedFuture;
-use futures::stream::FusedStream;
-use futures::FutureExt;
-use std::sync::Arc;
 use std::{any::Any, marker::PhantomData};
 
 /// A marker type that indicates the type and purpose of a signal.
@@ -50,84 +42,6 @@ pub struct Fac<T: Clone + Default + Send + Sync + 'static>(
 
 impl<T: Clone + Default + Send + Sync + 'static> SignalId for Fac<T> {
     type Data = T;
-}
-
-/// [`AsyncEntityParam`] for sending a signal.
-pub struct Sender<T: SignalId>(Arc<Value<T::Data>>);
-
-impl<T: SignalId> Unpin for Sender<T> {}
-
-impl<T: SignalId> Sender<T> {
-    /// Send a value with a signal, can be polled by the same sender.
-    pub fn send(&self, item: T::Data) {
-        self.0.write(item);
-    }
-
-    /// Send a value with a signal, cannot be polled by the same sender.
-    pub fn broadcast(self, item: T::Data) {
-        self.0.write_and_tick(item);
-    }
-
-    /// Receives a value from the sender.
-    pub fn recv(&self) -> impl FusedFuture<Output = T::Data> + '_ {
-        self.0.read_async().fuse()
-    }
-
-    /// Convert into a stream.
-    pub fn to_stream(&self) -> impl FusedStream<Item = T::Data> + '_ {
-        self.0.to_stream()
-    }
-}
-
-/// [`AsyncEntityParam`] for receiving a signal.
-pub struct Receiver<T: SignalId>(Arc<Value<T::Data>>);
-
-impl<T: SignalId> Unpin for Receiver<T> {}
-
-impl<T: SignalId> Receiver<T> {
-    /// Receive a value from the receiver.
-    pub fn recv(&self) -> impl FusedFuture<Output = T::Data> + '_ {
-        self.0.read_async().fuse()
-    }
-
-    /// Convert into a stream.
-    pub fn into_stream(&self) -> impl FusedStream<Item = T::Data> + '_ {
-        self.0.to_stream()
-    }
-}
-
-impl<T: SignalId> AsyncEntityParam for Sender<T> {
-    type Signal = Arc<Value<T::Data>>;
-
-    fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
-        signals.borrow_sender::<T>()
-    }
-
-    fn from_async_context(
-        _: Entity,
-        _: &Reactors,
-        signal: Self::Signal,
-        _: &[Entity],
-    ) -> Option<Self> {
-        Some(Sender(signal))
-    }
-}
-
-impl<T: SignalId> AsyncEntityParam for Receiver<T> {
-    type Signal = Arc<Value<T::Data>>;
-
-    fn fetch_signal(signals: &Signals) -> Option<Self::Signal> {
-        signals.borrow_receiver::<T>()
-    }
-
-    fn from_async_context(
-        _: Entity,
-        _: &Reactors,
-        signal: Self::Signal,
-        _: &[Entity],
-    ) -> Option<Self> {
-        Some(Receiver(signal))
-    }
 }
 
 mod sealed {

@@ -6,40 +6,46 @@ use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::intern::Interned;
-use bevy::ecs::world::Command;
+use bevy::ecs::query::{QueryData, QueryFilter};
+use bevy::ecs::schedule::IntoScheduleConfigs as _;
+use bevy::ecs::system::Command;
 use bevy::prelude::EntityCommands;
 use bevy::state::prelude::State;
 use bevy::state::state::States;
 use bevy::time::TimeSystem;
+use std::fmt::Formatter;
 use std::{any::type_name, pin::Pin};
 
 pub mod access;
-pub mod async_systems;
 pub mod cancellation;
 mod commands;
 mod entity_commands;
 mod errors;
+mod event;
 mod executor;
 pub mod ext;
 mod fetch;
+mod inspect;
 mod queue;
+pub use inspect::{EntityInspectors, InspectEntity};
 pub mod reactors;
 pub mod signals;
 mod spawn;
-pub mod sync;
+pub(crate) mod sync;
 pub mod tween;
 pub use access::async_asset::AssetSet;
-pub use access::async_event::EventBuffer;
 pub use access::async_query::OwnedQueryState;
 pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
+pub use async_executor::Task;
 use bevy::ecs::{
-    schedule::{IntoSystemConfigs, ScheduleLabel, SystemSet},
+    schedule::{ScheduleLabel, SystemSet},
     system::Commands,
     world::World,
 };
 use bevy::reflect::std_traits::ReflectDefault;
 pub use errors::AccessError;
+pub use event::EventChannel;
 pub use executor::{in_async_context, AsyncExecutor};
 #[doc(hidden)]
 pub use fetch::{fetch, fetch0, fetch1, fetch2, FetchEntity, FetchOne, FetchWorld};
@@ -51,11 +57,7 @@ pub use spawn::ScopedTasks;
 pub mod spawn_macro;
 
 pub mod systems {
-    //! Systems in `bevy_defer`.
-    //!
-    //! Systems named `react_to_*` must be added manually.
-    pub use crate::access::async_event::react_to_event;
-    pub use crate::async_systems::push_async_systems;
+    pub use crate::event::react_to_event;
     pub use crate::executor::run_async_executor;
     pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
     pub use crate::reactors::{react_to_component_change, react_to_state};
@@ -107,11 +109,11 @@ impl Plugin for CoreAsyncPlugin {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
             .init_resource::<Reactors>()
+            .init_resource::<EntityInspectors>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
             .init_schedule(BeforeAsyncExecutor)
             .add_systems(First, systems::run_time_series.after(TimeSystem))
-            .add_systems(First, systems::push_async_systems)
             .add_systems(Update, run_fixed_queue)
             .add_systems(BeforeAsyncExecutor, systems::run_watch_queries);
 
@@ -245,9 +247,42 @@ pub trait AsyncExtension {
         fut: impl Future<Output = AccessResult> + 'static,
     ) -> AccessResult;
 
+    /// Initialize [`EventChannel<E>`].
+    fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self;
+
+    /// Registers a method that prints an entity in `bevy_defer`.
+    ///
+    /// This method will be used for printing [`AccessError`].
+    /// [`InspectEntity`] can be used for custom debug printing
+    ///  in `bevy_defer`'s scope.
+    ///
+    /// Only the first successful formatting function will be called according to their priorities.
+    /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
+    fn register_inspect_entity_by_component<C: Component>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Entity, &C, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self;
+
+    /// Registers a method that prints an entity in `bevy_defer`.
+    ///
+    /// This method will be used for printing [`AccessError`].
+    /// [`InspectEntity`] can be used for custom debug printing
+    ///  in `bevy_defer`'s scope.
+    ///
+    /// Only the first successful formatting function will be called according to their priorities.
+    /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
+    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self;
+
+    #[deprecated = "UI centric features like signals are being phased out, use observers and events instead."]
     /// Obtain a named signal.
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
 
+    #[deprecated = "UI centric features like signals are being phased out, use observers and events instead."]
     /// Obtain a named signal.
     fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data>;
 }
@@ -279,6 +314,30 @@ impl AsyncExtension for World {
         Ok(())
     }
 
+    fn register_inspect_entity_by_component<C: Component>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Entity, &C, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.resource_mut::<EntityInspectors>().push(priority, f);
+        self
+    }
+
+    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.resource_mut::<EntityInspectors>()
+            .push_query::<Q, F>(priority, f);
+        self
+    }
+
+    fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self {
+        self.init_resource::<EventChannel<E>>();
+        self
+    }
+
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
         self.get_resource_or_insert_with::<Reactors>(Default::default)
             .get_typed::<T>()
@@ -304,6 +363,31 @@ impl AsyncExtension for App {
         self.world_mut().spawn_state_scoped(state, fut)
     }
 
+    fn register_oneshot_event<E: Send + Sync + 'static>(&mut self) -> &mut Self {
+        self.world_mut().register_oneshot_event::<E>();
+        self
+    }
+
+    fn register_inspect_entity_by_component<C: Component>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Entity, &C, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.world_mut()
+            .register_inspect_entity_by_component(priority, f);
+        self
+    }
+
+    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+        &mut self,
+        priority: i32,
+        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.world_mut()
+            .register_inspect_entity_by_query::<Q, F>(priority, f);
+        self
+    }
+
     fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
         self.world_mut()
             .get_resource_or_insert_with::<Reactors>(Default::default)
@@ -319,7 +403,9 @@ impl AsyncExtension for App {
 
 /// Extension for [`App`] to add reactors.
 pub trait AppReactorExtension {
-    /// React to changes in a [`Event`].
+    /// React to changes in an [`Event`] by duplicating events to [`EventChannel<E>`].
+    ///
+    /// Initializes the resource [`EventChannel<E>`].
     fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self;
 
     /// React to changes in a [`States`].
@@ -331,6 +417,7 @@ pub trait AppReactorExtension {
 
 impl AppReactorExtension for App {
     fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self {
+        self.register_oneshot_event::<E>();
         self.add_systems(BeforeAsyncExecutor, systems::react_to_event::<E>);
         self
     }
@@ -504,10 +591,10 @@ macro_rules! test_spawn {
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
         use bevy::state::app::StatesPlugin;
-        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
         pub struct Int(i32);
 
-        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
         pub struct Str(&'static str);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]

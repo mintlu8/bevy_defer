@@ -1,24 +1,43 @@
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
-use crate::{
-    access::AsyncEntityMut,
-    signals::{SignalId, Signals},
-    AccessError, AccessResult,
-};
-use crate::{AsyncAccess, OwnedQueryState};
-use async_shared::Value;
-use bevy::core::Name;
-use bevy::ecs::world::Command;
+use crate::{access::AsyncEntityMut, AccessError, AccessResult};
+use crate::{AsyncAccess, InspectEntity, OwnedQueryState};
+use bevy::ecs::bundle::BundleFromComponents;
+use bevy::ecs::component::Component;
+use bevy::ecs::event::Event;
+use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ecs::name::Name;
+use bevy::ecs::relationship::{Relationship, RelationshipTarget};
+use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
-use bevy::hierarchy::{Children, DespawnChildrenRecursive, DespawnRecursive, Parent};
-use bevy::prelude::{BuildChildren, ChildBuild};
 use bevy::transform::components::{GlobalTransform, Transform};
+use event_listener::Event as AsyncEvent;
+use futures::future::Either;
 use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::borrow::Borrow;
-use std::sync::Arc;
+use std::future::{ready, Future};
 
 impl AsyncEntityMut {
+    /// Apply an [`EntityCommand`].
+    pub fn apply_command(&self, command: impl EntityCommand) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        with_world_mut(|w| {
+            if let Ok(e) = w.get_entity_mut(entity) {
+                command.apply(e);
+                Ok(AsyncEntityMut(entity))
+            } else {
+                Err(AccessError::EntityNotFound(entity))
+            }
+        })
+    }
+
+    /// Check if an [`Entity`] exists.
+    pub fn exists(&self) -> bool {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| world.get_entity(entity).is_ok())
+    }
+
     /// Adds a [`Bundle`] of components to the entity.
     ///
     /// # Example
@@ -100,7 +119,7 @@ impl AsyncEntityMut {
     /// entity.take::<Int>();
     /// # });
     /// ```
-    pub fn take<T: Bundle>(&self) -> Result<T, AccessError> {
+    pub fn take<T: Bundle + BundleFromComponents>(&self) -> Result<T, AccessError> {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -111,6 +130,35 @@ impl AsyncEntityMut {
                         name: type_name::<T>(),
                     })
                 })
+        })
+    }
+
+    /// Creates an `Observer` listening for events of type `E` targeting this entity.
+    ///
+    /// In order to trigger the callback the entity must also match the query when the event is fired.
+    pub fn observe<E: Event, B: Bundle, M>(
+        &self,
+        observer: impl IntoObserverSystem<E, B, M>,
+    ) -> AccessResult {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?
+                .observe(observer);
+            Ok(())
+        })
+    }
+
+    /// Triggers the given event for this entity, which will run any observers watching for it.
+    pub fn trigger<E: Event>(&self, event: E) -> AccessResult {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?
+                .trigger(event);
+            Ok(())
         })
     }
 
@@ -132,6 +180,34 @@ impl AsyncEntityMut {
                 .map(|mut entity| {
                     let mut id = Entity::PLACEHOLDER;
                     entity.with_children(|spawn| id = spawn.spawn(bundle).id());
+                    id
+                })
+                .map_err(|_| AccessError::EntityNotFound(entity))
+        })?;
+        Ok(AsyncWorld.entity(entity))
+    }
+
+    /// Spawns an entity with the given bundle and inserts it into the parent entity's Children.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// let child = entity.spawn_related::<ChildOf>(Str("bevy"));
+    /// # });
+    /// ```
+    pub fn spawn_related<R: Relationship>(
+        &self,
+        bundle: impl Bundle,
+    ) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        let entity = with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map(|mut entity| {
+                    let mut id = Entity::PLACEHOLDER;
+                    entity.with_related_entities::<R>(|spawn| id = spawn.spawn(bundle).id());
                     id
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
@@ -163,6 +239,30 @@ impl AsyncEntityMut {
         Ok(AsyncEntityMut(entity))
     }
 
+    /// Adds a single child, returns the parent [`AsyncEntityMut`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = AsyncWorld.spawn_bundle(Int(1)).id();
+    /// entity.add_child(child);
+    /// # });
+    /// ```
+    pub fn add_related<R: Relationship>(&self, child: Entity) -> AccessResult<AsyncEntityMut> {
+        let entity = self.0;
+        with_world_mut(move |world: &mut World| {
+            world
+                .get_entity_mut(entity)
+                .map(|mut entity| {
+                    entity.add_related::<R>(&[child]);
+                })
+                .map_err(|_| AccessError::EntityNotFound(entity))
+        })?;
+        Ok(AsyncEntityMut(entity))
+    }
+
     /// Obtain parent of an entity.
     ///
     /// # Example
@@ -182,7 +282,7 @@ impl AsyncEntityMut {
             world
                 .get_entity(entity)
                 .ok()
-                .and_then(|entity| entity.get::<Parent>().map(|x| x.get()))
+                .and_then(|entity| entity.get::<ChildOf>().map(|x| x.parent()))
                 .ok_or(AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(child))
@@ -205,11 +305,38 @@ impl AsyncEntityMut {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
-                    entity.set_parent(*parent.borrow());
+                    entity.insert(ChildOf(*parent.borrow()));
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
+    }
+
+    /// Returns a future that yields when the entity is despawned.
+    pub fn on_despawn(&self) -> impl Future + use<> + 'static {
+        #[derive(Component)]
+        struct OnDespawn(AsyncEvent);
+
+        impl Drop for OnDespawn {
+            fn drop(&mut self) {
+                self.0.notify(usize::MAX);
+            }
+        }
+        let entity = self.0;
+
+        with_world_mut(|w| {
+            let Ok(mut entity) = w.get_entity_mut(entity) else {
+                return Either::Left(ready(()));
+            };
+            if let Some(event) = entity.get::<OnDespawn>() {
+                Either::Right(event.0.listen())
+            } else {
+                let on_despawn = OnDespawn(AsyncEvent::new());
+                let event = on_despawn.0.listen();
+                entity.insert(on_despawn);
+                Either::Right(event)
+            }
+        })
     }
 
     /// Despawns the given entity and all its children recursively.
@@ -225,11 +352,7 @@ impl AsyncEntityMut {
     pub fn despawn(&self) {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
-            DespawnRecursive {
-                entity,
-                warn: false,
-            }
-            .apply(world);
+            world.despawn(entity);
         })
     }
 
@@ -240,35 +363,15 @@ impl AsyncEntityMut {
     /// ```
     /// # bevy_defer::test_spawn!({
     /// # let entity = AsyncWorld.spawn_bundle(Int(1));
-    /// entity.despawn_descendants();
+    /// entity.despawn_related::<Children>();
     /// # });
     /// ```
-    pub fn despawn_descendants(&self) {
+    pub fn despawn_related<R: RelationshipTarget>(&self) {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
-            DespawnChildrenRecursive {
-                entity,
-                warn: false,
+            if let Ok(mut entity) = world.get_entity_mut(entity) {
+                entity.despawn_related::<R>();
             }
-            .apply(world)
-        })
-    }
-
-    /// Send data through a signal on this entity.
-    ///
-    /// Returns `true` if the signal exists.
-    pub fn send<S: SignalId>(&self, data: S::Data) -> AccessResult<bool> {
-        let entity = self.0;
-        with_world_mut(move |world: &mut World| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound(entity));
-            };
-            let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AccessError::ComponentNotFound {
-                    name: type_name::<S>(),
-                });
-            };
-            Ok(signals.send::<S>(data))
         })
     }
 
@@ -279,77 +382,7 @@ impl AsyncEntityMut {
 
     /// Get [`Name`] and index of the entity.
     pub fn debug_string(&self) -> String {
-        self.to_string()
-    }
-
-    /// Borrow a sender from an entity with shared read tick.
-    pub fn sender<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
-        let entity = self.0;
-        with_world_mut(move |world: &mut World| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound(entity));
-            };
-            let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AccessError::ComponentNotFound {
-                    name: type_name::<Signals>(),
-                });
-            };
-            signals
-                .borrow_sender::<S>()
-                .ok_or(AccessError::SignalNotFound {
-                    name: type_name::<S>(),
-                })
-        })
-    }
-
-    /// Borrow a receiver from an entity with shared read tick.
-    pub fn receiver<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
-        let entity = self.0;
-        with_world_mut(move |world: &mut World| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound(entity));
-            };
-            let Some(signals) = entity.get_mut::<Signals>() else {
-                return Err(AccessError::ComponentNotFound {
-                    name: type_name::<Signals>(),
-                });
-            };
-            signals
-                .borrow_receiver::<S>()
-                .ok_or(AccessError::SignalNotFound {
-                    name: type_name::<S>(),
-                })
-        })
-    }
-
-    /// Init or borrow a sender from an entity with shared read tick.
-    pub fn init_sender<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
-        let entity = self.0;
-        with_world_mut(move |world: &mut World| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound(entity));
-            };
-            let mut signals = match entity.get_mut::<Signals>() {
-                Some(sender) => sender,
-                None => entity.insert(Signals::new()).get_mut::<Signals>().unwrap(),
-            };
-            Ok(signals.init_sender::<S>())
-        })
-    }
-
-    /// Init or borrow a receiver from an entity with shared read tick.
-    pub fn init_receiver<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
-        let entity = self.0;
-        with_world_mut(move |world: &mut World| {
-            let Ok(mut entity) = world.get_entity_mut(entity) else {
-                return Err(AccessError::EntityNotFound(entity));
-            };
-            let mut signals = match entity.get_mut::<Signals>() {
-                Some(sender) => sender,
-                None => entity.insert(Signals::new()).get_mut::<Signals>().unwrap(),
-            };
-            Ok(signals.init_receiver::<S>())
-        })
+        InspectEntity(self.0).to_string()
     }
 
     /// Obtain all descendent entities in the hierarchy.
@@ -364,7 +397,7 @@ impl AsyncEntityMut {
                 return;
             };
             if let Some(children) = entity.get::<Children>() {
-                result.extend(children.iter().cloned());
+                result.extend(children.iter());
                 for child in children {
                     get_children(world, *child, result);
                 }
@@ -384,11 +417,12 @@ impl AsyncEntityMut {
     pub fn debug_print(&self) -> String {
         let e = self.id();
         AsyncWorld.run(|w| {
-            if w.get_entity(e).is_err() {
-                return format!("Entity {e} missing!");
+            if let Ok(i) = w.inspect_entity(e) {
+                let v: Vec<_> = i.map(|x| x.name()).collect();
+                v.join(", ")
+            } else {
+                format!("Entity {e} missing!")
             }
-            let v: Vec<_> = w.inspect_entity(e).map(|x| x.name()).collect();
-            v.join(", ")
         })
     }
 
@@ -407,7 +441,7 @@ impl AsyncEntityMut {
             world
                 .entity(entity)
                 .get::<Children>()
-                .map(|x| x.iter().copied().collect())
+                .map(|x| x.iter().collect())
                 .unwrap_or_default()
         })
     }
@@ -423,7 +457,7 @@ impl AsyncEntityMut {
                 return Some(parent);
             }
             if let Some(children) = entity.get::<Children>() {
-                let children: Vec<_> = children.iter().cloned().collect();
+                let children: Vec<_> = children.iter().collect();
                 children.into_iter().find_map(|e| find_name(world, e, name))
             } else {
                 None
@@ -466,7 +500,7 @@ impl AsyncEntityMut {
             .run(|world| {
                 let mut entity = world.get_entity(self.0).ok()?;
                 let mut transform = *entity.get::<Transform>()?;
-                while let Some(parent) = entity.get::<Parent>().map(|x| x.get()) {
+                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
                     entity = world.get_entity(parent).ok()?;
                     transform = entity.get::<Transform>()?.mul_transform(transform)
                 }
@@ -493,7 +527,7 @@ impl AsyncEntityMut {
                     Visibility::Hidden => return Some(false),
                     Visibility::Visible => return Some(true),
                 }
-                while let Some(parent) = entity.get::<Parent>().map(|x| x.get()) {
+                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
                     match world.get_entity(parent).ok()?.get::<Visibility>()? {
                         Visibility::Inherited => (),
                         Visibility::Hidden => return Some(false),
