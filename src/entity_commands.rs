@@ -9,6 +9,7 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
+use bevy::ecs::world::{EntityRef, EntityWorldMut};
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy::transform::components::{GlobalTransform, Transform};
 use event_listener::Event as AsyncEvent;
@@ -19,6 +20,28 @@ use std::borrow::Borrow;
 use std::future::{ready, Future};
 
 impl AsyncEntityMut {
+    pub fn get<T>(&self, f: impl FnOnce(EntityRef) -> T) -> AccessResult<T> {
+        let entity = self.0;
+        with_world_mut(|w| {
+            if let Ok(e) = w.get_entity(entity) {
+                Ok(f(e))
+            } else {
+                Err(AccessError::EntityNotFound(entity))
+            }
+        })
+    }
+
+    pub fn get_mut<T>(&self, f: impl FnOnce(EntityWorldMut) -> T) -> AccessResult<T> {
+        let entity = self.0;
+        with_world_mut(|w| {
+            if let Ok(e) = w.get_entity_mut(entity) {
+                Ok(f(e))
+            } else {
+                Err(AccessError::EntityNotFound(entity))
+            }
+        })
+    }
+
     /// Apply an [`EntityCommand`].
     pub fn apply_command(&self, command: impl EntityCommand) -> AccessResult<AsyncEntityMut> {
         let entity = self.0;

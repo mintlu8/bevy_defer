@@ -710,7 +710,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         entity: &Entity,
     ) -> AccessResult<Self::RefMut<'t>> {
         cx.get_mut(*entity)
-            .map_err(|_| AccessError::EntityNotFound(*entity))
+            .map_err(|_| AccessError::QueryConditionNotMet(*entity))
     }
 }
 
