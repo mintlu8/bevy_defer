@@ -39,11 +39,14 @@ pub trait AsyncMutAccess: AsyncAccess {
 }
 
 /// Async access that derefs to a concrete type.
-pub trait AsyncAccessRef:
-    for<'t> AsyncReadonlyAccess<Ref<'t> = &'t Self::Generic>
-    + for<'t> AsyncMutAccess<RefMut<'t> = &'t mut Self::Generic>
-{
+pub trait AsyncAccessRef: for<'t> AsyncReadonlyAccess<Ref<'t> = &'t Self::Generic> {
     type Generic: 'static;
+}
+
+/// Async access that derefs to a concrete type.
+pub trait AsyncAccessRefMut:
+    AsyncAccessRef + for<'t> AsyncMutAccess<RefMut<'t> = &'t mut Self::Generic>
+{
 }
 
 /// Allows the `take` method
@@ -306,7 +309,7 @@ pub trait AsyncAccess {
         cancel: impl Into<TaskCancellation>,
     ) -> InterpolateOut
     where
-        Self: AsyncAccessRef,
+        Self: AsyncAccessRefMut,
     {
         let mut t = 0.0;
         let duration = duration.as_secs();
@@ -443,9 +446,11 @@ impl<C: Component<Mutability = Mutable>> AsyncMutAccess for AsyncComponent<C> {
     }
 }
 
-impl<C: Component<Mutability = Mutable>> AsyncAccessRef for AsyncComponent<C> {
+impl<C: Component> AsyncAccessRef for AsyncComponent<C> {
     type Generic = C;
 }
+
+impl<C: Component<Mutability = Mutable>> AsyncAccessRefMut for AsyncComponent<C> {}
 
 impl<C: Component<Mutability = Mutable>> AsyncTake for AsyncComponent<C> {
     fn take(world: &mut World, cx: &Self::Cx) -> AccessResult<Self::Generic> {
@@ -503,6 +508,8 @@ impl<R: Resource> AsyncMutAccess for AsyncResource<R> {
 impl<R: Resource> AsyncAccessRef for AsyncResource<R> {
     type Generic = R;
 }
+
+impl<R: Resource> AsyncAccessRefMut for AsyncResource<R> {}
 
 impl<R: Resource> AsyncTake for AsyncResource<R> {
     fn take(world: &mut World, _: &Self::Cx) -> AccessResult<Self::Generic> {
@@ -562,6 +569,8 @@ impl<R: 'static> AsyncMutAccess for AsyncNonSend<R> {
 impl<R: 'static> AsyncAccessRef for AsyncNonSend<R> {
     type Generic = R;
 }
+
+impl<R: 'static> AsyncAccessRefMut for AsyncNonSend<R> {}
 
 impl<R: 'static> AsyncLoad for AsyncNonSend<R> {}
 
@@ -634,6 +643,8 @@ impl<A: Asset> AsyncMutAccess for AsyncAsset<A> {
 impl<A: Asset> AsyncAccessRef for AsyncAsset<A> {
     type Generic = A;
 }
+
+impl<A: Asset> AsyncAccessRefMut for AsyncAsset<A> {}
 
 impl<A: Asset> AsyncTake for AsyncAsset<A> {
     fn take(world: &mut World, handle: &Self::Cx) -> AccessResult<Self::Generic> {
@@ -710,7 +721,10 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess for AsyncEnti
         entity: &Entity,
     ) -> AccessResult<Self::RefMut<'t>> {
         cx.get_mut(*entity)
-            .map_err(|_| AccessError::QueryConditionNotMet(*entity))
+            .map_err(|_| AccessError::QueryConditionNotMet {
+                query: type_name::<D>(),
+                entity: *entity,
+            })
     }
 }
 
@@ -722,7 +736,10 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncReadonlyAccess
             .get_entity(*cx)
             .map_err(|_| AccessError::EntityNotFound(*cx))?
             .get_components::<D::ReadOnly>()
-            .ok_or(AccessError::QueryConditionNotMet(*cx))
+            .ok_or(AccessError::QueryConditionNotMet {
+                query: type_name::<D>(),
+                entity: *cx,
+            })
     }
 }
 
