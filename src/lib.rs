@@ -1,7 +1,6 @@
 #![doc=include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-use async_shared::Value;
 use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
@@ -85,7 +84,7 @@ pub use bevy::log::error;
 pub use ref_cast::RefCast;
 
 use queue::run_fixed_queue;
-use signals::{SignalId, Signals};
+use signals::Signals;
 
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{async_access, async_dyn};
@@ -277,14 +276,6 @@ pub trait AsyncExtension {
         priority: i32,
         f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
     ) -> &mut Self;
-
-    #[deprecated = "UI centric features like signals are being phased out, use observers and events instead."]
-    /// Obtain a named signal.
-    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data>;
-
-    #[deprecated = "UI centric features like signals are being phased out, use observers and events instead."]
-    /// Obtain a named signal.
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data>;
 }
 
 impl AsyncExtension for World {
@@ -337,16 +328,6 @@ impl AsyncExtension for World {
         self.init_resource::<EventChannel<E>>();
         self
     }
-
-    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
-        self.get_resource_or_insert_with::<Reactors>(Default::default)
-            .get_typed::<T>()
-    }
-
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data> {
-        self.get_resource_or_insert_with::<Reactors>(Default::default)
-            .get_named::<T>(name)
-    }
 }
 
 impl AsyncExtension for App {
@@ -386,18 +367,6 @@ impl AsyncExtension for App {
         self.world_mut()
             .register_inspect_entity_by_query::<Q, F>(priority, f);
         self
-    }
-
-    fn typed_signal<T: SignalId>(&mut self) -> Value<T::Data> {
-        self.world_mut()
-            .get_resource_or_insert_with::<Reactors>(Default::default)
-            .get_typed::<T>()
-    }
-
-    fn named_signal<T: SignalId>(&mut self, name: &str) -> Value<T::Data> {
-        self.world_mut()
-            .get_resource_or_insert_with::<Reactors>(Default::default)
-            .get_named::<T>(name)
     }
 }
 

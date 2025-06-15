@@ -8,6 +8,7 @@ use std::{
 #[derive(Debug, Default)]
 pub struct WaitList(RefCell<Vec<Waker>>);
 
+#[allow(unused)]
 impl WaitList {
     pub fn new() -> Self {
         Self::default()

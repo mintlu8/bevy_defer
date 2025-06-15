@@ -40,23 +40,16 @@ type_map!(
     pub SignalMap where T [SignalId] => Value<T::Data> [Send + Sync] as FxHashMap
 );
 
-type_map!(
-    /// A type map of signals.
-    pub NamedSignalMap where (T, String) [SignalId] => Value<T::Data> [Send + Sync] as FxHashMap
-);
-
 /// Named or typed synchronization primitives of `bevy_defer`.
 #[derive(Default)]
 pub(crate) struct ReactorsInner {
     typed: Mutex<SignalMap>,
-    named: Mutex<NamedSignalMap>,
 }
 
 impl std::fmt::Debug for ReactorsInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Reactors")
             .field("typed", &self.typed.lock().unwrap().len())
-            .field("named", &self.named.lock().unwrap().len())
             .finish()
     }
 }
@@ -71,18 +64,6 @@ impl Reactors {
         } else {
             let signal = Value::<T::Data>::default();
             lock.insert::<T>(signal.clone_raw());
-            signal
-        }
-    }
-
-    /// Obtain a named signal.
-    pub fn get_named<T: SignalId>(&self, name: &str) -> Value<T::Data> {
-        let mut lock = self.0.named.lock().unwrap();
-        if let Some(data) = lock.get::<T, _>(name) {
-            data.clone_uninit()
-        } else {
-            let signal = Value::<T::Data>::default();
-            lock.insert::<T>(name.to_owned(), signal.clone_raw());
             signal
         }
     }

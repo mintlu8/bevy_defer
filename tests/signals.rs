@@ -74,50 +74,6 @@ signal_ids! {
     Message: String,
 }
 
-#[test]
-pub fn chat() {
-    static ALICE: AtomicBool = AtomicBool::new(false);
-    static BOB: AtomicBool = AtomicBool::new(false);
-    let mut app = App::new();
-    app.add_plugins(AsyncPlugin::default_settings());
-    app.add_plugins(MinimalPlugins);
-    app.spawn_task(async {
-        let world = AsyncWorld;
-        assert_eq!(
-            world.named_signal::<Message>("Alice").read_async().await,
-            "Hello, Alice."
-        );
-        world.sleep(Duration::from_millis(16)).await;
-        world
-            .named_signal::<Message>("Bob")
-            .write("Hello, Bob.".to_owned());
-        ALICE.store(true, Ordering::Relaxed);
-        Ok(())
-    });
-    app.spawn_task(async {
-        let world = AsyncWorld;
-        world.sleep(Duration::from_millis(16)).await;
-        world
-            .named_signal::<Message>("Alice")
-            .write("Hello, Alice.".to_owned());
-        assert_eq!(
-            world.named_signal::<Message>("Bob").read_async().await,
-            "Hello, Bob."
-        );
-        BOB.store(true, Ordering::Relaxed);
-        Ok(())
-    });
-    app.spawn_task(async {
-        let world = AsyncWorld;
-        world.sleep(Duration::from_millis(100)).await;
-        world.quit();
-        Ok(())
-    });
-    app.run();
-    assert!(ALICE.load(Ordering::SeqCst));
-    assert!(BOB.load(Ordering::SeqCst));
-}
-
 #[derive(Debug, Clone, Event)]
 pub struct AliceChat(String);
 

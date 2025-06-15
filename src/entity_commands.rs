@@ -7,6 +7,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
+use bevy::ecs::observer::Trigger;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
 use bevy::ecs::world::{EntityRef, EntityWorldMut};
@@ -14,6 +15,7 @@ use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy::transform::components::{GlobalTransform, Transform};
 use event_listener::Event as AsyncEvent;
 use futures::future::Either;
+use futures::Stream;
 use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::borrow::Borrow;
@@ -333,6 +335,26 @@ impl AsyncEntityMut {
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;
         Ok(AsyncEntityMut(entity))
+    }
+
+    /// Create a [`Stream`] of a specific triggered event.
+    ///
+    /// `T` corresponds to `Trigger<T>` in observers.
+    ///
+    /// # Note
+    ///
+    /// This function spawns an observer.
+    pub fn on<T: Event + Clone>(&self) -> impl Stream<Item = T> + 'static {
+        let entity = self.id();
+        let (sender, receiver) = flume::unbounded();
+        AsyncWorld.run(|world| {
+            world
+                .entity_mut(entity)
+                .observe(move |trigger: Trigger<T>| {
+                    let _ = sender.send(trigger.event().clone());
+                });
+        });
+        receiver.into_stream()
     }
 
     /// Returns a future that yields when the entity is despawned.

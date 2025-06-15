@@ -49,12 +49,6 @@ impl AsyncExecutor {
     }
 
     /// Spawns a future and returns a [`Task`].
-    #[deprecated = "Use `spawn_task`."]
-    pub fn spawn_scoped<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
-        self.0.spawn(future)
-    }
-
-    /// Spawns a future and returns a [`Task`].
     pub fn spawn_task<T: 'static>(&self, future: impl Future<Output = T> + 'static) -> Task<T> {
         self.0.spawn(future)
     }

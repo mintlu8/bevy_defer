@@ -504,28 +504,4 @@ impl AsyncWorld {
         }
         REACTORS.with(|signals| signals.get_typed::<T>())
     }
-
-    /// Obtain or init a signal by name and [`SignalId`].
-    ///
-    /// # Panics
-    ///
-    /// If used outside a `bevy_defer` future.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_defer::signal_ids;
-    /// # signal_ids!(MySignal: f32);
-    /// # bevy_defer::test_spawn!({
-    /// let signal = AsyncWorld.named_signal::<MySignal>("signal 1");
-    /// signal.write(3.14);
-    /// signal.read_async().await;
-    /// # });
-    /// ```
-    pub fn named_signal<T: SignalId>(&self, name: &str) -> Value<T::Data> {
-        if !REACTORS.is_set() {
-            panic!("Can only obtain named signal in async context.")
-        }
-        REACTORS.with(|signals| signals.get_named::<T>(name))
-    }
 }

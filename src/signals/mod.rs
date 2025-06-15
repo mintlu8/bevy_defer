@@ -37,9 +37,6 @@ pub use signal_utils::*;
 
 use crate::{access::AsyncEntityMut, executor::with_world_mut, AccessError, AccessResult};
 
-#[deprecated = "Use `async_shared::Value` instead."]
-pub type Signal<T> = Value<T>;
-
 impl AsyncEntityMut {
     /// Send data through a signal on this entity.
     ///
