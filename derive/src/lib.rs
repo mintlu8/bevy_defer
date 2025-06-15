@@ -62,8 +62,8 @@ fn type_to_ident(ty: &Type) -> Ident {
 ///
 /// * `#[async_access(must_exist)]`
 ///
-///     This will unwrap the results instead of returning `AccessResult`.
-///     Useful on resources that should always be available.
+///   This will unwrap the results instead of returning `AccessResult`.
+///   Useful on resources that should always be available.
 #[proc_macro_attribute]
 pub fn async_access(args: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
     let unwraps = match syn::parse::<Ident>(args) {
