@@ -469,7 +469,7 @@ impl AsyncWorld {
 
     /// Wake a future on the next frame.
     pub fn yield_now_cx(&self, cx: &Context) {
-        if !REACTORS.is_set() {
+        if !QUERY_QUEUE.is_set() {
             panic!("Can only yield in async context.")
         }
         QUERY_QUEUE.with(|queue| {
