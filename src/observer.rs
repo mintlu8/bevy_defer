@@ -103,7 +103,7 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> std::f
     //noinspection ALL
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use crate::AsyncAccess;
-        match crate::AsyncWorld
+        crate::AsyncWorld
             .entity(self.0)
             .component::<AsyncObserver<E, B>>()
             .get_mut(|observer| {
@@ -131,9 +131,7 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> std::f
                     }
                 }
             })
-            .map_err(|_| Poll::Pending)
-        {
-            Ok(data) | Err(data) => data,
-        }
+            // Because we don't queue the executor here the future disappears
+            .unwrap_or_else(|_| Poll::Pending)
     }
 }
