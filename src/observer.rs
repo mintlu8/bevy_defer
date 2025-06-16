@@ -1,10 +1,5 @@
-use std::hint::black_box;
-use crate::access::AsyncEntityMut;
-use bevy::ecs::component::ComponentId;
-use bevy::prelude::{OnInsert, ResMut, World};
-use futures::TryFutureExt;
+use std::collections::HashSet;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -28,55 +23,15 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> Clone
 impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> Copy
     for AsyncTrigger<E, B> {}
 
-#[repr(C)]
 #[derive(bevy::prelude::Component)]
 pub struct AsyncObserver<E: bevy::prelude::Event + 'static, B: bevy::prelude::Bundle = ()> {
-    cleared: bool,
+    cleared: HashSet<usize>,
     phantom_data: PhantomData<(E, B)>,
-    data: MaybeUninit<(E, bevy::prelude::Entity)>,
+    data: Option<(E, bevy::prelude::Entity)>,
 }
 impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> AsyncObserver<E, B> {
     pub fn get(&self) -> Option<(E, bevy::prelude::Entity)> {
-        if self.cleared {
-            None
-        } else {
-            // SAFETY: `cleared == false` means the tuple is definitely initialised.
-            Some(unsafe { self.data.assume_init_ref().clone() })
-        }
-    }
-}
-
-impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> Clone
-    for AsyncObserver<E, B>
-{
-    fn clone(&self) -> Self {
-        Self {
-            cleared: self.cleared,
-            phantom_data: Default::default(),
-            data: if self.cleared {
-                MaybeUninit::uninit()
-            } else {
-                unsafe { MaybeUninit::new(self.data.assume_init_ref().clone()) }
-            },
-        }
-    }
-}
-
-#[derive(bevy::prelude::Resource, bevy::prelude::Deref, bevy::prelude::DerefMut, Default)]
-pub(crate) struct AsyncObserversToClear(Vec<(bevy::prelude::Entity, ComponentId)>);
-
-impl AsyncObserversToClear {
-    pub(crate) fn run_clear_cycle(&mut self, world: &mut World) {
-        for (entity, component_id) in self.0.drain(0..) {
-            if let Ok(ptr) = world.entity_mut(entity).get_mut_by_id(component_id) {
-                let raw = ptr.into_inner().as_ptr();
-                unsafe {
-                    let flag_ptr = raw.cast::<bool>();
-                    println!("Flag is: {}", std::ptr::read(flag_ptr));
-                    std::ptr::write(flag_ptr, true);
-                }
-            }
-        }
+        self.data.as_ref().cloned()
     }
 }
 
@@ -94,19 +49,19 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> AsyncT
             match world.entity_mut(entity).get::<AsyncObserver<E, B>>() {
                 None => {
                     world.entity_mut(entity).insert(AsyncObserver::<E, B> {
-                        cleared: true,
+                        cleared: HashSet::new(),
                         phantom_data: Default::default(),
-                        data: MaybeUninit::uninit(),
+                        data: None,
                     });
                     let component_id = world.register_component::<AsyncObserver<E, B>>();
                     world.commands().entity(entity).observe(
                         move |e: bevy::prelude::Trigger<E, B>,
-                              mut async_observer: bevy::prelude::Query<&mut AsyncObserver<E, B>>,
-                              mut async_observers_to_clear: ResMut<AsyncObserversToClear>| {
+                              mut async_observer: bevy::prelude::Query<
+                            &mut AsyncObserver<E, B>,
+                        >| {
                             let mut async_observer = async_observer.get_mut(entity).unwrap();
-                            async_observer.data = MaybeUninit::new((e.event().clone(), e.target()));
-                            async_observer.cleared = true;
-                            async_observers_to_clear.push((e.target(), component_id));
+                            async_observer.data = Some((e.event().clone(), e.target()));
+                            async_observer.cleared.clear();
                         },
                     );
                 }
@@ -127,7 +82,7 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle>
 impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle>
     AsyncTriggerExt<E, B, crate::access::AsyncEntityMut> for bevy::prelude::Trigger<'_, E, B>
 {
-    fn entity(entity: AsyncEntityMut) -> AsyncTrigger<E, B> {
+    fn entity(entity: crate::access::AsyncEntityMut) -> AsyncTrigger<E, B> {
         AsyncTrigger::new(entity.id())
     }
 }
@@ -151,12 +106,30 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> std::f
         match crate::AsyncWorld
             .entity(self.0)
             .component::<AsyncObserver<E, B>>()
-            .get_mut(|observer| match observer.get() {
-                None => {
+            .get_mut(|observer| {
+                if observer
+                    .cleared
+                    // Because its `Pin` we are guaranteed the pointer address is the same every time!
+                    // How wonderful!
+                    .contains(&(self.as_ref().get_ref() as *const Self as usize))
+                {
                     crate::executor::QUERY_QUEUE.with(|queue| queue.yielded.push_cx(cx));
-                    Poll::Pending
+                    return Poll::Pending;
                 }
-                Some(data) => Poll::Ready(data),
+                match observer.get() {
+                    None => {
+                        crate::executor::QUERY_QUEUE.with(|queue| queue.yielded.push_cx(cx));
+                        Poll::Pending
+                    }
+                    Some(data) => {
+                        observer
+                            .cleared
+                            // Because its `Pin` we are guaranteed the pointer address is the same every time!
+                            // How wonderful!
+                            .insert(self.as_ref().get_ref() as *const Self as usize);
+                        Poll::Ready(data)
+                    }
+                }
             })
             .map_err(|_| Poll::Pending)
         {

@@ -98,10 +98,4 @@ pub fn run_async_executor(world: &mut World) {
     } else {
         f()
     }
-
-    world.resource_scope(
-        |world: &mut World, mut async_observers_to_clear: Mut<observer::AsyncObserversToClear>| {
-            async_observers_to_clear.run_clear_cycle(world);
-        },
-    );
 }

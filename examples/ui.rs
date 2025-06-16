@@ -4,7 +4,6 @@ use bevy::tasks::futures_lite::StreamExt;
 use bevy::ui::RelativeCursorPosition;
 use bevy_defer::AsyncPlugin;
 use bevy_defer::{fetch, AsyncAccess, AsyncEntityCommandsExtension};
-use bevy_defer::observer::AsyncTriggerExt;
 
 fn main() {
     App::new()
@@ -143,16 +142,18 @@ fn setup(mut commands: Commands) {
                     Ok(())
                 })
                 .spawn_task(move |entity| async move {
-                    loop {
-                        let (out, _) = Trigger::<Pointer<Out>>::entity(btn_entity).await;
+                    let btn = fetch!(#btn_entity);
+                    let mut stream = btn.on::<Out>();
+                    while let Some(item) = stream.next().await {
                         let s = format!(
                             "Hover exited at {}",
-                            out.hit.position.unwrap_or_default().xz()
+                            item.hit.position.unwrap_or_default().xz()
                         );
                         fetch!(entity, Text)
                             .get_mut(move |text| text.0 = s)
                             .unwrap();
                     }
+                    Ok(())
                 });
         });
 }

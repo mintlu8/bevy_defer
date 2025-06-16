@@ -88,7 +88,6 @@ pub use ref_cast::RefCast;
 use queue::run_fixed_queue;
 use signals::{SignalId, Signals};
 
-use crate::observer::AsyncObserversToClear;
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{async_access, async_dyn};
 
@@ -112,7 +111,6 @@ impl Plugin for CoreAsyncPlugin {
             .init_non_send_resource::<AsyncExecutor>()
             .init_resource::<Reactors>()
             .init_resource::<EntityInspectors>()
-            .init_resource::<AsyncObserversToClear>()
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
             .init_schedule(BeforeAsyncExecutor)

@@ -107,9 +107,7 @@ fn setup(mut commands: Commands) {
                         let (click, _) = Trigger::<Pointer<Click>>::entity(btn_entity).await;
                         let s =
                             format!("Clicked at {}", click.hit.position.unwrap_or_default().xz());
-                        fetch!(btn, Text)
-                            .get_mut(move |text| text.0 = s)
-                            .unwrap();
+                        fetch!(btn, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                 })
                 .spawn_task(move |btn| async move {
@@ -119,9 +117,7 @@ fn setup(mut commands: Commands) {
                             "Mouse down at {}",
                             pressed.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(btn, Text)
-                            .get_mut(move |text| text.0 = s)
-                            .unwrap();
+                        fetch!(btn, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                 })
                 .spawn_task(move |btn| async move {
@@ -131,9 +127,7 @@ fn setup(mut commands: Commands) {
                             "Hover entered at {}",
                             over.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(btn, Text)
-                            .get_mut(move |text| text.0 = s)
-                            .unwrap();
+                        fetch!(btn, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                 })
                 .spawn_task(move |btn| async move {
@@ -143,9 +137,7 @@ fn setup(mut commands: Commands) {
                             "Hover exited at {}",
                             out.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(btn, Text)
-                            .get_mut(move |text| text.0 = s)
-                            .unwrap();
+                        fetch!(btn, Text).get_mut(move |text| text.0 = s).unwrap();
                     }
                 });
         });
