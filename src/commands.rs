@@ -17,6 +17,7 @@ use futures::future::ready;
 use futures::future::Either;
 use futures::stream::FusedStream;
 use std::any::type_name;
+use std::task::Context;
 use std::time::Duration;
 use std::{
     future::{poll_fn, Future},
@@ -463,6 +464,16 @@ impl AsyncWorld {
             yielded = true;
             QUERY_QUEUE.with(|queue| queue.yielded.push_cx(cx));
             Poll::Pending
+        })
+    }
+
+    /// Wake a future on the next frame.
+    pub fn yield_now_cx(&self, cx: &Context) {
+        if !REACTORS.is_set() {
+            panic!("Can only yield in async context.")
+        }
+        QUERY_QUEUE.with(|queue| {
+            queue.yielded.push_cx(cx);
         })
     }
 
