@@ -17,9 +17,6 @@ impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> Clone
 }
 
 #[rustfmt::skip]
-/// Rust allows you to leak things, so this isn't unsafe, but because we don't implement a custom drop
-/// in order to maintain our important `Copy` status, we may end up not running the destructor on `E`
-/// when the entity the AsyncObserver is spawned on despawns.
 impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> Copy
     for AsyncTrigger<E, B> {}
 
