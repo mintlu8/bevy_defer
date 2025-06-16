@@ -1,9 +1,11 @@
+use crate::observer;
 use crate::queue::QueryQueue;
 use crate::reactors::Reactors;
 use async_executor::{LocalExecutor, Task};
 use bevy::asset::AssetServer;
 use bevy::ecs::world::World;
 use bevy::log::error;
+use bevy::prelude::Mut;
 use std::fmt::Display;
 use std::future::Future;
 use std::rc::Rc;
@@ -96,4 +98,10 @@ pub fn run_async_executor(world: &mut World) {
     } else {
         f()
     }
+
+    world.resource_scope(
+        |world: &mut World, mut async_observers_to_clear: Mut<observer::AsyncObserversToClear>| {
+            async_observers_to_clear.run_clear_cycle(world);
+        },
+    );
 }

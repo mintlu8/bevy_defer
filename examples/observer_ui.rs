@@ -2,9 +2,9 @@
 use bevy::prelude::*;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::ui::RelativeCursorPosition;
+use bevy_defer::observer::{AsyncTrigger, AsyncTriggerExt};
 use bevy_defer::AsyncPlugin;
 use bevy_defer::{fetch, AsyncAccess, AsyncEntityCommandsExtension};
-use bevy_defer::observer::AsyncTriggerExt;
 
 fn main() {
     App::new()
@@ -102,54 +102,48 @@ fn setup(mut commands: Commands) {
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),
                 ))
-                .spawn_task(move |entity| async move {
-                    let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Click>();
-                    while let Some(item) = stream.next().await {
+                .spawn_task(move |btn| async move {
+                    loop {
+                        let (click, _) = Trigger::<Pointer<Click>>::entity(btn_entity).await;
                         let s =
-                            format!("Clicked at {}", item.hit.position.unwrap_or_default().xz());
-                        fetch!(entity, Text)
+                            format!("Clicked at {}", click.hit.position.unwrap_or_default().xz());
+                        fetch!(btn, Text)
                             .get_mut(move |text| text.0 = s)
                             .unwrap();
                     }
-                    Ok(())
                 })
-                .spawn_task(move |entity| async move {
-                    let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pressed>();
-                    while let Some(item) = stream.next().await {
+                .spawn_task(move |btn| async move {
+                    loop {
+                        let (pressed, _) = Trigger::<Pointer<Pressed>>::entity(btn_entity).await;
                         let s = format!(
                             "Mouse down at {}",
-                            item.hit.position.unwrap_or_default().xz()
+                            pressed.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(entity, Text)
+                        fetch!(btn, Text)
                             .get_mut(move |text| text.0 = s)
                             .unwrap();
                     }
-                    Ok(())
                 })
-                .spawn_task(move |entity| async move {
-                    let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Over>();
-                    while let Some(item) = stream.next().await {
+                .spawn_task(move |btn| async move {
+                    loop {
+                        let (over, _) = Trigger::<Pointer<Over>>::entity(btn_entity).await;
                         let s = format!(
                             "Hover entered at {}",
-                            item.hit.position.unwrap_or_default().xz()
+                            over.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(entity, Text)
+                        fetch!(btn, Text)
                             .get_mut(move |text| text.0 = s)
                             .unwrap();
                     }
-                    Ok(())
                 })
-                .spawn_task(move |entity| async move {
+                .spawn_task(move |btn| async move {
                     loop {
                         let (out, _) = Trigger::<Pointer<Out>>::entity(btn_entity).await;
                         let s = format!(
                             "Hover exited at {}",
                             out.hit.position.unwrap_or_default().xz()
                         );
-                        fetch!(entity, Text)
+                        fetch!(btn, Text)
                             .get_mut(move |text| text.0 = s)
                             .unwrap();
                     }
