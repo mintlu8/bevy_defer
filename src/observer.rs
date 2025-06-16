@@ -1,11 +1,11 @@
 use std::collections::HashSet;
-use std::marker::PhantomData;
+use std::marker::{PhantomData, PhantomPinned};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pub struct AsyncTrigger<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle = ()>(
     bevy::prelude::Entity,
-    PhantomData<(E, B)>,
+    PhantomData<(E, B, PhantomPinned)>,
 );
 
 impl<E: bevy::prelude::Event + Clone + 'static, B: bevy::prelude::Bundle> Clone
