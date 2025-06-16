@@ -1,5 +1,6 @@
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
+use crate::signals::Observed;
 use crate::{access::AsyncEntityMut, AccessError, AccessResult};
 use crate::{AsyncAccess, InspectEntity, OwnedQueryState};
 use bevy::ecs::bundle::BundleFromComponents;
@@ -344,17 +345,37 @@ impl AsyncEntityMut {
     /// # Note
     ///
     /// This function spawns an observer.
-    pub fn on<T: Event + Clone>(&self) -> impl Stream<Item = T> + 'static {
+    pub fn on<T: Event + Clone>(&self) -> AccessResult<impl Stream<Item = T> + 'static> {
         let entity = self.id();
         let (sender, receiver) = flume::unbounded();
         AsyncWorld.run(|world| {
             world
+                .get_entity_mut(entity)
+                .map(|mut entity| {
+                    entity.observe(move |trigger: Trigger<T>| {
+                        let _ = sender.send(trigger.event().clone());
+                    });
+                })
+                .map_err(|_| AccessError::EntityNotFound(entity))
+        })?;
+        Ok(receiver.into_stream())
+    }
+
+    /// Initialize a signal receiver [`Observed<T>`] on this entity
+    /// and spawn an observer that feeds into that signal receiver.
+    ///
+    /// Call [`AsyncEntityMut::signal_receiver`] to read from that signal.
+    pub fn signal_observe<T: Event + Clone>(&self) -> AccessResult {
+        let entity = self.id();
+        let signal = self.signal_receiver::<Observed<T>>()?;
+        AsyncWorld.run(|world| {
+            world
                 .entity_mut(entity)
                 .observe(move |trigger: Trigger<T>| {
-                    let _ = sender.send(trigger.event().clone());
+                    signal.write(trigger.event().clone());
                 });
         });
-        receiver.into_stream()
+        Ok(())
     }
 
     /// Returns a future that yields when the entity is despawned.

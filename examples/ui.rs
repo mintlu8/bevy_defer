@@ -103,7 +103,7 @@ fn setup(mut commands: Commands) {
                 ))
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Click>>();
+                    let mut stream = btn.on::<Pointer<Click>>()?;
                     while let Some(item) = stream.next().await {
                         let s =
                             format!("Clicked at {}", item.hit.position.unwrap_or_default().xz());
@@ -115,7 +115,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Pressed>>();
+                    let mut stream = btn.on::<Pointer<Pressed>>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Mouse down at {}",
@@ -129,7 +129,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Over>>();
+                    let mut stream = btn.on::<Pointer<Over>>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Hover entered at {}",
@@ -143,7 +143,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Out>>();
+                    let mut stream = btn.on::<Pointer<Out>>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Hover exited at {}",

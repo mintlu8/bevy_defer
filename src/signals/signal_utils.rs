@@ -44,6 +44,13 @@ impl<T: Clone + Default + Send + Sync + 'static> SignalId for Fac<T> {
     type Data = T;
 }
 
+/// Standard [`SignalId`] for observed trigger events.
+pub struct Observed<T: Clone + Event>(PhantomData<T>, std::convert::Infallible);
+
+impl<T: Clone + Event> SignalId for Observed<T> {
+    type Data = T;
+}
+
 mod sealed {
     use std::marker::PhantomData;
 
@@ -135,4 +142,5 @@ mod sealed {
     }
 }
 
+use bevy::ecs::event::Event;
 pub use sealed::{SignalReceiver, SignalSender};
