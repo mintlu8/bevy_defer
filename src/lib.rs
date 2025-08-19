@@ -48,6 +48,7 @@ pub use event::EventChannel;
 pub use executor::{in_async_context, AsyncExecutor};
 #[doc(hidden)]
 pub use fetch::{fetch, fetch0, fetch1, fetch2, FetchEntity, FetchOne, FetchWorld};
+pub use queue::LoopForFrameData;
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;

@@ -395,6 +395,11 @@ impl AsyncWorld {
         })
     }
 
+    /// Trigger an observer [`Event`].
+    pub fn trigger_event<E: Event>(&self, event: E) {
+        with_world_mut(move |world: &mut World| world.trigger(event))
+    }
+
     /// Perform a blocking operation on [`AsyncComputeTaskPool`].
     pub fn unblock<T: Send + Sync + 'static>(
         &self,

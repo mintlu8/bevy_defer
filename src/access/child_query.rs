@@ -64,6 +64,9 @@ impl<R: RelationshipTarget, D: QueryData + 'static, F: QueryFilter + 'static> As
         mut_cx: &'t mut Self::RefMutCx<'_>,
         cx: &Self::Cx,
     ) -> AccessResult<Self::RefMut<'t>> {
+        if mut_cx.world.get_entity(*cx).is_err() {
+            return Err(AccessError::EntityNotFound(*cx));
+        }
         Ok(RelatedQueryState {
             world: mut_cx.world.as_unsafe_world_cell(),
             query: mut_cx.state.as_mut().unwrap(),
@@ -109,57 +112,53 @@ where
     for<'t> Iter<'t, R>: Default,
 {
     /// Iterate through children.
-    pub fn iter(
-        &mut self,
-    ) -> AccessResult<QueryManyIter<'_, '_, D::ReadOnly, F, FilterEntity<Iter<R>>>> {
+    pub fn iter(&mut self) -> QueryManyIter<'_, '_, D::ReadOnly, F, FilterEntity<Iter<R>>> {
         let parent = self.parent;
         // Safety: Safe since nothing has been borrowed yet.
         let world = unsafe { self.world.world() };
-        let children = match world.get_entity(self.parent).map(|x| x.get::<R>()) {
-            Ok(Some(children)) => children.iter(),
-            Ok(None) => Default::default(),
-            Err(_) => return Err(AccessError::EntityNotFound(self.parent)),
+        let children = match world.entity(self.parent).get::<R>() {
+            Some(children) => children.iter(),
+            None => Default::default(),
         };
-        Ok(self.query.iter_many(
+        self.query.iter_many(
             world,
             FilterEntity {
                 iter: children,
                 not: parent,
             },
-        ))
+        )
     }
 
     /// Iterate through children.
     ///
     /// Equivalent to `iter_many_mut`, result is not an iterator and must call `fetch_next` instead.
-    pub fn iter_mut(&mut self) -> AccessResult<QueryManyIter<'_, '_, D, F, FilterEntity<Iter<R>>>> {
+    pub fn iter_mut(&mut self) -> QueryManyIter<'_, '_, D, F, FilterEntity<Iter<R>>> {
         let parent = self.parent;
         // Safety: Safe since nothing has been borrowed yet.
         let children = match self
             .world
             .get_entity(self.parent)
             .map(|x| unsafe { x.get::<R>() })
+            .unwrap()
         {
-            Ok(Some(children)) => children.iter(),
-            Ok(None) => Default::default(),
-            Err(_) => return Err(AccessError::EntityNotFound(self.parent)),
+            Some(children) => children.iter(),
+            None => Default::default(),
         };
         // Safety: safe as long as parent is not queried
         let world = unsafe { self.world.world_mut() };
-        Ok(self.query.iter_many_mut(
+        self.query.iter_many_mut(
             world,
             FilterEntity {
                 iter: children,
                 not: parent,
             },
-        ))
+        )
     }
 
-    pub fn for_each(&mut self, mut f: impl FnMut(D::Item<'_>)) -> AccessResult {
-        let mut iter = self.iter_mut()?;
+    pub fn for_each(&mut self, mut f: impl FnMut(D::Item<'_>)) {
+        let mut iter = self.iter_mut();
         while let Some(item) = iter.fetch_next() {
             f(item)
         }
-        Ok(())
     }
 }

@@ -61,6 +61,11 @@ pub enum AccessError {
     IO,
     #[error("custom error: {0}")]
     Custom(&'static str),
+    #[error("typed error: {message} of type {}", fmt(ty))]
+    TypedError {
+        message: &'static &'static str,
+        ty: &'static str,
+    },
     #[error("this error should not happen")]
     ShouldNotHappen,
 }

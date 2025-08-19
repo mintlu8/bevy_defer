@@ -1,6 +1,7 @@
 use crate::executor::QUERY_QUEUE;
 use crate::sync::oneshot::ChannelOutOrCancel;
 use crate::sync::waitlist::WaitList;
+use crate::AccessResult;
 use crate::{access::AsyncWorld, cancellation::TaskCancellation, channel, sync::oneshot::Sender};
 use bevy::diagnostic::FrameCount;
 use bevy::ecs::system::NonSend;
@@ -70,6 +71,7 @@ pub struct QueryQueueInner {
     pub(crate) frame_series: RefCell<BinaryHeap<TimeIndex<u32, Sender<()>>>>,
     pub(crate) yielded: WaitList,
     pub(crate) now: Cell<Duration>,
+    pub(crate) dt: Cell<Duration>,
     pub(crate) frame: Cell<u32>,
 }
 
@@ -82,6 +84,7 @@ impl std::fmt::Debug for QueryQueue {
             .field("frames_series", &self.frame_series.borrow().len())
             .field("yielded", &self.yielded.len())
             .field("now", &self.now.get())
+            .field("now", &self.dt.get())
             .field("frame", &self.frame.get())
             .finish_non_exhaustive()
     }
@@ -194,6 +197,7 @@ pub fn run_time_series(
 ) {
     let now = time.elapsed();
     queue.now.set(now);
+    queue.dt.set(time.delta());
     let mut time_series = queue.time_series.borrow_mut();
     while time_series.peek().map(|x| x.0 <= now).unwrap_or(false) {
         let _ = time_series.pop().unwrap().1.send(());
@@ -217,5 +221,38 @@ impl AsyncWorld {
         cancellation: impl Into<TaskCancellation>,
     ) -> ChannelOutOrCancel<T> {
         QUERY_QUEUE.with(|queue| queue.timed_routine(f, cancellation))
+    }
+}
+
+/// Frame data for [`AsyncWorld::loop_for`].
+pub struct LoopForFrameData {
+    /// Percentage elapsed between 0 and 1.
+    pub fac: f32,
+    /// Time elapsed.
+    pub elapsed: f32,
+    /// Time advanced this frame.
+    pub dt: f32,
+}
+
+impl AsyncWorld {
+    /// Loop through an async function at most once per frame until a certain time.
+    pub async fn loop_for(
+        &self,
+        time: f32,
+        mut f: impl AsyncFnMut(LoopForFrameData) -> AccessResult,
+    ) -> AccessResult {
+        let start = QUERY_QUEUE.with(|x| x.now.get()).as_secs_f32();
+        let until = time + start;
+        let mut now = start;
+        while now < until {
+            let elapsed = now - start;
+            let fac = elapsed / time;
+            let dt = QUERY_QUEUE.with(|x| x.dt.get()).as_secs_f32();
+            let frame = LoopForFrameData { fac, elapsed, dt };
+            f(frame).await?;
+            AsyncWorld.yield_now().await;
+            now = QUERY_QUEUE.with(|x| x.now.get()).as_secs_f32();
+        }
+        Ok(())
     }
 }
