@@ -1,6 +1,7 @@
 //! Signals and synchronization primitives for reacting to standard bevy events.
 use async_shared::Value;
-use bevy::ecs::prelude::{EventReader, ResMut};
+use bevy::ecs::message::MessageReader;
+use bevy::ecs::prelude::ResMut;
 use bevy::ecs::{
     component::Component,
     entity::Entity,
@@ -72,7 +73,7 @@ impl Reactors {
 /// React to a [`States`] changing, signals can be subscribed from [`Reactors`] with [`StateSignal`].
 pub fn react_to_state<T: States + Clone>(
     mut scoped_tasks: Option<ResMut<ScopedTasks<T>>>,
-    mut transition_event: EventReader<StateTransitionEvent<T>>,
+    mut transition_event: MessageReader<StateTransitionEvent<T>>,
     reactors: Res<Reactors>,
 ) {
     for StateTransitionEvent { exited, entered } in transition_event.read() {

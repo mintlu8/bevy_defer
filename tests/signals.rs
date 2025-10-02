@@ -74,10 +74,10 @@ signal_ids! {
     Message: String,
 }
 
-#[derive(Debug, Clone, Event)]
+#[derive(Debug, Clone, Message)]
 pub struct AliceChat(String);
 
-#[derive(Debug, Clone, Event)]
+#[derive(Debug, Clone, Message)]
 pub struct BobChat(String);
 
 #[test]
@@ -86,23 +86,23 @@ pub fn events() {
     static BOB: AtomicBool = AtomicBool::new(false);
     let mut app = App::new();
     app.add_plugins(AsyncPlugin::default_settings());
-    app.add_event::<AliceChat>();
-    app.add_event::<BobChat>();
-    app.react_to_event::<AliceChat>();
-    app.react_to_event::<BobChat>();
+    app.add_message::<AliceChat>();
+    app.add_message::<BobChat>();
+    app.react_to_message::<AliceChat>();
+    app.react_to_message::<BobChat>();
     app.add_plugins(MinimalPlugins);
     app.spawn_task(async {
         let world = AsyncWorld;
         assert_eq!(world.next_event::<AliceChat>().await.0, "Hello, Alice.");
         world.sleep(Duration::from_millis(16)).await;
-        world.send_event(BobChat("Hello, Bob.".to_owned()))?;
+        world.write_message(BobChat("Hello, Bob.".to_owned()))?;
         ALICE.store(true, Ordering::Relaxed);
         Ok(())
     });
     app.spawn_task(async {
         let world = AsyncWorld;
         world.sleep(Duration::from_millis(16)).await;
-        world.send_event(AliceChat("Hello, Alice.".to_owned()))?;
+        world.write_message(AliceChat("Hello, Alice.".to_owned()))?;
         assert_eq!(world.next_event::<BobChat>().await.0, "Hello, Bob.");
         BOB.store(true, Ordering::Relaxed);
         Ok(())
@@ -118,17 +118,17 @@ pub fn events() {
     assert!(BOB.load(Ordering::SeqCst));
 }
 
-#[derive(Debug, Clone, Event, PartialEq)]
+#[derive(Debug, Clone, Message, PartialEq)]
 pub struct Chat(char);
 
 #[test]
 pub fn stream() {
     static DONE: AtomicBool = AtomicBool::new(false);
     let mut app = App::new();
-    app.add_event::<Chat>();
+    app.add_message::<Chat>();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AsyncPlugin::default_settings());
-    app.react_to_event::<Chat>();
+    app.react_to_message::<Chat>();
     app.spawn_task(async {
         assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('r'));
         assert_eq!(AsyncWorld.next_event::<Chat>().await, Chat('u'));
@@ -148,7 +148,7 @@ pub fn stream() {
 
     let mut msgs = vec!["bevy", "n ", "rust "];
 
-    app.add_systems(Update, move |mut w: EventWriter<Chat>| {
+    app.add_systems(Update, move |mut w: MessageWriter<Chat>| {
         if let Some(s) = msgs.pop() {
             w.write_batch(s.chars().map(Chat));
         };
@@ -158,7 +158,7 @@ pub fn stream() {
     assert!(DONE.load(Ordering::SeqCst));
 }
 
-#[derive(Debug, Event, Clone)]
+#[derive(Debug, Message, Clone)]
 struct IntegerEvent(u32);
 
 static CELL: AtomicU32 = AtomicU32::new(0);
@@ -167,8 +167,8 @@ pub fn event_stream() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(AsyncPlugin::default_settings());
-    app.add_event::<IntegerEvent>();
-    app.react_to_event::<IntegerEvent>();
+    app.add_message::<IntegerEvent>();
+    app.react_to_message::<IntegerEvent>();
     app.spawn_task(async {
         let mut i = 0;
         loop {
@@ -190,7 +190,7 @@ pub fn event_stream() {
     app.run();
 }
 
-fn sys_update(mut event: EventWriter<IntegerEvent>) {
+fn sys_update(mut event: MessageWriter<IntegerEvent>) {
     for _ in 0..fastrand::usize(0..5) {
         event.write(IntegerEvent(CELL.fetch_add(1, Ordering::SeqCst)));
     }

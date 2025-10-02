@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::ui::RelativeCursorPosition;
 use bevy_defer::AsyncPlugin;
-use bevy_defer::{fetch, AsyncAccess, AsyncEntityCommandsExtension};
+use bevy_defer::{fetch, AsyncEntityCommandsExtension};
 
 fn main() {
     App::new()
@@ -29,15 +29,15 @@ fn button_system(
         match *interaction {
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
-                border_color.0 = Color::srgb(1., 0., 0.);
+                border_color.set_all(Color::srgb(1., 0., 0.));
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
+                border_color.set_all(Color::WHITE);
             }
             Interaction::None => {
                 *color = NORMAL_BUTTON.into();
-                border_color.0 = Color::BLACK;
+                border_color.set_all(Color::BLACK);
             }
         }
     }
@@ -69,7 +69,7 @@ fn setup(mut commands: Commands) {
                         ..default()
                     },
                     Button,
-                    BorderColor(Color::BLACK),
+                    BorderColor::all(Color::BLACK),
                     ImageNode {
                         color: NORMAL_BUTTON,
                         ..Default::default()
@@ -115,7 +115,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Pressed>>()?;
+                    let mut stream = btn.on::<Pointer<Press>>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Mouse down at {}",

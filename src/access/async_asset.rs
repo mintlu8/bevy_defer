@@ -68,23 +68,29 @@ impl AssetSet {
 
 /// Async version of [`Handle`].
 #[derive(Debug)]
-pub struct AsyncAsset<A: Asset>(pub(crate) Handle<A>);
+pub enum AsyncAsset<A: Asset> {
+    Strong(Handle<A>),
+    Weak(AssetId<A>),
+}
 
 impl<A: Asset> Clone for AsyncAsset<A> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<A: Asset> AsyncAsset<A> {
-    pub fn clone_weak(&self) -> Self {
-        Self(self.0.clone_weak())
+        match self {
+            AsyncAsset::Strong(handle) => AsyncAsset::Strong(handle.clone()),
+            AsyncAsset::Weak(asset_id) => AsyncAsset::Weak(*asset_id),
+        }
     }
 }
 
 impl<A: Asset> From<Handle<A>> for AsyncAsset<A> {
     fn from(value: Handle<A>) -> Self {
-        AsyncAsset(value)
+        AsyncAsset::Strong(value)
+    }
+}
+
+impl<A: Asset> From<AssetId<A>> for AsyncAsset<A> {
+    fn from(value: AssetId<A>) -> Self {
+        AsyncAsset::Weak(value)
     }
 }
 
@@ -95,20 +101,6 @@ impl<A: Asset> From<&AsyncAsset<A>> for AssetId<A> {
 }
 
 impl AsyncWorld {
-    /// Obtain an [`AsyncAsset`] from a [`Handle`].
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # bevy_defer::test_spawn!({
-    /// let square = AsyncWorld.load_asset::<Image>("square.png");
-    /// AsyncWorld.asset(&square);
-    /// # });
-    /// ```
-    pub fn asset<A: Asset>(&self, handle: impl Into<AssetId<A>>) -> AsyncAsset<A> {
-        AsyncAsset(Handle::Weak(handle.into()))
-    }
-
     /// Load an asset from an [`AssetPath`], equivalent to `AssetServer::load`.
     /// Does not wait for `Asset` to be loaded.
     ///
@@ -130,7 +122,7 @@ impl AsyncWorld {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset(ASSET_SERVER.with(|s| s.load::<A>(path)))
+        AsyncAsset::Strong(ASSET_SERVER.with(|s| s.load::<A>(path)))
     }
 
     /// Begins loading an Asset of type `A` stored at path.
@@ -143,7 +135,7 @@ impl AsyncWorld {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset(ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f)))
+        AsyncAsset::Strong(ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f)))
     }
 
     /// Add an asset and obtain its handle.
@@ -159,24 +151,33 @@ impl AsyncWorld {
 }
 
 impl<A: Asset> AsyncAsset<A> {
+    /// Obtain a weak [`AsyncAsset`] from an [`AssetId`].
+    ///
+    /// For strong asset, use [`AsyncAsset::Strong`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// let square = AsyncWorld.load_asset::<Image>("square.png");
+    /// AsyncAsset::new_weak(&square);
+    /// # });
+    /// ```
+    pub fn new_weak(handle: impl Into<AssetId<A>>) -> AsyncAsset<A> {
+        AsyncAsset::Weak(handle.into())
+    }
+
     /// Obtain the underlying [`AssetId`].
     pub fn id(&self) -> AssetId<A> {
-        self.0.id()
+        match self {
+            AsyncAsset::Strong(handle) => handle.id(),
+            AsyncAsset::Weak(id) => *id,
+        }
     }
 
-    /// Obtain the underlying [`Handle`].
-    pub fn handle(&self) -> &Handle<A> {
-        &self.0
-    }
-
-    /// Create an [`AsyncAsset`] from a [`Handle`].
-    pub fn from_handle(handle: Handle<A>) -> Self {
-        AsyncAsset(handle)
-    }
-
-    /// Obtain the underlying [`Handle`].
-    pub fn into_handle(self) -> Handle<A> {
-        self.0
+    /// Clone the handle as a weak reference.
+    pub fn clone_weak(&self) -> Self {
+        Self::Weak(self.id())
     }
 
     /// Repeat until the asset is loaded, returns false if loading failed.
@@ -184,14 +185,14 @@ impl<A: Asset> AsyncAsset<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        match ASSET_SERVER.with(|server| server.load_state(&self.0)) {
+        let id = self.id();
+        match ASSET_SERVER.with(|server| server.load_state(id)) {
             LoadState::Loaded => return Either::Right(ready(true)),
             LoadState::Failed(..) => return Either::Right(ready(false)),
             _ => (),
         };
-        let handle = self.0.id();
         AsyncWorld.watch_left(move |world: &mut World| {
-            match world.resource::<AssetServer>().load_state(handle) {
+            match world.resource::<AssetServer>().load_state(id) {
                 LoadState::Loaded => Some(true),
                 LoadState::Failed(..) => Some(false),
                 _ => None,

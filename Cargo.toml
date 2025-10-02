@@ -28,7 +28,7 @@ default = ["bevy_animation", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_t
 derive = ["bevy_defer_derive"]
 bevy_animation = ["bevy/bevy_animation"]
 bevy_scene = ["bevy/bevy_scene"]
-bevy_sprite = ["bevy/bevy_sprite"]
+bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_sprite_render"]
 bevy_render = ["bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text"]
 bevy_picking = ["bevy/bevy_picking"]
@@ -40,7 +40,7 @@ full_types = []
 
 [dependencies]
 async_shared = {version = "0.2", path = "./async_shared"}
-bevy_defer_derive = { version = "0.2.1", path = "./derive", optional = true }
+bevy_defer_derive = { version = "0.3.0", path = "./derive", optional = true }
 futures = { version = "0.3.30", default-features = false }
 async-executor = "1.10.0"
 
@@ -50,15 +50,14 @@ rustc-hash = "2.0.0"
 async-oneshot = "0.5.9"
 scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
-event-listener-strategy = "0.5.2"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.16.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
+bevy = { version = "0.17.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
 pretty-type-name = "1.0.1"
 flume = { version = "0.11.1", default-features = false, features = ["async", "futures-core"] }
 default-constructor = { version = "0.5.1", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.16.0" }
+bevy = { version = "0.17.0" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }

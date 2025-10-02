@@ -2,8 +2,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_defer::{
-    access::AsyncWorld, cancellation::Cancellation, tween::Playback, AsyncAccess, AsyncExtension,
-    AsyncPlugin,
+    access::AsyncWorld, cancellation::Cancellation, tween::Playback, AsyncExtension, AsyncPlugin,
 };
 
 fn main() {

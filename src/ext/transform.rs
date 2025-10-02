@@ -4,7 +4,7 @@ use ref_cast::RefCast;
 
 use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
-    AccessResult, AsyncAccess,
+    AccessResult,
 };
 
 #[derive(Debug, RefCast)]

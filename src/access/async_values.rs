@@ -14,6 +14,10 @@ impl<C: Component> AsyncComponent<C> {
     pub fn entity(&self) -> AsyncEntityMut {
         AsyncEntityMut(self.entity)
     }
+
+    pub fn id(&self) -> Entity {
+        self.entity
+    }
 }
 
 impl<C: Component> Copy for AsyncComponent<C> {}

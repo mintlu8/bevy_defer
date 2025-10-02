@@ -120,7 +120,7 @@ impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
     type Out = AsyncAsset<A>;
 
     fn fetch(&self) -> Self::Out {
-        AsyncWorld.asset(self.id())
+        AsyncAsset::Weak(self.id())
     }
 }
 
@@ -128,7 +128,7 @@ impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
     type Out = AsyncAsset<A>;
 
     fn fetch(&self) -> Self::Out {
-        AsyncWorld.asset(*self)
+        AsyncAsset::Weak(*self)
     }
 }
 
@@ -136,7 +136,7 @@ impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
     type Out = AsyncAsset<A>;
 
     fn fetch(&self) -> Self::Out {
-        AsyncWorld.asset(self.id())
+        AsyncAsset::Weak(self.id())
     }
 }
 
@@ -144,7 +144,7 @@ impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
     type Out = AsyncAsset<A>;
 
     fn fetch(&self) -> Self::Out {
-        AsyncWorld.asset(**self)
+        AsyncAsset::Weak(**self)
     }
 }
 
@@ -174,6 +174,7 @@ pub fn fetch<T: FetchEntity<M>, M>(entity: &impl Borrow<Entity>) -> T::Out {
 
 #[cfg(test)]
 mod text {
+    use crate::access::AsyncAsset;
     use crate::AsyncWorld;
     use bevy::asset::{AssetId, Handle};
     use bevy::diagnostic::SystemInfo;
@@ -199,7 +200,7 @@ mod text {
         let _d = fetch!((&Transform, With<GlobalTransform>));
         let a1 = Handle::<Image>::default();
         let a2 = AssetId::<Image>::default();
-        let a3 = AsyncWorld.asset(&a1);
+        let a3 = AsyncAsset::new_weak(&a1);
         let a4 = &a1;
         let a5 = &a2;
         let _a = fetch!(#a1);

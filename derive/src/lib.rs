@@ -144,7 +144,6 @@ pub fn async_access(args: TokenStream1, tokens: TokenStream1) -> TokenStream1 {
         functions.push(quote! {
             #(#attrs)*
             #vis #sig {
-                use #bevy_defer::AsyncAccess;
                 self.0.#method(|v| v.#name(#(#args),*)) #unwrap_method
             }
         })

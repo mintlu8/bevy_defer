@@ -2,10 +2,10 @@ use bevy::{
     app::{App, Startup},
     input::keyboard::KeyboardInput,
     prelude::{Camera2d, KeyCode, World},
-    text::Text2d,
+    sprite::Text2d,
     DefaultPlugins,
 };
-use bevy_defer::{AppReactorExtension, AsyncAccess, AsyncExtension, AsyncPlugin, AsyncWorld};
+use bevy_defer::{AppReactorExtension, AsyncExtension, AsyncPlugin, AsyncWorld};
 
 fn main() {
     App::new()
@@ -15,7 +15,7 @@ fn main() {
             w.spawn(Camera2d);
             w.spawn(Text2d::new("Press some keys!"));
         })
-        .react_to_event::<KeyboardInput>()
+        .react_to_message::<KeyboardInput>()
         .spawn_task(async {
             let phrase = [
                 KeyCode::ArrowUp,

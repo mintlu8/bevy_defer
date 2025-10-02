@@ -2,13 +2,13 @@ use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
 use crate::signals::Observed;
 use crate::{access::AsyncEntityMut, AccessError, AccessResult};
-use crate::{AsyncAccess, InspectEntity, OwnedQueryState};
+use crate::{InspectEntity, OwnedQueryState};
 use bevy::ecs::bundle::BundleFromComponents;
 use bevy::ecs::component::Component;
-use bevy::ecs::event::Event;
+use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
-use bevy::ecs::observer::Trigger;
+use bevy::ecs::observer::On;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
 use bevy::ecs::world::{EntityRef, EntityWorldMut};
@@ -162,7 +162,7 @@ impl AsyncEntityMut {
     /// Creates an `Observer` listening for events of type `E` targeting this entity.
     ///
     /// In order to trigger the callback the entity must also match the query when the event is fired.
-    pub fn observe<E: Event, B: Bundle, M>(
+    pub fn observe<E: EntityEvent, B: Bundle, M>(
         &self,
         observer: impl IntoObserverSystem<E, B, M>,
     ) -> AccessResult {
@@ -177,7 +177,10 @@ impl AsyncEntityMut {
     }
 
     /// Triggers the given event for this entity, which will run any observers watching for it.
-    pub fn trigger<E: Event>(&self, event: E) -> AccessResult {
+    pub fn trigger<E: EntityEvent>(&self, event: impl FnOnce(Entity) -> E) -> AccessResult
+    where
+        for<'t> E::Trigger<'t>: Default,
+    {
         let entity = self.0;
         with_world_mut(move |world: &mut World| {
             world
@@ -345,14 +348,14 @@ impl AsyncEntityMut {
     /// # Note
     ///
     /// This function spawns an observer.
-    pub fn on<T: Event + Clone>(&self) -> AccessResult<impl Stream<Item = T> + 'static> {
+    pub fn on<T: EntityEvent + Clone>(&self) -> AccessResult<impl Stream<Item = T> + 'static> {
         let entity = self.id();
         let (sender, receiver) = flume::unbounded();
         AsyncWorld.run(|world| {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
-                    entity.observe(move |trigger: Trigger<T>| {
+                    entity.observe(move |trigger: On<T>| {
                         let _ = sender.send(trigger.event().clone());
                     });
                 })
@@ -365,15 +368,13 @@ impl AsyncEntityMut {
     /// and spawn an observer that feeds into that signal receiver.
     ///
     /// Call [`AsyncEntityMut::signal_receiver`] to read from that signal.
-    pub fn signal_observe<T: Event + Clone>(&self) -> AccessResult {
+    pub fn signal_observe<T: EntityEvent + Clone>(&self) -> AccessResult {
         let entity = self.id();
         let signal = self.signal_receiver::<Observed<T>>()?;
         AsyncWorld.run(|world| {
-            world
-                .entity_mut(entity)
-                .observe(move |trigger: Trigger<T>| {
-                    signal.write(trigger.event().clone());
-                });
+            world.entity_mut(entity).observe(move |trigger: On<T>| {
+                signal.write(trigger.event().clone());
+            });
         });
         Ok(())
     }
@@ -484,7 +485,7 @@ impl AsyncEntityMut {
         let e = self.id();
         AsyncWorld.run(|w| {
             if let Ok(i) = w.inspect_entity(e) {
-                let v: Vec<_> = i.map(|x| x.name()).collect();
+                let v: Vec<_> = i.map(|x| x.name().shortname().to_string()).collect();
                 v.join(", ")
             } else {
                 format!("Entity {e} missing!")
@@ -584,7 +585,7 @@ impl AsyncEntityMut {
     /// If `Visibility` is missing in one of the target's ancestors.
     #[cfg(feature = "bevy_render")]
     pub fn visibility(&self) -> AccessResult<bool> {
-        use bevy::render::prelude::Visibility;
+        use bevy::prelude::Visibility;
         AsyncWorld
             .run(|world| {
                 let entity = world.get_entity(self.0).ok()?;

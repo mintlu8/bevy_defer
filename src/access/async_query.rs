@@ -38,6 +38,10 @@ impl<T: QueryData, F: QueryFilter> AsyncEntityQuery<T, F> {
     pub fn entity(&self) -> AsyncEntityMut {
         AsyncEntityMut(self.entity)
     }
+
+    pub fn id(&self) -> Entity {
+        self.entity
+    }
 }
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncEntityQuery<T, F> {}
@@ -77,7 +81,7 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
 
 impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     /// Run a function on the iterator.
-    pub fn for_each(&self, mut f: impl FnMut(T::Item<'_>)) {
+    pub fn for_each(&self, mut f: impl FnMut(T::Item<'_, '_>)) {
         with_world_mut(move |w| {
             let mut state = OwnedQueryState::<T, F>::new(w);
             for item in state.iter_mut() {
@@ -142,7 +146,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
         }
     }
 
-    pub fn single(&mut self) -> Result<<D::ReadOnly as QueryData>::Item<'_>, AccessError> {
+    pub fn single(&mut self) -> Result<<D::ReadOnly as QueryData>::Item<'_, '_>, AccessError> {
         self.state
             .as_mut()
             .unwrap()
@@ -157,7 +161,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             })
     }
 
-    pub fn single_mut(&mut self) -> Result<D::Item<'_>, AccessError> {
+    pub fn single_mut(&mut self) -> Result<D::Item<'_, '_>, AccessError> {
         self.state
             .as_mut()
             .unwrap()
@@ -175,7 +179,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
     pub fn get(
         &mut self,
         entity: Entity,
-    ) -> Result<<D::ReadOnly as QueryData>::Item<'_>, AccessError> {
+    ) -> Result<<D::ReadOnly as QueryData>::Item<'_, '_>, AccessError> {
         self.state
             .as_mut()
             .unwrap()
@@ -183,7 +187,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             .map_err(|_| AccessError::EntityNotFound(entity))
     }
 
-    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_>, AccessError> {
+    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_, '_>, AccessError> {
         self.state
             .as_mut()
             .unwrap()
@@ -220,7 +224,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
 impl<'s, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
     for &'s mut OwnedQueryState<'_, D, F>
 {
-    type Item = D::Item<'s>;
+    type Item = D::Item<'s, 's>;
     type IntoIter = QueryIter<'s, 's, D, F>;
 
     fn into_iter(self) -> Self::IntoIter {

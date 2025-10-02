@@ -9,7 +9,7 @@ use std::{
 
 use bevy::asset::{AssetLoader, AsyncReadExt};
 use bevy::{prelude::*, tasks::ConditionalSendFuture};
-use bevy_defer::{access::AsyncWorld, AsyncAccess, AsyncExtension, AsyncPlugin};
+use bevy_defer::{access::AsyncWorld, AsyncExtension, AsyncPlugin};
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
 pub struct JsonNumber(i64);

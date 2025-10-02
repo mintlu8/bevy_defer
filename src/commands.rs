@@ -6,7 +6,8 @@ use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tw
 use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
 use bevy::app::AppExit;
-use bevy::ecs::event::{Event, EventId};
+use bevy::ecs::event::Event;
+use bevy::ecs::message::{Message, MessageId};
 use bevy::ecs::system::{Command, IntoSystem, SystemId};
 use bevy::ecs::world::{CommandQueue, FromWorld, Mut};
 use bevy::ecs::{bundle::Bundle, resource::Resource, schedule::ScheduleLabel, world::World};
@@ -384,11 +385,11 @@ impl AsyncWorld {
         signal.into_stream()
     }
 
-    /// Send an [`Event`].
-    pub fn send_event<E: Event>(&self, event: E) -> AccessResult<EventId<E>> {
+    /// Writes a [`Message`].
+    pub fn write_message<E: Message>(&self, event: E) -> AccessResult<MessageId<E>> {
         with_world_mut(move |world: &mut World| {
             world
-                .send_event(event)
+                .write_message(event)
                 .ok_or(AccessError::EventNotRegistered {
                     name: type_name::<E>(),
                 })
@@ -396,7 +397,10 @@ impl AsyncWorld {
     }
 
     /// Trigger an observer [`Event`].
-    pub fn trigger_event<E: Event>(&self, event: E) {
+    pub fn trigger_event<E: Event>(&self, event: E)
+    where
+        for<'a> E::Trigger<'a>: Default,
+    {
         with_world_mut(move |world: &mut World| world.trigger(event))
     }
 
@@ -493,7 +497,7 @@ impl AsyncWorld {
     /// ```
     pub fn quit(&self) {
         with_world_mut(move |world: &mut World| {
-            world.send_event(AppExit::Success);
+            world.write_message(AppExit::Success);
         })
     }
 

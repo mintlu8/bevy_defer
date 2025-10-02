@@ -5,17 +5,33 @@ use bevy::ecs::{
     hierarchy::Children,
     query::{QueryData, QueryFilter, QueryManyIter, QueryState},
     relationship::{RelationshipSourceCollection, RelationshipTarget},
-    world::{unsafe_world_cell::UnsafeWorldCell, World},
+    world::unsafe_world_cell::UnsafeWorldCell,
 };
 
-use crate::{AccessError, AccessResult, AsyncAccess, OwnedQueryState};
+use super::AsyncEntityMut;
 
-use super::{traits::AsyncMutAccess, AsyncEntityMut};
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct AsyncRelatedQuery<R: RelationshipTarget, D: QueryData, F: QueryFilter> {
     entity: Entity,
     p: PhantomData<(R, D, F)>,
+}
+
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> Clone for AsyncRelatedQuery<R, D, F> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> Copy for AsyncRelatedQuery<R, D, F> {}
+
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> AsyncRelatedQuery<R, D, F> {
+    pub fn id(&self) -> Entity {
+        self.entity
+    }
+
+    pub fn entity(&self) -> AsyncEntityMut {
+        AsyncEntityMut(self.entity)
+    }
 }
 
 impl AsyncEntityMut {
@@ -39,49 +55,10 @@ impl AsyncEntityMut {
 }
 
 pub struct RelatedQueryState<'t, R: RelationshipTarget, D: QueryData, F: QueryFilter> {
-    world: UnsafeWorldCell<'t>,
-    query: &'t mut QueryState<D, F>,
-    parent: Entity,
-    p: PhantomData<R>,
-}
-
-impl<R: RelationshipTarget, D: QueryData + 'static, F: QueryFilter + 'static> AsyncAccess
-    for AsyncRelatedQuery<R, D, F>
-{
-    type Cx = Entity;
-
-    type RefMutCx<'t> = OwnedQueryState<'t, D, F>;
-
-    type Ref<'t> = RelatedQueryState<'t, R, D::ReadOnly, F>;
-
-    type RefMut<'t> = RelatedQueryState<'t, R, D, F>;
-
-    fn as_cx(&self) -> Self::Cx {
-        self.entity
-    }
-
-    fn from_mut_cx<'t>(
-        mut_cx: &'t mut Self::RefMutCx<'_>,
-        cx: &Self::Cx,
-    ) -> AccessResult<Self::RefMut<'t>> {
-        if mut_cx.world.get_entity(*cx).is_err() {
-            return Err(AccessError::EntityNotFound(*cx));
-        }
-        Ok(RelatedQueryState {
-            world: mut_cx.world.as_unsafe_world_cell(),
-            query: mut_cx.state.as_mut().unwrap(),
-            parent: *cx,
-            p: PhantomData,
-        })
-    }
-}
-
-impl<R: RelationshipTarget, D: QueryData + 'static, F: QueryFilter + 'static> AsyncMutAccess
-    for AsyncRelatedQuery<R, D, F>
-{
-    fn from_mut_world<'t>(world: &'t mut World, _: &Self::Cx) -> AccessResult<Self::RefMutCx<'t>> {
-        Ok(OwnedQueryState::new(world))
-    }
+    pub(super) world: UnsafeWorldCell<'t>,
+    pub(super) query: &'t mut QueryState<D, F>,
+    pub(super) parent: Entity,
+    pub(super) p: PhantomData<R>,
 }
 
 pub struct FilterEntity<I: Iterator<Item = Entity>> {
@@ -155,7 +132,7 @@ where
         )
     }
 
-    pub fn for_each(&mut self, mut f: impl FnMut(D::Item<'_>)) {
+    pub fn for_each(&mut self, mut f: impl FnMut(D::Item<'_, '_>)) {
         let mut iter = self.iter_mut();
         while let Some(item) = iter.fetch_next() {
             f(item)
