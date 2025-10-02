@@ -15,21 +15,21 @@ pub trait GetHandle {
 }
 
 impl<C: Component + GetHandle> AsyncComponent<C> {
-    /// Obtain the underlying [`Asset`] according to [`AsAssetId`].
+    /// Obtain the underlying [`Asset`] according to [`GetHandle`].
     pub fn asset(&self) -> AccessResult<AsyncAsset<C::Asset>> {
         Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())?))
     }
 }
 
 impl<C: Resource + GetHandle> AsyncResource<C> {
-    /// Obtain the underlying [`Asset`] according to [`AsAssetId`].
+    /// Obtain the underlying [`Asset`] according to [`GetHandle`].
     pub fn asset(&self) -> AccessResult<AsyncAsset<C::Asset>> {
         Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())?))
     }
 }
 
 impl<C: GetHandle> AsyncNonSend<C> {
-    /// Obtain the underlying [`Asset`] according to [`AsAssetId`].
+    /// Obtain the underlying [`Asset`] according to [`GetHandle`].
     pub fn asset(&self) -> AccessResult<AsyncAsset<C::Asset>> {
         Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())?))
     }
