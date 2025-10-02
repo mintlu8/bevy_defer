@@ -17,7 +17,7 @@ use std::collections::VecDeque;
 /// Use [`AsyncWorld::send_oneshot_event`] to send and
 /// [`AsyncWorld::next_event`] to read as a stream.
 ///
-/// Add [`react_to_event`] to react to actual bevy events.
+/// Add [`react_to_message`] to react to actual bevy messages.
 #[derive(Debug, Resource)]
 pub struct EventChannel<T: Send + Sync> {
     queue: VecDeque<T>,
