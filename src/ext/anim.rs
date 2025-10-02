@@ -11,7 +11,7 @@ use crate::signals::{SignalSender, Signals};
 use crate::tween::AsSeconds;
 use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
-    AccessResult, AsyncAccess,
+    AccessResult,
 };
 use crate::{AccessError, AsyncWorld, OwnedQueryState};
 use bevy::animation::prelude::{AnimationNodeIndex, AnimationTransitions};

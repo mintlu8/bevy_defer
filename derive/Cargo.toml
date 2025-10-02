@@ -1,6 +1,6 @@
 [package]
 name = "bevy_defer_derive"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]

@@ -108,7 +108,6 @@ richard.component::<HP>().get_mut(|hp| hp.set(500))?;
 ```
 
 This works for all the bevy things you expect, `Resource`, `Query`, etc.
-See the `access` module and the `AsyncAccess` trait for more detail.
 
 You can add extension methods to these accessors via `Deref` if you own the
 underlying types. See the `access::deref` module for more detail. The

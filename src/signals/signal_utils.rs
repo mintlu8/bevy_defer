@@ -67,7 +67,7 @@ mod sealed {
         p: PhantomData<T>,
     }
 
-    impl<T: SignalId> SignalSenderItem<'_, T> {
+    impl<T: SignalId> SignalSenderItem<'_, '_, T> {
         /// Check if a sender exists.
         pub fn exists(&self) -> bool {
             self.signals
@@ -126,7 +126,7 @@ mod sealed {
         p: PhantomData<T>,
     }
 
-    impl<T: SignalId> SignalReceiverItem<'_, T> {
+    impl<T: SignalId> SignalReceiverItem<'_, '_, T> {
         /// Poll an item synchronously.
         pub fn poll_once(&self) -> Option<T::Data> {
             self.signals.as_ref().and_then(|sig| sig.poll_once::<T>())

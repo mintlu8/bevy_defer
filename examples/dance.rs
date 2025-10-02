@@ -3,7 +3,7 @@ use bevy::tasks::futures_lite::StreamExt;
 use bevy::MinimalPlugins;
 use bevy_defer::{
     access::{deref::AsyncComponentDeref, AsyncComponent, AsyncWorld},
-    signal_ids, AccessError, AppReactorExtension, AsyncAccess, AsyncExtension, AsyncPlugin,
+    signal_ids, AccessError, AppReactorExtension, AsyncExtension, AsyncPlugin,
 };
 use futures::FutureExt;
 use ref_cast::RefCast;

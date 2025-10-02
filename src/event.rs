@@ -1,5 +1,9 @@
-use crate::{AccessResult, AsyncAccess, AsyncWorld};
-use bevy::ecs::{event::EventReader, resource::Resource, system::ResMut};
+use crate::{AccessResult, AsyncWorld};
+use bevy::ecs::{
+    message::{Message, MessageReader},
+    resource::Resource,
+    system::ResMut,
+};
 use event_listener::Event;
 use std::collections::VecDeque;
 
@@ -19,6 +23,7 @@ pub struct EventChannel<T: Send + Sync> {
     queue: VecDeque<T>,
     event: Event,
 }
+
 impl<T: Send + Sync> Default for EventChannel<T> {
     fn default() -> Self {
         Self {
@@ -105,8 +110,8 @@ impl AsyncWorld {
 }
 
 /// Copy an event from an [`EventReader`] to an [`EventChannel`].
-pub fn react_to_event<E: bevy::prelude::Event + Clone>(
-    mut reader: EventReader<E>,
+pub fn react_to_message<E: Message + Clone>(
+    mut reader: MessageReader<E>,
     mut channel: ResMut<EventChannel<E>>,
 ) {
     channel.clear();

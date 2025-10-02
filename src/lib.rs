@@ -3,15 +3,15 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
-use bevy::ecs::event::Event;
 use bevy::ecs::intern::Interned;
+use bevy::ecs::message::Message;
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::ecs::schedule::IntoScheduleConfigs as _;
 use bevy::ecs::system::Command;
 use bevy::prelude::EntityCommands;
 use bevy::state::prelude::State;
 use bevy::state::state::States;
-use bevy::time::TimeSystem;
+use bevy::time::TimeSystems;
 use std::fmt::Formatter;
 use std::{any::type_name, pin::Pin};
 
@@ -34,7 +34,6 @@ pub(crate) mod sync;
 pub mod tween;
 pub use access::async_asset::AssetSet;
 pub use access::async_query::OwnedQueryState;
-pub use access::traits::AsyncAccess;
 pub use access::AsyncWorld;
 pub use async_executor::Task;
 use bevy::ecs::{
@@ -57,7 +56,7 @@ pub use spawn::ScopedTasks;
 pub mod spawn_macro;
 
 pub mod systems {
-    pub use crate::event::react_to_event;
+    pub use crate::event::react_to_message;
     pub use crate::executor::run_async_executor;
     pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
     pub use crate::reactors::{react_to_component_change, react_to_state};
@@ -113,7 +112,7 @@ impl Plugin for CoreAsyncPlugin {
             .register_type::<Signals>()
             .register_type_data::<Signals, ReflectDefault>()
             .init_schedule(BeforeAsyncExecutor)
-            .add_systems(First, systems::run_time_series.after(TimeSystem))
+            .add_systems(First, systems::run_time_series.after(TimeSystems))
             .add_systems(Update, run_fixed_queue)
             .add_systems(BeforeAsyncExecutor, systems::run_watch_queries);
 
@@ -275,7 +274,7 @@ pub trait AsyncExtension {
     fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
         &mut self,
         priority: i32,
-        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+        f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
     ) -> &mut Self;
 }
 
@@ -318,7 +317,7 @@ impl AsyncExtension for World {
     fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
         &mut self,
         priority: i32,
-        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+        f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
     ) -> &mut Self {
         self.resource_mut::<EntityInspectors>()
             .push_query::<Q, F>(priority, f);
@@ -363,7 +362,7 @@ impl AsyncExtension for App {
     fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
         &mut self,
         priority: i32,
-        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+        f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
     ) -> &mut Self {
         self.world_mut()
             .register_inspect_entity_by_query::<Q, F>(priority, f);
@@ -373,10 +372,10 @@ impl AsyncExtension for App {
 
 /// Extension for [`App`] to add reactors.
 pub trait AppReactorExtension {
-    /// React to changes in an [`Event`] by duplicating events to [`EventChannel<E>`].
+    /// React to changes in an [`Message`] by duplicating events to [`EventChannel<E>`].
     ///
     /// Initializes the resource [`EventChannel<E>`].
-    fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self;
+    fn react_to_message<E: Message + Clone>(&mut self) -> &mut Self;
 
     /// React to changes in a [`States`].
     fn react_to_state<S: States>(&mut self) -> &mut Self;
@@ -386,9 +385,9 @@ pub trait AppReactorExtension {
 }
 
 impl AppReactorExtension for App {
-    fn react_to_event<E: Event + Clone>(&mut self) -> &mut Self {
+    fn react_to_message<E: Message + Clone>(&mut self) -> &mut Self {
         self.register_oneshot_event::<E>();
-        self.add_systems(BeforeAsyncExecutor, systems::react_to_event::<E>);
+        self.add_systems(BeforeAsyncExecutor, systems::react_to_message::<E>);
         self
     }
 

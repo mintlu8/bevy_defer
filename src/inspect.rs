@@ -12,7 +12,7 @@ use bevy::ecs::{
 };
 use ref_cast::RefCast;
 
-use crate::{executor::WORLD, AsyncAccess, AsyncWorld};
+use crate::{executor::WORLD, AsyncWorld};
 
 /// Provides a [`Display`] implementation for [`Entity`] inside a `bevy_defer` scope.
 #[derive(Debug, Clone, Copy, RefCast)]
@@ -92,7 +92,7 @@ impl EntityInspectors {
     pub fn push_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
         &mut self,
         priority: i32,
-        f: impl Fn(Q::Item<'_>, &mut Formatter) + Send + Sync + 'static,
+        f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
     ) {
         let idx = self.get_insert_pos(priority);
         self.0.insert(
