@@ -6,7 +6,7 @@ members = [
 
 [package]
 name = "bevy_defer"
-version = "0.15.0"
+version = "0.15.1"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]

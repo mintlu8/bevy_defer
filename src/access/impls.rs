@@ -630,3 +630,27 @@ impl_async_access! {
         }
     }
 }
+
+impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<D, F> {
+    /// Run a function on a this query.
+    pub fn with<A>(&self, f: impl FnOnce(OwnedQueryState<D, F>) -> A) -> A {
+        with_world_mut(|world| {
+            let state = OwnedQueryState::new(world);
+            f(state)
+        })
+    }
+}
+
+impl<R: Resource> AsyncResource<R> {
+    /// Run a function on this resource, panics if not exist.
+    pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
+        with_world_mut(|world| f(world.resource_mut::<R>().into_inner()))
+    }
+}
+
+impl<R: 'static> AsyncNonSend<R> {
+    /// Run a function on this non-send resource, panics if not exist.
+    pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
+        with_world_mut(|world| f(world.non_send_resource_mut::<R>().into_inner()))
+    }
+}

@@ -180,6 +180,14 @@ impl<A: Asset> AsyncAsset<A> {
         Self::Weak(self.id())
     }
 
+    /// If strong, usually only produced by [`AsyncWorld::load_asset`], returns a [`Handle`].
+    pub fn try_into_handle(self) -> Option<Handle<A>> {
+        match self {
+            AsyncAsset::Strong(handle) => Some(handle),
+            AsyncAsset::Weak(_) => None,
+        }
+    }
+
     /// Repeat until the asset is loaded, returns false if loading failed.
     pub fn loaded(&self) -> MaybeChannelOut<bool> {
         if !ASSET_SERVER.is_set() {

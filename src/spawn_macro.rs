@@ -12,7 +12,7 @@ pub fn add<T: Asset>(item: T) -> Handle<T> {
 
 /// Load an asset from its [`AssetPath`], returns its [`Handle`].
 pub fn load<T: Asset>(item: AssetPath<'static>) -> Handle<T> {
-    AsyncWorld.load_asset::<T>(item).into_handle()
+    AsyncWorld.load_asset::<T>(item).try_into_handle().unwrap()
 }
 
 /// Spawn a bundle using `bevy_defer`'s [`AsyncWorld`].
