@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
 use crate::executor::{QUERY_QUEUE, WORLD};
 use crate::in_async_context;
@@ -203,6 +204,7 @@ impl AsyncEntityMut {
 /// [`AsyncEntityParam`] on an indexed child.
 #[derive(Debug, Clone, RefCast)]
 #[repr(transparent)]
+#[deprecated = "This item should have been removed."]
 pub struct AsyncChild<const N: usize = 0>(AsyncEntityMut);
 
 impl Deref for AsyncChild {

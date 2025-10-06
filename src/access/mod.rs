@@ -12,8 +12,9 @@ pub use as_asset::{AssetOf, GetHandle};
 pub use async_asset::AsyncAsset;
 pub use async_query::{AsyncEntityQuery, AsyncQuery, AsyncQuerySingle};
 pub use async_values::{AsyncComponent, AsyncNonSend, AsyncResource};
-pub use async_world::{AsyncChild, AsyncEntityMut, AsyncWorld};
-pub use child_query::{AsyncRelatedQuery, RelatedQueryState};
-
+#[allow(deprecated)]
+pub use async_world::AsyncChild;
+pub use async_world::{AsyncEntityMut, AsyncWorld};
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
+pub use child_query::{AsyncRelatedQuery, RelatedQueryState};
