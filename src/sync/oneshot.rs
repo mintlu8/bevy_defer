@@ -128,7 +128,7 @@ impl<T> Sender<T> {
     }
 
     /// Create a future that can poll for receiver being dropped.
-    pub fn cancellation(&mut self) -> ChannelCancel<T> {
+    pub fn cancellation(&mut self) -> ChannelCancel<'_, T> {
         ChannelCancel(self)
     }
 

@@ -136,7 +136,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
 }
 
 impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
-    pub fn new(world: &mut World) -> OwnedQueryState<D, F> {
+    pub fn new(world: &mut World) -> OwnedQueryState<'_, D, F> {
         OwnedQueryState {
             state: match world.remove_resource::<ResQueryCache<D, F>>() {
                 Some(item) => Some(item.0),
@@ -212,11 +212,11 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             .iter_many_mut(self.world, entities)
     }
 
-    pub fn iter(&mut self) -> QueryIter<D::ReadOnly, F> {
+    pub fn iter(&mut self) -> QueryIter<'_, '_, D::ReadOnly, F> {
         self.state.as_mut().unwrap().iter(self.world)
     }
 
-    pub fn iter_mut(&mut self) -> QueryIter<D, F> {
+    pub fn iter_mut(&mut self) -> QueryIter<'_, '_, D, F> {
         self.state.as_mut().unwrap().iter_mut(self.world)
     }
 }

@@ -57,7 +57,7 @@ trait AsyncTrait {
     #[async_dyn]
     async fn f<'t>(&'t self, slice: &'t str) -> &'t i32;
     #[async_dyn]
-    async fn g(&self, slice: &str) -> Ref;
+    async fn g(&self, slice: &str) -> Ref<'_>;
     #[async_dyn]
     async fn h(&self, slice: &str) -> Box<dyn Any>;
 }
@@ -97,7 +97,7 @@ impl AsyncTrait for Unit {
     }
 
     #[async_dyn]
-    async fn g(&self, _: &str) -> Ref {
+    async fn g(&self, _: &str) -> Ref<'_> {
         Ref(&())
     }
 

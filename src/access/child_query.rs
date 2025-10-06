@@ -89,7 +89,7 @@ where
     for<'t> Iter<'t, R>: Default,
 {
     /// Iterate through children.
-    pub fn iter(&mut self) -> QueryManyIter<'_, '_, D::ReadOnly, F, FilterEntity<Iter<R>>> {
+    pub fn iter(&mut self) -> QueryManyIter<'_, '_, D::ReadOnly, F, FilterEntity<Iter<'_, R>>> {
         let parent = self.parent;
         // Safety: Safe since nothing has been borrowed yet.
         let world = unsafe { self.world.world() };
@@ -109,7 +109,7 @@ where
     /// Iterate through children.
     ///
     /// Equivalent to `iter_many_mut`, result is not an iterator and must call `fetch_next` instead.
-    pub fn iter_mut(&mut self) -> QueryManyIter<'_, '_, D, F, FilterEntity<Iter<R>>> {
+    pub fn iter_mut(&mut self) -> QueryManyIter<'_, '_, D, F, FilterEntity<Iter<'_, R>>> {
         let parent = self.parent;
         // Safety: Safe since nothing has been borrowed yet.
         let children = match self
