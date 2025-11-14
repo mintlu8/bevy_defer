@@ -55,6 +55,12 @@ impl Display for InspectEntity {
 
 type InspectorFn = Box<dyn Fn(Entity, &mut Formatter) -> bool + Send + Sync>;
 
+/// A list of prioritized functions used to display [`Entity`]
+/// when printing [`AccessError`](crate::AccessError)s or
+/// [`InspectEntity`]s inside a `bevy_defer` future.
+///
+/// By default this prints `(Name, index, generation)` at priority 0 if [`Name`] exists,
+/// and falls back to `(index, generation)` if all functions failed.
 #[derive(Resource)]
 pub struct EntityInspectors(Vec<(i32, InspectorFn)>);
 
@@ -68,6 +74,8 @@ impl EntityInspectors {
             Err(x) => x,
         }
     }
+
+    /// Add an inspector function at a priority if a component exists.
     pub fn push<C: Component>(
         &mut self,
         priority: i32,
@@ -89,6 +97,7 @@ impl EntityInspectors {
         );
     }
 
+    /// Add an inspector function at a priority if a query is successful.
     pub fn push_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
         &mut self,
         priority: i32,
@@ -110,6 +119,7 @@ impl EntityInspectors {
         );
     }
 
+    /// Remove all inspector functions.
     pub fn clear(&mut self) {
         self.0.clear();
     }

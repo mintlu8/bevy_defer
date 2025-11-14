@@ -55,6 +55,7 @@ pub use spawn::ScopedTasks;
 #[cfg(feature = "spawn_macro")]
 pub mod spawn_macro;
 
+/// Systems in `bevy_defer`.
 pub mod systems {
     pub use crate::event::react_to_message;
     pub use crate::executor::run_async_executor;

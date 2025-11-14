@@ -109,7 +109,10 @@ impl AsyncWorld {
     }
 }
 
-/// Copy an event from an [`EventReader`] to an [`EventChannel`].
+/// Copy an event from an [`MessageReader`] to an [`EventChannel`].
+///
+/// This system also clears the [`EventChannel`] from the previous frame if unread
+/// to mimic the intended behavior of bevy's [`Message`].
 pub fn react_to_message<E: Message + Clone>(
     mut reader: MessageReader<E>,
     mut channel: ResMut<EventChannel<E>>,

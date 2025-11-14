@@ -15,6 +15,10 @@ fn fmt(s: &str) -> String {
 
 /// Standard errors for the async runtime.
 ///
+/// # Design
+///
+/// This type is `Copy` and should be relatively cheap to include in hot paths.
+///
 /// # Error Logging
 ///
 /// Consider the `instrument` macro from the `tracing` crate.
