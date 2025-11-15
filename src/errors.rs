@@ -33,7 +33,7 @@ pub enum AccessError {
     QueryConditionNotMet { entity: Entity, query: &'static str },
     #[error("single entity not found in query {}", fmt(query))]
     NoEntityFound { query: &'static str },
-    #[error("too many entities")]
+    #[error("too many entities found in query {}", fmt(query))]
     TooManyEntities { query: &'static str },
     #[error("child index {index} missing")]
     ChildNotFound { index: usize },
@@ -45,24 +45,14 @@ pub enum AccessError {
     AssetNotFound { name: &'static str },
     #[error("event <{}> not registered", fmt(name))]
     EventNotRegistered { name: &'static str },
-    #[error("signal <{}> not found", fmt(name))]
-    SignalNotFound { name: &'static str },
     #[error("schedule not found")]
     ScheduleNotFound,
-    #[error("system param error")]
-    SystemParamError,
-    #[error("AsyncWorldParam not found")]
-    WorldParamNotFound,
     #[error("SystemId not found")]
     SystemIdNotFound,
     #[error("Task spawned has panicked")]
     TaskPanicked,
-    #[error("name not found")]
-    NameNotFound,
-    #[error("not in state")]
-    NotInState,
-    #[error("io error")]
-    IO,
+    #[error("not in a state of type {}", fmt(ty))]
+    NotInState { ty: &'static str },
     #[error("custom error: {0}")]
     Custom(&'static str),
     #[error("typed error: {message} of type {}", fmt(ty))]
@@ -72,6 +62,22 @@ pub enum AccessError {
     },
     #[error("this error should not happen")]
     ShouldNotHappen,
+
+    #[deprecated = "Signal related methods now automatically adds them."]
+    #[error("signal <{}> not found", fmt(name))]
+    SignalNotFound { name: &'static str },
+    #[deprecated]
+    #[error("system param error")]
+    SystemParamError,
+    #[deprecated]
+    #[error("AsyncWorldParam not found")]
+    WorldParamNotFound,
+    #[deprecated]
+    #[error("name not found")]
+    NameNotFound,
+    #[deprecated]
+    #[error("io error")]
+    IO,
 }
 
 impl AccessError {

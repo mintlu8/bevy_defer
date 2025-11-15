@@ -117,7 +117,9 @@ impl AsyncWorld {
         }
         AsyncWorld.run(|world| match world.get_resource::<State<S>>() {
             Some(s) if s.get() == &state => Ok(()),
-            _ => Err(AccessError::NotInState),
+            _ => Err(AccessError::NotInState {
+                ty: type_name::<S>(),
+            }),
         })?;
         AsyncWorld.run(|world| {
             if let Some(mut res) = world.get_resource_mut::<ScopedTasks<S>>() {

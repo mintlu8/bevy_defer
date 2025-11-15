@@ -184,7 +184,10 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             .as_mut()
             .unwrap()
             .get(self.world, entity)
-            .map_err(|_| AccessError::EntityNotFound(entity))
+            .map_err(|_| AccessError::QueryConditionNotMet {
+                entity,
+                query: type_name::<(D, F)>(),
+            })
     }
 
     pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_, '_>, AccessError> {
@@ -192,7 +195,10 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             .as_mut()
             .unwrap()
             .get_mut(self.world, entity)
-            .map_err(|_| AccessError::EntityNotFound(entity))
+            .map_err(|_| AccessError::QueryConditionNotMet {
+                entity,
+                query: type_name::<(D, F)>(),
+            })
     }
 
     pub fn iter_many<E: IntoIterator<Item: EntityEquivalent>>(

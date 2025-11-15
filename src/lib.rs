@@ -292,7 +292,11 @@ impl AsyncExtension for World {
     ) -> AccessResult {
         match self.get_resource::<State<S>>() {
             Some(s) if s.get() == &state => (),
-            _ => return Err(AccessError::NotInState),
+            _ => {
+                return Err(AccessError::NotInState {
+                    ty: type_name::<S>(),
+                })
+            }
         };
         let task = self.non_send_resource::<AsyncExecutor>().spawn_task(fut);
         if let Some(mut res) = self.get_resource_mut::<ScopedTasks<S>>() {
