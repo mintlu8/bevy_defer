@@ -15,6 +15,7 @@ use bevy::ecs::world::{EntityRef, EntityWorldMut};
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy::transform::components::{GlobalTransform, Transform};
 use event_listener::Event as AsyncEvent;
+use futures::channel::mpsc;
 use futures::future::Either;
 use futures::Stream;
 use rustc_hash::FxHashMap;
@@ -350,18 +351,18 @@ impl AsyncEntityMut {
     /// This function spawns an observer.
     pub fn on<T: EntityEvent + Clone>(&self) -> AccessResult<impl Stream<Item = T> + 'static> {
         let entity = self.id();
-        let (sender, receiver) = flume::unbounded();
+        let (sender, receiver) = mpsc::unbounded();
         AsyncWorld.run(|world| {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
                     entity.observe(move |trigger: On<T>| {
-                        let _ = sender.send(trigger.event().clone());
+                        let _ = sender.unbounded_send(trigger.event().clone());
                     });
                 })
                 .map_err(|_| AccessError::EntityNotFound(entity))
         })?;
-        Ok(receiver.into_stream())
+        Ok(receiver)
     }
 
     /// Initialize a signal receiver [`Observed<T>`] on this entity
