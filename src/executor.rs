@@ -13,6 +13,7 @@ scoped_tls_hkt::scoped_thread_local!(pub(crate) static mut WORLD: World);
 pub(crate) const USED_OUTSIDE: &str =
     "Should not be called outside of a `bevy_defer` future or inside a access function.";
 
+#[track_caller]
 pub(crate) fn with_world_ref<T>(f: impl FnOnce(&World) -> T) -> T {
     if !WORLD.is_set() {
         panic!("{}", USED_OUTSIDE)
@@ -20,6 +21,7 @@ pub(crate) fn with_world_ref<T>(f: impl FnOnce(&World) -> T) -> T {
     WORLD.with(|w| f(w))
 }
 
+#[track_caller]
 pub(crate) fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
     if !WORLD.is_set() {
         panic!("{}", USED_OUTSIDE)

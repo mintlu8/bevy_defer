@@ -77,6 +77,7 @@ macro_rules! impl_async_access1 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Run a function on a readonly reference to this item and obtain the result.
+            #[track_caller]
             pub fn get<A>(&self, f: impl FnOnce($Ref) -> A) -> AccessResult<A> {
                 let $this = self;
                 with_world_ref(|$world|{
@@ -86,6 +87,7 @@ macro_rules! impl_async_access1 {
             }
 
             /// Run a function on this item and obtain the result once loaded.
+            #[track_caller]
             pub fn get_on_load<A: 'static>(
                 &self,
                 mut f: impl FnMut($Ref) -> A + 'static,
@@ -106,6 +108,7 @@ macro_rules! impl_async_access1 {
             }
 
             /// Check if item exists.
+            #[track_caller]
             pub fn exists(&self) -> bool {
                 let $this = self;
                 with_world_ref::<AccessResult<bool>>(|$world|{
@@ -133,6 +136,7 @@ macro_rules! impl_async_access1 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Remove the item from the world.
+            #[track_caller]
             pub fn remove(&self) {
                 let $this = self;
                 with_world_mut(|$world|{
@@ -142,6 +146,7 @@ macro_rules! impl_async_access1 {
             }
 
             /// Remove and obtain the item from the world.
+            #[track_caller]
             pub fn take(&self) -> AccessResult<$Ref> {
                 let $this = self;
                 with_world_mut(|$world|{
@@ -151,6 +156,7 @@ macro_rules! impl_async_access1 {
             }
 
             /// Remove and obtain the item from the world once loaded.
+            #[track_caller]
             pub fn take_on_load(&self) -> ChannelOut<AccessResult<$Ref>> {
                 let $this = self.clone();
                 AsyncWorld.watch(move |$world| {
@@ -179,6 +185,7 @@ macro_rules! impl_async_access1 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Run a function on a readonly reference to this item and obtain the result.
+            #[track_caller]
             pub fn get_mut<A>(&self, f: impl FnOnce($Ref) -> A) -> AccessResult<A> {
                 let $this = self;
                 with_world_mut(|$world|{
@@ -189,6 +196,7 @@ macro_rules! impl_async_access1 {
             }
 
             /// Run a function on this item until it returns `Some`.
+            #[track_caller]
             pub fn watch<A: 'static>(
                 &self,
                 mut f: impl FnMut($Ref) -> Option<A> + 'static,
@@ -211,6 +219,7 @@ macro_rules! impl_async_access1 {
             }
 
             /// Run a function on this item and obtain the result once loaded.
+            #[track_caller]
             pub fn get_mut_on_load<A: 'static>(
                 &self,
                 mut f: impl FnMut($Ref) -> A + 'static,
@@ -255,6 +264,7 @@ macro_rules! impl_async_access2 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Obtain a copy of the underlying item.
+            #[track_caller]
             pub fn copied(&self) -> AccessResult<$Ref> where $Ref: Copy {
                 let $this = self;
                 with_world_ref(|$world|{
@@ -264,6 +274,7 @@ macro_rules! impl_async_access2 {
             }
 
             /// Obtain a clone of the underlying item.
+            #[track_caller]
             pub fn cloned(&self) -> AccessResult<$Ref> where $Ref: Clone {
                 let $this = self;
                 with_world_ref(|$world|{
@@ -273,6 +284,7 @@ macro_rules! impl_async_access2 {
             }
 
             /// Run a function on this item and obtain the result once loaded.
+            #[track_caller]
             pub fn clone_on_load(&self) -> ChannelOut<AccessResult<$Ref>> where $Ref: Clone {
                 let $this = self.clone();
                 AsyncWorld.watch(move |$world| {
@@ -310,6 +322,7 @@ macro_rules! impl_async_access2 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Interpolate to a new value from the previous value.
+            #[track_caller]
             pub fn interpolate_to<V: StableInterpolate + 'static>(
                 &self,
                 to: V,
@@ -358,6 +371,7 @@ macro_rules! impl_async_access2 {
             /// cancel.cancel();
             /// # */
             /// ```
+            #[track_caller]
             pub fn interpolate<V>(
                 &self,
                 mut span: impl FnMut(f32) -> V + 'static,
@@ -633,6 +647,7 @@ impl_async_access! {
 
 impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<D, F> {
     /// Run a function on a this query.
+    #[track_caller]
     pub fn with<A>(&self, f: impl FnOnce(OwnedQueryState<D, F>) -> A) -> A {
         with_world_mut(|world| {
             let state = OwnedQueryState::new(world);
@@ -643,6 +658,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<D, F> {
 
 impl<R: Resource> AsyncResource<R> {
     /// Run a function on this resource, panics if not exist.
+    #[track_caller]
     pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
         with_world_mut(|world| f(world.resource_mut::<R>().into_inner()))
     }
@@ -650,6 +666,7 @@ impl<R: Resource> AsyncResource<R> {
 
 impl<R: 'static> AsyncNonSend<R> {
     /// Run a function on this non-send resource, panics if not exist.
+    #[track_caller]
     pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
         with_world_mut(|world| f(world.non_send_resource_mut::<R>().into_inner()))
     }
