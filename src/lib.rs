@@ -557,6 +557,85 @@ impl<S: States> Command for StateScopedSpawnFn<S> {
 }
 
 #[doc(hidden)]
+#[must_use = "Defer must not be dropped immediately."]
+pub struct Defer<F: FnOnce() -> AccessResult>(pub Option<F>);
+
+impl<F: FnOnce() -> AccessResult> Drop for Defer<F> {
+    fn drop(&mut self) {
+        if in_async_context() {
+            let _ = (self.0.take().unwrap())();
+        }
+    }
+}
+
+/// Defer a set of statements that automatically triggers when the future is either completed
+/// or dropped (i.e. via select!)
+/// 
+/// # Returns
+/// 
+/// Returns a variable that triggers these statements on drop.
+/// 
+/// # Note
+/// 
+/// If the world is dropped, these statements will NOT be ran since `bevy_defer` functions 
+/// will likely panic if the world is no longer available. 
+/// 
+/// # Example
+/// 
+/// ```
+/// # use bevy_defer::{AccessResult, defer};
+/// # async fn dance(entity: i32) -> AccessResult { Ok(()) }
+/// # fn stop_dancing(entity: i32) -> AccessResult { Ok(()) }
+/// # async fn test() -> AccessResult {
+/// # let entity = 1;
+/// // Must be bound to a variable and not `_` so it lives until the end of the future.
+/// let _deferred = defer! {
+///     // stop dancing when the future is dropped
+///     stop_dancing(entity)?;
+/// };
+/// dance(entity).await?;
+/// # Ok(()) }
+/// ```
+#[macro_export]
+macro_rules! defer {
+    ($($tt: tt)*) => {
+        $crate::Defer(Some(|| {
+            let _ = {$($tt)*};
+            Ok(())
+        }))
+    };
+}
+
+/// Try run a potentially async block of arguments with result type [`AccessError`],
+/// always discard the result and does not log the error.
+/// 
+/// # Example
+/// 
+/// ```
+/// # use bevy_defer::{AccessResult, attempt};
+/// # async fn dance(entity: i32) -> AccessResult { Ok(()) }
+/// # async fn stop_dancing(entity: i32) -> AccessResult { Ok(()) }
+/// # async fn test() -> AccessResult {
+/// # let entity = 1;
+/// dance(entity).await?;
+/// // Must be bound to a variable and not `_` so it lives until the end of the future.
+/// attempt! {
+///     stop_dancing(entity).await?;
+/// };
+/// # Ok(()) }
+/// ```
+#[macro_export]
+macro_rules! attempt {
+    ($($tt:tt)*) => {
+        let _: $crate::AccessResult<()> = async {
+            let _ = {$($tt)*};
+            Ok(())
+        }.await;
+    };
+}
+
+
+#[doc(hidden)]
 #[allow(unused)]
 #[macro_export]
 macro_rules! test_spawn {
