@@ -570,18 +570,18 @@ impl<F: FnOnce() -> AccessResult> Drop for Defer<F> {
 
 /// Defer a set of statements that automatically triggers when the future is either completed
 /// or dropped (i.e. via select!)
-/// 
+///
 /// # Returns
-/// 
+///
 /// Returns a variable that triggers these statements on drop.
-/// 
+///
 /// # Note
-/// 
-/// If the world is dropped, these statements will NOT be ran since `bevy_defer` functions 
-/// will likely panic if the world is no longer available. 
-/// 
+///
+/// If the world is dropped, these statements will NOT be ran since `bevy_defer` functions
+/// will likely panic if the world is no longer available.
+///
 /// # Example
-/// 
+///
 /// ```
 /// # use bevy_defer::{AccessResult, defer};
 /// # async fn dance(entity: i32) -> AccessResult { Ok(()) }
@@ -608,9 +608,9 @@ macro_rules! defer {
 
 /// Try run a potentially async block of arguments with result type [`AccessError`],
 /// always discard the result and does not log the error.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```
 /// # use bevy_defer::{AccessResult, attempt};
 /// # async fn dance(entity: i32) -> AccessResult { Ok(()) }
@@ -633,7 +633,6 @@ macro_rules! attempt {
         }.await;
     };
 }
-
 
 #[doc(hidden)]
 #[allow(unused)]

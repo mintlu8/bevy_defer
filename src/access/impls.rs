@@ -1,8 +1,9 @@
 //! Access traits for `bevy_defer`.
 
+use crate::access::dyn_access::ComponentDowncast;
 use crate::access::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
-    AsyncRelatedQuery, AsyncResource, AsyncWorld, RelatedQueryState,
+    AsyncRelatedQuery, AsyncResource, AsyncWorld, Dyn, RelatedQueryState,
 };
 use crate::tween::{AsSeconds, Playback};
 use crate::OwnedQueryState;
@@ -669,5 +670,48 @@ impl<R: 'static> AsyncNonSend<R> {
     #[track_caller]
     pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
         with_world_mut(|world| f(world.non_send_resource_mut::<R>().into_inner()))
+    }
+}
+
+impl_async_access! {
+    impl[T: 'static, C: Component<Mutability = Mutable> + ComponentDowncast] Dyn [T, C] {
+        fn get_mut(this: &Self, world: &mut World) -> AccessResult<&mut T> {
+            let entity = this.id();
+            let mut entity_mut = world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?;
+            entity_mut
+                .get_mut::<C>()
+                .map(|x| x.into_inner())
+                .ok_or(AccessError::ComponentNotFound {
+                    name: type_name::<C>(),
+                })?
+                .downcast_mut::<T>()
+                .ok_or(AccessError::DowncastFailed {
+                    name: type_name::<(C, T)>(),
+                })
+        }
+    }
+}
+
+/// Not a loading resource, ignore.
+impl<A: 'static, C: Component + ComponentDowncast> ShouldContinue for Dyn<A, C> {}
+
+impl_async_access! {
+    impl[T: 'static, C: Component + ComponentDowncast] Dyn [T, C] {
+        fn get(this: &Self, world: &World) -> AccessResult<&T> {
+            let entity = this.id();
+            world
+                .get_entity(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?
+                .get::<C>()
+                .ok_or(AccessError::ComponentNotFound {
+                    name: type_name::<C>(),
+                })?
+                .downcast_ref::<T>()
+                .ok_or(AccessError::DowncastFailed {
+                    name: type_name::<(C, T)>(),
+                })
+        }
     }
 }

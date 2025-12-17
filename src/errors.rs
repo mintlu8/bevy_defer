@@ -45,6 +45,8 @@ pub enum AccessError {
     AssetNotFound { name: &'static str },
     #[error("event <{}> not registered", fmt(name))]
     EventNotRegistered { name: &'static str },
+    #[error("downcast ({}) failed", fmt(name))]
+    DowncastFailed { name: &'static str },
     #[error("schedule not found")]
     ScheduleNotFound,
     #[error("SystemId not found")]

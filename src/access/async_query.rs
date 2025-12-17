@@ -11,13 +11,22 @@ use bevy::ecs::{
     world::World,
 };
 use std::any::type_name;
+use std::fmt::Debug;
 use std::{borrow::Borrow, marker::PhantomData, ops::Deref};
 
 use super::AsyncEntityMut;
 
 /// Async version of [`Query`]
-#[derive(Debug)]
 pub struct AsyncQuery<T: QueryData, F: QueryFilter = ()>(pub(crate) PhantomData<(T, F)>);
+
+impl<T: QueryData, F: QueryFilter> Debug for AsyncQuery<T, F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AsyncQuery")
+            .field("data", &type_name::<T>())
+            .field("filter", &type_name::<F>())
+            .finish()
+    }
+}
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncQuery<T, F> {}
 
@@ -28,10 +37,19 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncQuery<T, F> {
 }
 
 /// Async version of [`Query`] on a specific entity.
-#[derive(Debug)]
 pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = ()> {
     pub(crate) entity: Entity,
     pub(crate) p: PhantomData<(T, F)>,
+}
+
+impl<T: QueryData, F: QueryFilter> Debug for AsyncEntityQuery<T, F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AsyncEntityQuery")
+            .field("data", &type_name::<T>())
+            .field("filter", &type_name::<F>())
+            .field("entity", &self.entity)
+            .finish()
+    }
 }
 
 impl<T: QueryData, F: QueryFilter> AsyncEntityQuery<T, F> {
@@ -53,8 +71,16 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncEntityQuery<T, F> {
 }
 
 /// Async version of [`Query`] on a unique entity.
-#[derive(Debug)]
 pub struct AsyncQuerySingle<T: QueryData, F: QueryFilter = ()>(pub(crate) PhantomData<(T, F)>);
+
+impl<T: QueryData, F: QueryFilter> Debug for AsyncQuerySingle<T, F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AsyncQuerySingle")
+            .field("data", &type_name::<T>())
+            .field("filter", &type_name::<F>())
+            .finish()
+    }
+}
 
 impl<T: QueryData, F: QueryFilter> Copy for AsyncQuerySingle<T, F> {}
 
