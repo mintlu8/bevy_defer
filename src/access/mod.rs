@@ -19,4 +19,4 @@ pub use async_world::{AsyncEntityMut, AsyncWorld};
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
 pub use child_query::{AsyncRelatedQuery, RelatedQueryState};
-pub use dyn_access::Dyn;
+pub use dyn_access::DynAccess;
