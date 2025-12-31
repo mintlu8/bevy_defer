@@ -1,6 +1,5 @@
 use crate::InspectEntity;
 use bevy::ecs::entity::Entity;
-use bevy::log::error;
 use std::any::type_name;
 
 #[cfg(feature = "full_types")]
