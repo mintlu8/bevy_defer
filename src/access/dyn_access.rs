@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{AccessError, AccessResult, AsyncWorld};
 use bevy::ecs::{
     entity::Entity,
@@ -6,27 +8,25 @@ use bevy::ecs::{
 
 /// A mapped accessor of a component or a set of components.
 #[allow(clippy::wrong_self_convention)]
-pub trait DynAccess {
-    type Target: 'static;
+pub trait DynAccess<T: ?Sized> {
     fn entity(&self) -> Entity;
-    fn from_entity_ref<'t>(&self, entity: &'t EntityRef) -> AccessResult<&'t Self::Target>;
-    fn from_entity_mut<'t>(
-        &self,
-        entity: &'t mut EntityWorldMut,
-    ) -> AccessResult<&'t mut Self::Target>;
+    fn from_entity_ref<'t>(&self, entity: &'t EntityRef) -> AccessResult<&'t T>;
+    fn from_entity_mut<'t>(&self, entity: &'t mut EntityWorldMut) -> AccessResult<&'t mut T>;
 
-    fn map<T: 'static>(
+    fn map<U: 'static>(
         self,
-        map_ref: impl Fn(&Self::Target) -> AccessResult<&T>,
-        map_mut: impl Fn(&mut Self::Target) -> AccessResult<&mut T>,
-    ) -> impl DynAccess<Target = T>
+        map_ref: impl Fn(&T) -> AccessResult<&U>,
+        map_mut: impl Fn(&mut T) -> AccessResult<&mut U>,
+    ) -> impl DynAccess<U>
     where
+        T: 'static + Sized,
         Self: Sized,
     {
         MappedDynAccess {
             base: self,
             f1: map_ref,
             f2: map_mut,
+            p: PhantomData,
         }
     }
 
@@ -40,7 +40,7 @@ pub trait DynAccess {
     }
 
     #[track_caller]
-    fn get<T>(&self, f: impl FnOnce(&Self::Target) -> T) -> AccessResult<T> {
+    fn get<U>(&self, f: impl FnOnce(&T) -> U) -> AccessResult<U> {
         let entity = self.entity();
         AsyncWorld.run(|world| {
             let entity = world
@@ -51,7 +51,7 @@ pub trait DynAccess {
     }
 
     #[track_caller]
-    fn get_mut<T>(&mut self, f: impl FnOnce(&mut Self::Target) -> T) -> AccessResult<T> {
+    fn get_mut<U>(&mut self, f: impl FnOnce(&mut T) -> U) -> AccessResult<U> {
         let entity = self.entity();
         AsyncWorld.run(|world| {
             let mut entity = world
@@ -62,33 +62,47 @@ pub trait DynAccess {
     }
 }
 
-struct MappedDynAccess<T, F1, F2> {
+impl<T, U> DynAccess<U> for &T
+where
+    T: DynAccess<U>,
+{
+    fn entity(&self) -> Entity {
+        (**self).entity()
+    }
+
+    fn from_entity_ref<'t>(&self, entity: &'t EntityRef) -> AccessResult<&'t U> {
+        (**self).from_entity_ref(entity)
+    }
+
+    fn from_entity_mut<'t>(&self, entity: &'t mut EntityWorldMut) -> AccessResult<&'t mut U> {
+        (**self).from_entity_mut(entity)
+    }
+}
+
+struct MappedDynAccess<T, F1, F2, A, B> {
     base: T,
     f1: F1,
     f2: F2,
+    p: PhantomData<(A, B)>,
 }
 
 impl<
-        T: DynAccess,
-        F1: Fn(&T::Target) -> AccessResult<&U>,
-        F2: Fn(&mut T::Target) -> AccessResult<&mut U>,
-        U: 'static,
-    > DynAccess for MappedDynAccess<T, F1, F2>
+        T: DynAccess<A>,
+        F1: Fn(&A) -> AccessResult<&B>,
+        F2: Fn(&mut A) -> AccessResult<&mut B>,
+        A: 'static,
+        B: 'static,
+    > DynAccess<B> for MappedDynAccess<T, F1, F2, A, B>
 {
-    type Target = U;
-
     fn entity(&self) -> Entity {
         self.base.entity()
     }
 
-    fn from_entity_ref<'t>(&self, entity: &'t EntityRef) -> AccessResult<&'t Self::Target> {
+    fn from_entity_ref<'t>(&self, entity: &'t EntityRef) -> AccessResult<&'t B> {
         (self.f1)(self.base.from_entity_ref(entity)?)
     }
 
-    fn from_entity_mut<'t>(
-        &self,
-        entity: &'t mut EntityWorldMut,
-    ) -> AccessResult<&'t mut Self::Target> {
+    fn from_entity_mut<'t>(&self, entity: &'t mut EntityWorldMut) -> AccessResult<&'t mut B> {
         (self.f2)(self.base.from_entity_mut(entity)?)
     }
 }

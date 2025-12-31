@@ -9,16 +9,20 @@ use std::future::Future;
 use std::rc::Rc;
 
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static mut WORLD: World);
+scoped_tls_hkt::scoped_thread_local!(pub(crate) static WORLD_READ_ONLY: World);
 
 pub(crate) const USED_OUTSIDE: &str =
     "Should not be called outside of a `bevy_defer` future or inside a access function.";
 
 #[track_caller]
 pub(crate) fn with_world_ref<T>(f: impl FnOnce(&World) -> T) -> T {
-    if !WORLD.is_set() {
+    if WORLD_READ_ONLY.is_set() {
+        WORLD_READ_ONLY.with(f)
+    } else if WORLD.is_set() {
+        WORLD.with(|w| WORLD_READ_ONLY.set(w, || f(w)))
+    } else {
         panic!("{}", USED_OUTSIDE)
     }
-    WORLD.with(|w| f(w))
 }
 
 #[track_caller]

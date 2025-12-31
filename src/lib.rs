@@ -634,6 +634,7 @@ macro_rules! attempt {
     };
 }
 
+/// For doctests only.
 #[doc(hidden)]
 #[allow(unused)]
 #[macro_export]

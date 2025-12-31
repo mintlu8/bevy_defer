@@ -24,9 +24,30 @@ use std::borrow::Borrow;
 use std::future::{ready, Future};
 
 impl AsyncEntityMut {
+    /// Run a function on the [`EntityRef`].
+    ///
+    /// Can be used inside a readonly world access scope and
+    /// converts the scope into a readonly world access scope.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity1 = AsyncWorld.spawn_bundle(Int(1));
+    /// # let entity2 = AsyncWorld.spawn_bundle(Int(2));
+    /// // creates a readonly world access scope
+    /// entity1.get(|a| {
+    ///     dbg!(a.id());
+    ///     // can be used in a readonly world access scope
+    ///     entity2.get(|b| {
+    ///         dbg!(b.id());
+    ///     })
+    /// })
+    /// # });
+    /// ```
     pub fn get<T>(&self, f: impl FnOnce(EntityRef) -> T) -> AccessResult<T> {
         let entity = self.0;
-        with_world_mut(|w| {
+        with_world_ref(|w| {
             if let Ok(e) = w.get_entity(entity) {
                 Ok(f(e))
             } else {
@@ -35,6 +56,7 @@ impl AsyncEntityMut {
         })
     }
 
+    /// Run a function on the [`EntityWorldMut`].
     pub fn get_mut<T>(&self, f: impl FnOnce(EntityWorldMut) -> T) -> AccessResult<T> {
         let entity = self.0;
         with_world_mut(|w| {

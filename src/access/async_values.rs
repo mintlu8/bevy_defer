@@ -38,6 +38,15 @@ impl<C: Component> Clone for AsyncComponent<C> {
     }
 }
 
+impl<C: Component> From<Entity> for AsyncComponent<C> {
+    fn from(entity: Entity) -> Self {
+        AsyncComponent {
+            entity,
+            p: PhantomData,
+        }
+    }
+}
+
 #[allow(unused)]
 pub use bevy::ecs::system::NonSend;
 

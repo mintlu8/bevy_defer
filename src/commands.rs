@@ -72,6 +72,28 @@ impl AsyncWorld {
         with_world_mut(f)
     }
 
+    /// Apply a readonly function on the [`World`] and obtain the result.
+    ///
+    /// Can be used inside a readonly world access scope and
+    /// converts the scope into a readonly world access scope.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// // creates a readonly world access scope
+    /// AsyncWorld.read(|w: &World|
+    ///     // can be used inside a world access scope
+    ///     AsyncWorld.read(|w: &World|
+    ///         w.resource::<Int>().0
+    ///     )
+    /// )
+    /// # );
+    /// ```
+    pub fn read<T>(&self, f: impl FnOnce(&World) -> T) -> T {
+        with_world_ref(f)
+    }
+
     /// Apply a function on the [`World`], repeat until it returns `Some`.
     ///
     /// ## Note

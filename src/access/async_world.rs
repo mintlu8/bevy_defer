@@ -135,6 +135,12 @@ impl Display for AsyncEntityMut {
     }
 }
 
+impl From<Entity> for AsyncEntityMut {
+    fn from(value: Entity) -> Self {
+        AsyncEntityMut(value)
+    }
+}
+
 impl Borrow<Entity> for AsyncEntityMut {
     fn borrow(&self) -> &Entity {
         &self.0

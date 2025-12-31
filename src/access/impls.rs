@@ -77,6 +77,9 @@ macro_rules! impl_async_access1 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Run a function on a readonly reference to this item and obtain the result.
+            ///
+            /// Can be used inside a readonly world access scope and
+            /// converts the scope into a readonly world access scope.
             #[track_caller]
             pub fn get<A>(&self, f: impl FnOnce($Ref) -> A) -> AccessResult<A> {
                 let $this = self;
@@ -87,6 +90,8 @@ macro_rules! impl_async_access1 {
             }
 
             /// Run a function on this item and obtain the result once loaded.
+            ///
+            /// Can be used inside a readonly world access scope.
             #[track_caller]
             pub fn get_on_load<A: 'static>(
                 &self,
@@ -108,6 +113,8 @@ macro_rules! impl_async_access1 {
             }
 
             /// Check if item exists.
+            ///
+            /// Can be used inside a readonly world access scope.
             #[track_caller]
             pub fn exists(&self) -> bool {
                 let $this = self;
@@ -264,6 +271,8 @@ macro_rules! impl_async_access2 {
         #[allow(unused)]
         impl<$($impl_generics)*> $ty <$($ty_generics)*> {
             /// Obtain a copy of the underlying item.
+            ///
+            /// Can be used inside a readonly world access scope.
             #[track_caller]
             pub fn copied(&self) -> AccessResult<$Ref> where $Ref: Copy {
                 let $this = self;
@@ -274,6 +283,8 @@ macro_rules! impl_async_access2 {
             }
 
             /// Obtain a clone of the underlying item.
+            ///
+            /// Can be used inside a readonly world access scope.
             #[track_caller]
             pub fn cloned(&self) -> AccessResult<$Ref> where $Ref: Clone {
                 let $this = self;
@@ -284,6 +295,8 @@ macro_rules! impl_async_access2 {
             }
 
             /// Run a function on this item and obtain the result once loaded.
+            ///
+            /// Can be used inside a readonly world access scope.
             #[track_caller]
             pub fn clone_on_load(&self) -> ChannelOut<AccessResult<$Ref>> where $Ref: Clone {
                 let $this = self.clone();

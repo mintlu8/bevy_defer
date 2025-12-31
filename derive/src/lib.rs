@@ -205,9 +205,17 @@ fn async_access_deref(tokens: TokenStream, ty: Ident, ty_deref: Ident) -> TokenS
     let bevy_defer = import_crate();
     let async_name = format_ident!("Async{name}");
     quote! {
-        #[derive(Debug, #bevy_defer::RefCast)]
+        #[derive(#bevy_defer::RefCast)]
         #[repr(transparent)]
         #vis struct #async_name #generics (pub #bevy_defer::access::#ty<#name #ty_generics>);
+
+        impl #impl_generics ::core::fmt::Debug for #async_name #ty_generics #where_clause{
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.debug_tuple(stringify!(#async_name))
+                    .field(&self.0)
+                    .finish()
+            }
+        }
 
         impl #impl_generics #bevy_defer::access::deref::#ty_deref for #name #ty_generics #where_clause{
             type Target = #async_name #ty_generics;
