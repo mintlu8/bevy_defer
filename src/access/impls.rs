@@ -1,5 +1,6 @@
 //! Access traits for `bevy_defer`.
 
+use crate::access::async_query::OwnedReadonlyQueryState;
 use crate::access::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
     AsyncRelatedQuery, AsyncResource, AsyncWorld, RelatedQueryState,
@@ -14,6 +15,7 @@ use crate::{
 };
 use bevy::asset::{Asset, Assets};
 use bevy::ecs::component::Mutable;
+use bevy::ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
 use bevy::ecs::relationship::RelationshipTarget;
 use bevy::ecs::{
     component::Component,
@@ -85,7 +87,8 @@ macro_rules! impl_async_access1 {
                 let $this = self;
                 with_world_ref(|$world|{
                     inject!(out $($stmts)*);
-                    Ok(f(out?))
+                    let result = f(out?);
+                    Ok(result)
                 })
             }
 
@@ -101,7 +104,8 @@ macro_rules! impl_async_access1 {
                 AsyncWorld.watch(move |$world| {
                     let out = tri!{
                         inject!(out $($stmts)*);
-                        Ok(f(out?))
+                        let result = f(out?);
+                        Ok(result)
                     };
 
                     match out {
@@ -615,7 +619,31 @@ impl_async_access! {
     }
 }
 
+impl_async_access! {
+    impl[D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static] AsyncQuery [D, F] {
+        fn get(this: &Self, world: &World) -> AccessResult<OwnedReadonlyQueryState<D, F>> {
+            AccessResult::Ok(OwnedReadonlyQueryState::<D, F>::new(world))
+        }
+    }
+}
+
 impl<D: QueryData, F: QueryFilter> ShouldContinue for AsyncEntityQuery<D, F> {}
+
+impl_async_access! {
+    impl[D: ReadOnlyQueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static] AsyncEntityQuery [D, F] {
+        fn get(this: &Self, world: &World) -> AccessResult<D::Item<'_, '_>> {
+            let entity = this.id();
+            world
+                .get_entity(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?
+                .get_components::<D>()
+                .ok_or(AccessError::QueryConditionNotMet {
+                    entity,
+                    query: type_name::<D>(),
+                })
+        }
+    }
+}
 
 impl_async_access! {
     impl[D: QueryData + 'static, F: QueryFilter + 'static] AsyncEntityQuery [D, F] {
@@ -634,6 +662,15 @@ impl_async_access! {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<D::Item<'_, '_>> {
             let mut query = OwnedQueryState::<D, F>::new(world);
             query.single_mut()
+        }
+    }
+}
+
+impl_async_access! {
+    impl[D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static] AsyncQuerySingle [D, F] {
+        fn get(this: &Self, world: &World) -> AccessResult<D::Item<'_, '_>> {
+            let mut query = OwnedReadonlyQueryState::<D, F>::new(world);
+            query.single()
         }
     }
 }

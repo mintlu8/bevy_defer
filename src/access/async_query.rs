@@ -1,6 +1,6 @@
 use crate::{executor::with_world_mut, AccessError};
 use bevy::ecs::entity::EntityEquivalent;
-use bevy::ecs::query::QuerySingleError;
+use bevy::ecs::query::{QuerySingleError, ReadOnlyQueryData};
 #[allow(unused)]
 use bevy::ecs::system::Query;
 use bevy::ecs::world::CommandQueue;
@@ -146,9 +146,7 @@ pub(crate) struct ResQueryCache<T: QueryData, F: QueryFilter>(pub QueryState<T, 
 /// A [`World`] reference with a cached [`QueryState`].
 ///
 /// Tries to obtain the [`QueryState`] from the [`World`] on create
-/// and stores the [`QueryState`] in the [`World`] on drop.
-///
-/// Since [`QueryState`] cannot be constructed from `&World`, readonly access is not supported.
+/// and caches the [`QueryState`] in the [`World`] on drop.
 pub struct OwnedQueryState<'t, D: QueryData + 'static, F: QueryFilter + 'static> {
     pub(crate) world: &'t mut World,
     pub(crate) state: Option<QueryState<D, F>>,
@@ -270,3 +268,80 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> Drop for OwnedQueryState<
             .insert_resource(ResQueryCache(self.state.take().unwrap()))
     }
 }
+
+/// A readonly [`World`] reference with a cached [`QueryState`].
+///
+/// # Limitation
+///
+/// Currently creates a new `QueryState` every time.
+pub struct OwnedReadonlyQueryState<'t, D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static> {
+    pub(crate) world: &'t World,
+    pub(crate) state: Option<QueryState<D, F>>,
+}
+
+impl<D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static> OwnedReadonlyQueryState<'_, D, F> {
+    pub fn new(world: &World) -> OwnedReadonlyQueryState<'_, D, F> {
+        OwnedReadonlyQueryState {
+            // TODO: optimize this
+            state: QueryState::try_new(world),
+            world,
+        }
+    }
+
+    pub fn single(&mut self) -> Result<D::Item<'_, '_>, AccessError> {
+        self.state
+            .as_mut()
+            .ok_or(AccessError::NoEntityFound {
+                query: type_name::<D>(),
+            })?
+            .single(self.world)
+            .map_err(|e| match e {
+                QuerySingleError::NoEntities(_) => AccessError::NoEntityFound {
+                    query: type_name::<D>(),
+                },
+                QuerySingleError::MultipleEntities(_) => AccessError::TooManyEntities {
+                    query: type_name::<D>(),
+                },
+            })
+    }
+
+    pub fn get(&mut self, entity: Entity) -> Result<D::Item<'_, '_>, AccessError> {
+        self.state
+            .as_mut()
+            .unwrap()
+            .get(self.world, entity)
+            .map_err(|_| AccessError::QueryConditionNotMet {
+                entity,
+                query: type_name::<(D, F)>(),
+            })
+    }
+
+    pub fn iter_many<E: IntoIterator<Item: EntityEquivalent>>(
+        &mut self,
+        entities: E,
+    ) -> QueryManyIter<'_, '_, D, F, E::IntoIter> {
+        self.state.as_mut().unwrap().iter_many(self.world, entities)
+    }
+
+    pub fn iter(&mut self) -> QueryIter<'_, '_, D::ReadOnly, F> {
+        self.state.as_mut().unwrap().iter(self.world)
+    }
+}
+
+impl<'s, D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static> IntoIterator
+    for &'s mut OwnedReadonlyQueryState<'_, D, F>
+{
+    type Item = D::Item<'s, 's>;
+    type IntoIter = QueryIter<'s, 's, D, F>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.state.as_mut().unwrap().iter(self.world)
+    }
+}
+
+// impl<D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static> Drop for OwnedReadonlyQueryState<'_, D, F> {
+//     fn drop(&mut self) {
+//         self.world
+//             .insert_resource(ResQueryCache(self.state.take().unwrap()))
+//     }
+// }
