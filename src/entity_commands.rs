@@ -1,8 +1,9 @@
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
 use crate::signals::Observed;
+use crate::InspectEntity;
+use crate::OwnedReadonlyQueryState;
 use crate::{access::AsyncEntityMut, AccessError, AccessResult};
-use crate::{InspectEntity, OwnedQueryState};
 use bevy::ecs::bundle::BundleFromComponents;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::EntityEvent;
@@ -506,7 +507,7 @@ impl AsyncEntityMut {
     /// If the entity is missing, returns an error message.
     pub fn debug_print(&self) -> String {
         let e = self.id();
-        AsyncWorld.run(|w| {
+        with_world_ref(|w| {
             if let Ok(i) = w.inspect_entity(e) {
                 let v: Vec<_> = i.map(|x| x.name().shortname().to_string()).collect();
                 v.join(", ")
@@ -568,8 +569,8 @@ impl AsyncEntityMut {
     {
         let descendants = self.descendants();
         let mut result = NameEntityMap(names.into_iter().map(|n| (n.into(), None)).collect());
-        AsyncWorld.run(|world| {
-            let mut query_state = OwnedQueryState::<(Entity, &Name), ()>::new(world);
+        with_world_ref(|world| {
+            let mut query_state = OwnedReadonlyQueryState::<(Entity, &Name), ()>::new(world);
             for (entity, name) in query_state.iter_many(descendants) {
                 if let Some(item) = result.0.get_mut(name.as_str()) {
                     *item = Some(entity);
@@ -586,19 +587,18 @@ impl AsyncEntityMut {
     ///
     /// If [`Entity`] or [`Transform`] is missing in one of the target's ancestors.
     pub fn global_transform(&self) -> AccessResult<GlobalTransform> {
-        AsyncWorld
-            .run(|world| {
-                let mut entity = world.get_entity(self.0).ok()?;
-                let mut transform = *entity.get::<Transform>()?;
-                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
-                    entity = world.get_entity(parent).ok()?;
-                    transform = entity.get::<Transform>()?.mul_transform(transform)
-                }
-                Some(transform.into())
-            })
-            .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<GlobalTransform>(),
-            })
+        with_world_ref(|world| {
+            let mut entity = world.get_entity(self.0).ok()?;
+            let mut transform = *entity.get::<Transform>()?;
+            while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
+                entity = world.get_entity(parent).ok()?;
+                transform = entity.get::<Transform>()?.mul_transform(transform)
+            }
+            Some(transform.into())
+        })
+        .ok_or(AccessError::ComponentNotFound {
+            name: type_name::<GlobalTransform>(),
+        })
     }
 
     /// Obtain an entity's real visibility by traversing its ancestors.
@@ -609,26 +609,25 @@ impl AsyncEntityMut {
     #[cfg(feature = "bevy_render")]
     pub fn visibility(&self) -> AccessResult<bool> {
         use bevy::prelude::Visibility;
-        AsyncWorld
-            .run(|world| {
-                let entity = world.get_entity(self.0).ok()?;
-                match entity.get::<Visibility>()? {
+        with_world_ref(|world| {
+            let entity = world.get_entity(self.0).ok()?;
+            match entity.get::<Visibility>()? {
+                Visibility::Inherited => (),
+                Visibility::Hidden => return Some(false),
+                Visibility::Visible => return Some(true),
+            }
+            while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
+                match world.get_entity(parent).ok()?.get::<Visibility>()? {
                     Visibility::Inherited => (),
                     Visibility::Hidden => return Some(false),
                     Visibility::Visible => return Some(true),
                 }
-                while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
-                    match world.get_entity(parent).ok()?.get::<Visibility>()? {
-                        Visibility::Inherited => (),
-                        Visibility::Hidden => return Some(false),
-                        Visibility::Visible => return Some(true),
-                    }
-                }
-                Some(true)
-            })
-            .ok_or(AccessError::ComponentNotFound {
-                name: type_name::<Visibility>(),
-            })
+            }
+            Some(true)
+        })
+        .ok_or(AccessError::ComponentNotFound {
+            name: type_name::<Visibility>(),
+        })
     }
 }
 

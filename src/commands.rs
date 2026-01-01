@@ -104,7 +104,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0))
+    /// AsyncWorld.watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
     /// # );
     /// ```
     pub fn watch<T: 'static>(
@@ -380,24 +380,6 @@ impl AsyncWorld {
         })
     }
 
-    /// Wait until a [`States`] is entered.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # bevy_defer::test_spawn!({
-    /// AsyncWorld.in_state(MyState::A)
-    /// # });
-    /// ```
-    #[deprecated = "Use `state_stream` instead."]
-    pub fn in_state<S: States>(&self, state: S) -> ChannelOut<()> {
-        self.watch(move |world: &mut World| {
-            world
-                .get_resource::<State<S>>()
-                .and_then(|s| (s.get() == &state).then_some(()))
-        })
-    }
-
     /// Obtain a `Stream` that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
@@ -485,7 +467,7 @@ impl AsyncWorld {
     /// Yield control back to the `bevy_defer` executor.
     ///
     /// Unlike `yield_now` from `futures_lite`,
-    /// the future will be resumed on the next execution point.
+    /// the future will be resumed on the next frame/execution point.
     pub fn yield_now(&self) -> impl Future<Output = ()> + 'static {
         let mut yielded = false;
         poll_fn(move |cx| {

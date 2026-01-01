@@ -12,7 +12,10 @@ use bevy::ecs::{
 };
 use ref_cast::RefCast;
 
-use crate::{executor::WORLD, AsyncWorld};
+use crate::{
+    executor::{WORLD, WORLD_READ_ONLY},
+    AsyncWorld,
+};
 
 /// Provides a [`Display`] implementation for [`Entity`] inside a `bevy_defer` scope.
 #[derive(Debug, Clone, Copy, RefCast)]
@@ -36,20 +39,21 @@ fn simple(entity: Entity, f: &mut Formatter<'_>) -> std::fmt::Result {
 impl Display for InspectEntity {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let entity = self.0;
-        if !WORLD.is_set() {
+        if !WORLD.is_set() && !WORLD_READ_ONLY.is_set() {
             return simple(entity, f);
         }
-        if AsyncWorld.resource_scope::<EntityInspectors, _>(|inspectors| {
+        let result = AsyncWorld.resource::<EntityInspectors>().get(|inspectors| {
             for (_, fmt) in &inspectors.0 {
                 if fmt(entity, f) {
                     return true;
                 }
             }
             false
-        }) {
-            return Ok(());
+        });
+        if result != Ok(true) {
+            return simple(entity, f);
         }
-        simple(entity, f)
+        Ok(())
     }
 }
 

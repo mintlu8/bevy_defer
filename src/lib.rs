@@ -33,7 +33,7 @@ mod spawn;
 pub(crate) mod sync;
 pub mod tween;
 pub use access::async_asset::AssetSet;
-pub use access::async_query::OwnedQueryState;
+pub use access::async_query::{OwnedQueryState, OwnedReadonlyQueryState};
 pub use access::AsyncWorld;
 pub use async_executor::Task;
 use bevy::ecs::{

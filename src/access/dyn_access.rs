@@ -51,7 +51,7 @@ pub trait DynAccess<T: ?Sized> {
     }
 
     #[track_caller]
-    fn get_mut<U>(&mut self, f: impl FnOnce(&mut T) -> U) -> AccessResult<U> {
+    fn get_mut<U>(&self, f: impl FnOnce(&mut T) -> U) -> AccessResult<U> {
         let entity = self.entity();
         AsyncWorld.run(|world| {
             let mut entity = world
