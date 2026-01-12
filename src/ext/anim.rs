@@ -6,6 +6,7 @@
 //!
 //! Additionally [`MainAnimationChange`] can react to [`AnimationTransitions`]'s main animation being changed.
 
+use crate::executor::with_world_mut;
 use crate::reactors::Change;
 use crate::signals::{SignalSender, Signals};
 use crate::tween::AsSeconds;
@@ -13,7 +14,7 @@ use crate::{
     access::{deref::AsyncComponentDeref, AsyncComponent},
     AccessResult,
 };
-use crate::{AccessError, AsyncWorld, OwnedQueryState};
+use crate::{AccessError, OwnedQueryState};
 use bevy::animation::prelude::{AnimationNodeIndex, AnimationTransitions};
 use bevy::animation::AnimationPlayer;
 use bevy::ecs::component::Component;
@@ -97,7 +98,7 @@ impl AsyncAnimationPlayer {
         event: AnimationEvent,
     ) -> AccessResult<impl Future<Output = bool> + 'static> {
         let (send, recv) = async_oneshot::oneshot();
-        AsyncWorld.run(|w| {
+        with_world_mut(|w| {
             let Ok(mut entity) = w.get_entity_mut(self.0.entity) else {
                 return Err(AccessError::EntityNotFound(self.0.entity));
             };
@@ -114,7 +115,7 @@ impl AsyncAnimationPlayer {
 
 impl AsyncAnimationTransitions {
     pub fn play(&self, animation: AnimationNodeIndex, transition: impl AsSeconds) {
-        AsyncWorld.run(|w| {
+        with_world_mut(|w| {
             let mut query =
                 OwnedQueryState::<(&mut AnimationPlayer, &mut AnimationTransitions), ()>::new(w);
             if let Ok((mut player, mut transitions)) = query.get_mut(self.0.entity().id()) {

@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{AccessError, AccessResult, AsyncWorld};
+use crate::{
+    executor::{with_world_mut, with_world_ref},
+    AccessError, AccessResult, AsyncWorld,
+};
 use bevy::ecs::{
     entity::Entity,
     world::{EntityRef, EntityWorldMut},
@@ -32,7 +35,7 @@ pub trait DynAccess<T: ?Sized> {
 
     fn exists(&self) -> bool {
         let entity = self.entity();
-        AsyncWorld.run(|world| {
+        with_world_ref(|world| {
             world
                 .get_entity(entity)
                 .is_ok_and(|x| self.from_entity_ref(&x).is_ok())
@@ -42,7 +45,7 @@ pub trait DynAccess<T: ?Sized> {
     #[track_caller]
     fn get<U>(&self, f: impl FnOnce(&T) -> U) -> AccessResult<U> {
         let entity = self.entity();
-        AsyncWorld.run(|world| {
+        with_world_ref(|world| {
             let entity = world
                 .get_entity(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?;
@@ -53,11 +56,25 @@ pub trait DynAccess<T: ?Sized> {
     #[track_caller]
     fn get_mut<U>(&self, f: impl FnOnce(&mut T) -> U) -> AccessResult<U> {
         let entity = self.entity();
-        AsyncWorld.run(|world| {
+        with_world_mut(|world| {
             let mut entity = world
                 .get_entity_mut(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?;
             Ok(f(self.from_entity_mut(&mut entity)?))
+        })
+    }
+
+    #[track_caller]
+    fn cloned(&self) -> AccessResult<T>
+    where
+        T: Sized + Clone,
+    {
+        let entity = self.entity();
+        AsyncWorld.read(|world| {
+            let entity = world
+                .get_entity(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?;
+            Ok(self.from_entity_ref(&entity)?.clone())
         })
     }
 }
@@ -105,4 +122,26 @@ impl<
     fn from_entity_mut<'t>(&self, entity: &'t mut EntityWorldMut) -> AccessResult<&'t mut B> {
         (self.f2)(self.base.from_entity_mut(entity)?)
     }
+}
+
+/// Map a `impl DynAccess` to one of its fields
+///
+/// # Example
+///
+/// ```
+/// # /*
+/// map_dyn_access!(item.field)
+/// # */
+/// ```
+#[macro_export]
+macro_rules! map_dyn_access {
+    ([$($tt: tt)*].$ident: tt) => {
+        $crate::access::DynAccess::map($($tt)*, |x| Ok(&x.$ident), |x| Ok(&mut x.$ident))
+    };
+    ([$($tt: tt)*] $fst: tt $($remaining: tt)*) => {
+        $crate::map_dyn_access!([$($tt)* $fst] $($remaining)*)
+    };
+    ($($tt: tt)*) => {
+        $crate::map_dyn_access!([] $($tt)*)
+    };
 }

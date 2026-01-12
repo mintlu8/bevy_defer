@@ -375,7 +375,7 @@ impl AsyncEntityMut {
     pub fn on<T: EntityEvent + Clone>(&self) -> AccessResult<impl Stream<Item = T> + 'static> {
         let entity = self.id();
         let (sender, receiver) = mpsc::unbounded();
-        AsyncWorld.run(|world| {
+        with_world_mut(|world| {
             world
                 .get_entity_mut(entity)
                 .map(|mut entity| {
@@ -395,7 +395,7 @@ impl AsyncEntityMut {
     pub fn signal_observe<T: EntityEvent + Clone>(&self) -> AccessResult {
         let entity = self.id();
         let signal = self.signal_receiver::<Observed<T>>()?;
-        AsyncWorld.run(|world| {
+        with_world_mut(|world| {
             world.entity_mut(entity).observe(move |trigger: On<T>| {
                 signal.write(trigger.event().clone());
             });

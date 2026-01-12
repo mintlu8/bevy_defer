@@ -6,6 +6,7 @@ use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::{future::Future, marker::PhantomData};
 
+use crate::executor::{with_world_mut, with_world_ref};
 use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
 
 /// A list of tasks constrained by [`States`].
@@ -115,13 +116,13 @@ impl AsyncWorld {
         if !SPAWNER.is_set() {
             panic!("AsyncWorld::spawn_state_scoped can only be used in a bevy_defer future.")
         }
-        AsyncWorld.run(|world| match world.get_resource::<State<S>>() {
+        with_world_ref(|world| match world.get_resource::<State<S>>() {
             Some(s) if s.get() == &state => Ok(()),
             _ => Err(AccessError::NotInState {
                 ty: type_name::<S>(),
             }),
         })?;
-        AsyncWorld.run(|world| {
+        with_world_mut(|world| {
             if let Some(mut res) = world.get_resource_mut::<ScopedTasks<S>>() {
                 res.tasks
                     .entry(state)
