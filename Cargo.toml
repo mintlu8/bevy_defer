@@ -6,7 +6,7 @@ members = [
 
 [package]
 name = "bevy_defer"
-version = "0.16.0"
+version = "0.17.0"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -52,11 +52,11 @@ scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.17.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
+bevy = { version = "0.18.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
 pretty-type-name = "1.0.1"
 default-constructor = { version = "0.5.1", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.17.0" }
+bevy = { version = "0.18.0" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }

@@ -7,7 +7,7 @@ use bevy::ecs::{
     component::Component,
     entity::Entity,
     name::Name,
-    query::{QueryData, QueryFilter},
+    query::{QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData},
     resource::Resource,
 };
 use ref_cast::RefCast;
@@ -37,6 +37,7 @@ fn simple(entity: Entity, f: &mut Formatter<'_>) -> std::fmt::Result {
 }
 
 impl Display for InspectEntity {
+    #[track_caller]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let entity = self.0;
         if !WORLD.is_set() && !WORLD_READ_ONLY.is_set() {
@@ -102,7 +103,10 @@ impl EntityInspectors {
     }
 
     /// Add an inspector function at a priority if a query is successful.
-    pub fn push_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+    pub fn push_query<
+        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        F: QueryFilter + 'static,
+    >(
         &mut self,
         priority: i32,
         f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
@@ -116,7 +120,7 @@ impl EntityInspectors {
                     AsyncWorld
                         .entity(entity)
                         .query_filtered::<Q, F>()
-                        .get_mut(|x| f(x, fmt))
+                        .get(|x| f(x, fmt))
                         .is_ok()
                 }),
             ),

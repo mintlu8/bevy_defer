@@ -14,7 +14,7 @@ use bevy_defer::{access::AsyncWorld, AsyncExtension, AsyncPlugin};
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
 pub struct JsonNumber(i64);
 
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct JsonNumberLoader;
 
 impl AssetLoader for JsonNumberLoader {

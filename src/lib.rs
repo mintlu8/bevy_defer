@@ -5,7 +5,7 @@ use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::intern::Interned;
 use bevy::ecs::message::Message;
-use bevy::ecs::query::{QueryData, QueryFilter};
+use bevy::ecs::query::{QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData};
 use bevy::ecs::schedule::IntoScheduleConfigs as _;
 use bevy::ecs::system::Command;
 use bevy::prelude::EntityCommands;
@@ -272,7 +272,10 @@ pub trait AsyncExtension {
     ///
     /// Only the first successful formatting function will be called according to their priorities.
     /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
-    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+    fn register_inspect_entity_by_query<
+        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        F: QueryFilter + 'static,
+    >(
         &mut self,
         priority: i32,
         f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
@@ -319,7 +322,10 @@ impl AsyncExtension for World {
         self
     }
 
-    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+    fn register_inspect_entity_by_query<
+        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        F: QueryFilter + 'static,
+    >(
         &mut self,
         priority: i32,
         f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,
@@ -364,7 +370,10 @@ impl AsyncExtension for App {
         self
     }
 
-    fn register_inspect_entity_by_query<Q: QueryData + 'static, F: QueryFilter + 'static>(
+    fn register_inspect_entity_by_query<
+        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        F: QueryFilter + 'static,
+    >(
         &mut self,
         priority: i32,
         f: impl Fn(Q::Item<'_, '_>, &mut Formatter) + Send + Sync + 'static,

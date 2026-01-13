@@ -76,7 +76,10 @@ pub fn react_to_state<T: States + Clone>(
     mut transition_event: MessageReader<StateTransitionEvent<T>>,
     reactors: Res<Reactors>,
 ) {
-    for StateTransitionEvent { exited, entered } in transition_event.read() {
+    for StateTransitionEvent {
+        exited, entered, ..
+    } in transition_event.read()
+    {
         if exited != entered {
             if let (Some(exited), Some(scoped_tasks)) = (exited, scoped_tasks.as_mut()) {
                 scoped_tasks.drain(exited);

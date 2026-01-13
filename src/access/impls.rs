@@ -637,7 +637,7 @@ impl_async_access! {
                 .get_entity(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?
                 .get_components::<D>()
-                .ok_or(AccessError::QueryConditionNotMet {
+                .map_err(|_| AccessError::QueryConditionNotMet {
                     entity,
                     query: type_name::<D>(),
                 })
@@ -646,11 +646,17 @@ impl_async_access! {
 }
 
 impl_async_access! {
-    impl[D: QueryData + 'static, F: QueryFilter + 'static] AsyncEntityQuery [D, F] {
+    impl[D: QueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static] AsyncEntityQuery [D, F] {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<D::Item<'_, '_>> {
             let entity = this.id();
-            let mut query = OwnedQueryState::<D, F>::new(world);
-            query.get_mut(entity)
+            let mut e = world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))?;
+            e.get_components_mut::<D>()
+                .map_err(|_| AccessError::QueryConditionNotMet {
+                    entity,
+                    query: type_name::<D>(),
+                })
         }
     }
 }
