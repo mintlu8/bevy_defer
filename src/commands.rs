@@ -19,6 +19,7 @@ use bevy::state::state::{FreelyMutableState, NextState, State, States};
 use bevy::tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
+#[cfg(feature = "bevy_state")]
 use futures::stream::FusedStream;
 use std::any::type_name;
 use std::task::Context;
@@ -120,6 +121,7 @@ impl AsyncWorld {
     }
 
     /// Watch as [`Either::Left`].
+    #[cfg(feature = "bevy_asset")]
     pub(crate) fn watch_left<T: 'static, R: Future>(
         &self,
         f: impl FnMut(&mut World) -> Option<T> + 'static,

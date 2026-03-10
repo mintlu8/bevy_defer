@@ -16,7 +16,9 @@ use bevy::state::{
 };
 use bevy::time::TimeSystems;
 use std::fmt::Formatter;
-use std::{any::type_name, pin::Pin};
+#[cfg(feature = "bevy_state")]
+use std::any::type_name;
+use std::pin::Pin;
 
 pub mod access;
 pub mod cancellation;

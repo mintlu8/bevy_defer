@@ -1,15 +1,26 @@
 use async_executor::Task;
+#[cfg(feature = "bevy_state")]
 use bevy::ecs::prelude::Resource;
 #[cfg(feature = "bevy_log")]
 use bevy::log::error;
 #[cfg(feature = "bevy_state")]
 use bevy::state::prelude::{State, States};
+#[cfg(feature = "bevy_state")]
 use rustc_hash::FxHashMap;
-use std::any::type_name;
-use std::{future::Future, marker::PhantomData};
+#[cfg(feature = "bevy_state")]
+use std::{
+    any::type_name,
+    marker::PhantomData
+};
+use std::future::Future;
 
-use crate::executor::{with_world_mut, with_world_ref};
-use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
+
+#[cfg(feature = "bevy_state")]
+use crate::{
+    executor::{with_world_mut, with_world_ref},
+    AccessError
+};
+use crate::{executor::SPAWNER, AccessResult, AsyncWorld};
 
 /// A list of tasks constrained by [`States`].
 #[cfg(feature = "bevy_state")]

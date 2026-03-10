@@ -69,6 +69,7 @@ pub struct ResourceMarker;
 pub struct ComponentMarker;
 pub struct QueryMarker;
 pub struct QueryFilteredMarker;
+#[cfg(feature = "bevy_asset")]
 pub struct AssetMarker;
 
 impl<T: Resource> FetchWorld<ResourceMarker> for T {
@@ -182,7 +183,6 @@ pub fn fetch<T: FetchEntity<M>, M>(entity: &impl Borrow<Entity>) -> T::Out {
 
 #[cfg(test)]
 mod text {
-    #[cfg(feature = "bevy_asset")]
     use crate::access::AsyncAsset;
     use crate::AsyncWorld;
     use bevy::asset::{AssetId, Handle};
@@ -207,18 +207,15 @@ mod text {
         let _b = fetch!(&Transform);
         let _c = fetch!((&Transform, &GlobalTransform));
         let _d = fetch!((&Transform, With<GlobalTransform>));
-        #[cfg(feature = "bevy_asset")]
-        {
-            let a1 = Handle::<Image>::default();
-            let a2 = AssetId::<Image>::default();
-            let a3 = AsyncAsset::new_weak(&a1);
-            let a4 = &a1;
-            let a5 = &a2;
-            let _a = fetch!(#a1);
-            let _b = fetch!(#a2);
-            let _c = fetch!(#a3);
-            let _d = fetch!(#a4);
-            let _e = fetch!(#a5);
-        }
+        let a1 = Handle::<Image>::default();
+        let a2 = AssetId::<Image>::default();
+        let a3 = AsyncAsset::new_weak(&a1);
+        let a4 = &a1;
+        let a5 = &a2;
+        let _a = fetch!(#a1);
+        let _b = fetch!(#a2);
+        let _c = fetch!(#a3);
+        let _d = fetch!(#a4);
+        let _e = fetch!(#a5);
     }
 }
