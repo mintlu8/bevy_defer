@@ -1,8 +1,10 @@
 use crate::queue::QueryQueue;
 use crate::reactors::Reactors;
 use async_executor::{LocalExecutor, Task};
+#[cfg(feature = "bevy_asset")]
 use bevy::asset::AssetServer;
 use bevy::ecs::world::World;
+#[cfg(feature = "bevy_log")]
 use bevy::log::error;
 use std::fmt::Display;
 use std::future::Future;
@@ -33,6 +35,7 @@ pub(crate) fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
     WORLD.with(f)
 }
 
+#[cfg(feature = "bevy_asset")]
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASSET_SERVER: AssetServer);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static QUERY_QUEUE: QueryQueue);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'static>);
@@ -66,7 +69,9 @@ impl AsyncExecutor {
     ) {
         self.0
             .spawn(async {
+                #[allow(unused_variables, reason = "usage of e is feature gated behind bevy_log")]
                 if let Err(e) = future.await {
+                    #[cfg(feature = "bevy_log")]
                     error!("{e}")
                 }
             })
@@ -79,6 +84,7 @@ pub fn run_async_executor(world: &mut World) {
     let reactors = world.resource::<Reactors>().clone();
     let queue = world.non_send_resource::<QueryQueue>().clone();
     let executor = world.non_send_resource::<AsyncExecutor>().clone();
+    #[cfg(feature = "bevy_asset")]
     let assets = world.get_resource::<AssetServer>().cloned();
 
     let mut f = || {
@@ -91,9 +97,12 @@ pub fn run_async_executor(world: &mut World) {
         })
     };
 
+    #[cfg(feature = "bevy_asset")]
     if let Some(assets) = assets {
         ASSET_SERVER.set(&assets, f)
     } else {
         f()
     }
+    #[cfg(not(feature = "bevy_asset"))]
+    f()
 }

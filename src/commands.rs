@@ -2,7 +2,9 @@ use crate::access::AsyncResource;
 use crate::channel;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, WORLD};
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
-use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
+use crate::{access::AsyncEntityMut, signals::SignalId, tween::AsSeconds};
+#[cfg(feature = "bevy_state")]
+use crate::reactors::StateSignal;
 use crate::{access::AsyncWorld, AccessError, AccessResult};
 use async_shared::Value;
 use bevy::app::AppExit;
@@ -12,10 +14,12 @@ use bevy::ecs::system::{Command, IntoSystem, SystemId};
 use bevy::ecs::world::{CommandQueue, FromWorld, Mut};
 use bevy::ecs::{bundle::Bundle, resource::Resource, schedule::ScheduleLabel, world::World};
 use bevy::prelude::SystemInput;
+#[cfg(feature = "bevy_state")]
 use bevy::state::state::{FreelyMutableState, NextState, State, States};
 use bevy::tasks::AsyncComputeTaskPool;
 use futures::future::ready;
 use futures::future::Either;
+#[cfg(feature = "bevy_state")]
 use futures::stream::FusedStream;
 use std::any::type_name;
 use std::task::Context;
@@ -117,6 +121,7 @@ impl AsyncWorld {
     }
 
     /// Watch as [`Either::Left`].
+    #[cfg(feature = "bevy_asset")]
     pub(crate) fn watch_left<T: 'static, R: Future>(
         &self,
         f: impl FnMut(&mut World) -> Option<T> + 'static,
@@ -323,6 +328,7 @@ impl AsyncWorld {
     /// AsyncWorld.set_state(MyState::A)
     /// # });
     /// ```
+    #[cfg(feature = "bevy_state")]
     pub fn set_state<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
             world
@@ -343,6 +349,7 @@ impl AsyncWorld {
     /// AsyncWorld.set_state(MyState::A)
     /// # });
     /// ```
+    #[cfg(feature = "bevy_state")]
     pub fn set_state_if_changed<S: FreelyMutableState>(&self, state: S) -> AccessResult<()> {
         with_world_mut(move |world: &mut World| {
             if world
@@ -369,6 +376,7 @@ impl AsyncWorld {
     /// AsyncWorld.get_state::<MyState>()
     /// # });
     /// ```
+    #[cfg(feature = "bevy_state")]
     pub fn get_state<S: States>(&self) -> AccessResult<S> {
         with_world_ref(|world| {
             world
@@ -383,6 +391,7 @@ impl AsyncWorld {
     /// Obtain a `Stream` that reacts to changes of a [`States`].
     ///
     /// Requires system [`react_to_state`](crate::systems::react_to_state).
+    #[cfg(feature = "bevy_state")]
     pub fn state_stream<S: States>(&self) -> impl FusedStream<Item = S> + '_ {
         let signal = self.typed_signal::<StateSignal<S>>();
         signal.make_readable();

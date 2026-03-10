@@ -9,11 +9,16 @@ use bevy::ecs::query::{QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData};
 use bevy::ecs::schedule::IntoScheduleConfigs as _;
 use bevy::ecs::system::Command;
 use bevy::prelude::EntityCommands;
-use bevy::state::prelude::State;
-use bevy::state::state::States;
+#[cfg(feature = "bevy_state")]
+use bevy::state::{
+    prelude::State,
+    state::States
+};
 use bevy::time::TimeSystems;
 use std::fmt::Formatter;
-use std::{any::type_name, pin::Pin};
+#[cfg(feature = "bevy_state")]
+use std::any::type_name;
+use std::pin::Pin;
 
 pub mod access;
 pub mod cancellation;
@@ -32,6 +37,7 @@ pub mod signals;
 mod spawn;
 pub(crate) mod sync;
 pub mod tween;
+#[cfg(feature = "bevy_asset")]
 pub use access::async_asset::AssetSet;
 pub use access::async_query::{OwnedQueryState, OwnedReadonlyQueryState};
 pub use access::AsyncWorld;
@@ -50,6 +56,7 @@ pub use fetch::{fetch, fetch0, fetch1, fetch2, FetchEntity, FetchOne, FetchWorld
 pub use queue::LoopForFrameData;
 pub use queue::QueryQueue;
 use reactors::Reactors;
+#[cfg(feature = "bevy_state")]
 pub use spawn::ScopedTasks;
 #[doc(hidden)]
 #[cfg(feature = "spawn_macro")]
@@ -60,7 +67,9 @@ pub mod systems {
     pub use crate::event::react_to_message;
     pub use crate::executor::run_async_executor;
     pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
-    pub use crate::reactors::{react_to_component_change, react_to_state};
+    pub use crate::reactors::react_to_component_change;
+    #[cfg(feature = "bevy_state")]
+    pub use crate::reactors::react_to_state;
 
     #[cfg(feature = "bevy_animation")]
     pub use crate::ext::anim::react_to_animation;
@@ -80,6 +89,7 @@ pub use bevy::ecs::entity::Entity;
 #[doc(hidden)]
 pub use bevy::ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
+#[cfg(feature = "bevy_log")]
 pub use bevy::log::error;
 #[doc(hidden)]
 pub use ref_cast::RefCast;
@@ -241,6 +251,7 @@ pub trait AsyncExtension {
     /// # Errors
     ///
     /// If not in the specified state.
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States>(
         &mut self,
         state: S,
@@ -288,6 +299,7 @@ impl AsyncExtension for World {
         self
     }
 
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States>(
         &mut self,
         state: S,
@@ -305,6 +317,7 @@ impl AsyncExtension for World {
         if let Some(mut res) = self.get_resource_mut::<ScopedTasks<S>>() {
             res.tasks.entry(state).or_default().push(task);
         } else {
+            #[cfg(feature = "bevy_log")]
             error!(
                 "Cannot spawn state scoped futures without `react_to_state::<{}>`.",
                 type_name::<S>()
@@ -347,6 +360,7 @@ impl AsyncExtension for App {
         self
     }
 
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States>(
         &mut self,
         state: S,
@@ -392,6 +406,7 @@ pub trait AppReactorExtension {
     fn react_to_message<E: Message + Clone>(&mut self) -> &mut Self;
 
     /// React to changes in a [`States`].
+    #[cfg(feature = "bevy_state")]
     fn react_to_state<S: States>(&mut self) -> &mut Self;
 
     /// React to changes in a [`Component`].
@@ -405,6 +420,7 @@ impl AppReactorExtension for App {
         self
     }
 
+    #[cfg(feature = "bevy_state")]
     fn react_to_state<S: States>(&mut self) -> &mut Self {
         self.add_systems(BeforeAsyncExecutor, systems::react_to_state::<S>);
         self.init_resource::<ScopedTasks<S>>();
@@ -442,6 +458,7 @@ pub trait AsyncCommandsExtension {
     /// # Errors
     ///
     /// If not in the specified state.
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
         &mut self,
         state: S,
@@ -458,6 +475,7 @@ impl AsyncCommandsExtension for Commands<'_, '_> {
         self
     }
 
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
         &mut self,
         state: S,
@@ -493,6 +511,7 @@ pub trait AsyncEntityCommandsExtension {
     /// # Errors
     ///
     /// If not in the specified state.
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
         &mut self,
         state: S,
@@ -510,6 +529,7 @@ impl AsyncEntityCommandsExtension for EntityCommands<'_> {
         self
     }
 
+    #[cfg(feature = "bevy_state")]
     fn spawn_state_scoped<S: States, F: Future<Output = AccessResult> + 'static>(
         &mut self,
         state: S,
@@ -542,11 +562,13 @@ impl Command for SpawnFn {
 }
 
 /// [`Command`] for spawning a task.
+#[cfg(feature = "bevy_state")]
 pub struct StateScopedSpawnFn<S: States> {
     future: Box<dyn (FnOnce() -> Pin<Box<dyn Future<Output = AccessResult>>>) + Send + 'static>,
     state: S,
 }
 
+#[cfg(feature = "bevy_state")]
 impl<S: States> StateScopedSpawnFn<S> {
     fn new<F: Future<Output = AccessResult> + 'static>(
         state: S,
@@ -559,6 +581,7 @@ impl<S: States> StateScopedSpawnFn<S> {
     }
 }
 
+#[cfg(feature = "bevy_state")]
 impl<S: States> Command for StateScopedSpawnFn<S> {
     fn apply(self, world: &mut World) {
         let _ = world.spawn_state_scoped(self.state, (self.future)());

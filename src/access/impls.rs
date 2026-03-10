@@ -1,8 +1,10 @@
 //! Access traits for `bevy_defer`.
 
 use crate::access::async_query::OwnedReadonlyQueryState;
+#[cfg(feature = "bevy_asset")]
+use crate::access::AsyncAsset;
 use crate::access::{
-    AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
+    AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
     AsyncRelatedQuery, AsyncResource, AsyncWorld, RelatedQueryState,
 };
 use crate::tween::{AsSeconds, Playback};
@@ -13,6 +15,7 @@ use crate::{
     sync::oneshot::{ChannelOut, InterpolateOut},
     AccessError, AccessResult,
 };
+#[cfg(feature = "bevy_asset")]
 use bevy::asset::{Asset, Assets};
 use bevy::ecs::component::Mutable;
 use bevy::ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
@@ -556,6 +559,7 @@ impl_async_access! {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<T: Asset> ShouldContinue for AsyncAsset<T> {
     fn should_continue(e: AccessError) -> bool {
         e == AccessError::AssetNotFound {
@@ -564,6 +568,7 @@ impl<T: Asset> ShouldContinue for AsyncAsset<T> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl_async_access! {
     impl[T: Asset] AsyncAsset [T] {
         fn get(this: &Self, world: &World) -> AccessResult<&T> {
