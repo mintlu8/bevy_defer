@@ -8,9 +8,11 @@ use bevy::ecs::{
     query::{Changed, With},
     resource::Resource,
     system::{Local, Query, Res},
+};#[cfg(feature = "bevy_state")]
+use bevy::state::{
+    prelude::StateTransitionEvent,
+    state::States
 };
-use bevy::state::prelude::StateTransitionEvent;
-use bevy::state::state::States;
 use rustc_hash::FxHashMap;
 use std::{
     convert::Infallible,
@@ -19,15 +21,16 @@ use std::{
 };
 use ty_map_gen::type_map;
 
-use crate::{
-    signals::{SignalId, SignalSender, Signals},
-    ScopedTasks,
-};
+use crate::signals::{SignalId, SignalSender, Signals};
+#[cfg(feature = "bevy_state")]
+use crate::ScopedTasks;
 
 /// Signal that sends changed values of a [`States`].
+#[cfg(feature = "bevy_state")]
 #[derive(Debug, Clone, Copy)]
 pub struct StateSignal<T: States + Clone>(PhantomData<T>, Infallible);
 
+#[cfg(feature = "bevy_state")]
 impl<T: States + Clone> SignalId for StateSignal<T> {
     type Data = T;
 }
@@ -71,6 +74,7 @@ impl Reactors {
 }
 
 /// React to a [`States`] changing, signals can be subscribed from [`Reactors`] with [`StateSignal`].
+#[cfg(feature = "bevy_state")]
 pub fn react_to_state<T: States + Clone>(
     mut scoped_tasks: Option<ResMut<ScopedTasks<T>>>,
     mut transition_event: MessageReader<StateTransitionEvent<T>>,

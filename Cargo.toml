@@ -24,12 +24,13 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["bevy_animation", "bevy_asset", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
+default = ["bevy_animation", "bevy_asset", "bevy_scene", "bevy_sprite", "bevy_state", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
 derive = ["bevy_defer_derive"]
 bevy_animation = ["bevy/bevy_animation"]
 bevy_asset = ["bevy/bevy_asset"]
 bevy_scene = ["bevy/bevy_scene"]
 bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_sprite_render"]
+bevy_state = ["bevy/bevy_state"]
 bevy_render = ["bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text"]
 bevy_picking = ["bevy/bevy_picking"]
@@ -53,7 +54,7 @@ scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.18.0", default-features = false, features = ["bevy_state", "bevy_log"] }
+bevy = { version = "0.18.0", default-features = false, features = ["bevy_log"] }
 pretty-type-name = "1.0.1"
 default-constructor = { version = "0.5.1", optional = true }
 

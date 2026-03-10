@@ -1,6 +1,7 @@
 use async_executor::Task;
 use bevy::ecs::prelude::Resource;
 use bevy::log::error;
+#[cfg(feature = "bevy_state")]
 use bevy::state::prelude::{State, States};
 use rustc_hash::FxHashMap;
 use std::any::type_name;
@@ -10,18 +11,21 @@ use crate::executor::{with_world_mut, with_world_ref};
 use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
 
 /// A list of tasks constrained by [`States`].
+#[cfg(feature = "bevy_state")]
 #[derive(Debug, Resource)]
 pub struct ScopedTasks<T: States> {
     pub(crate) tasks: FxHashMap<T, Vec<Task<AccessResult<()>>>>,
     p: PhantomData<T>,
 }
 
+#[cfg(feature = "bevy_state")]
 impl<T: States> Default for ScopedTasks<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "bevy_state")]
 impl<T: States> ScopedTasks<T> {
     pub fn new() -> Self {
         ScopedTasks {
@@ -108,6 +112,7 @@ impl AsyncWorld {
     /// # Panics
     ///
     /// * If used outside a `bevy_defer` future.
+    #[cfg(feature = "bevy_state")]
     pub fn spawn_state_scoped<S: States>(
         &self,
         state: S,
