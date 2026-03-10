@@ -1,5 +1,6 @@
 use async_executor::Task;
 use bevy::ecs::prelude::Resource;
+#[cfg(feature = "bevy_log")]
 use bevy::log::error;
 #[cfg(feature = "bevy_state")]
 use bevy::state::prelude::{State, States};
@@ -134,6 +135,7 @@ impl AsyncWorld {
                     .or_default()
                     .push(SPAWNER.with(|s| s.spawn(fut)));
             } else {
+                #[cfg(feature = "bevy_log")]
                 error!(
                     "Cannot spawn state scoped futures without `react_to_state::<{}>`.",
                     type_name::<S>()
@@ -163,8 +165,15 @@ impl AsyncWorld {
             let task = s.spawn(fut).fallible();
             s.spawn(async move {
                 match task.await {
-                    Some(Err(e)) => error!("{e}"),
-                    None => error!("Task panicked!"),
+                    #[allow(unused_variables, reason = "usage of e is feature gated behind bevy_log")]
+                    Some(Err(e)) => {
+                        #[cfg(feature = "bevy_log")]
+                        error!("{e}")
+                    },
+                    None => {
+                        #[cfg(feature = "bevy_log")]
+                        error!("Task panicked!")
+                    },
                     Some(_) => (),
                 }
             })

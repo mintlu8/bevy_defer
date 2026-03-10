@@ -87,6 +87,7 @@ pub use bevy::ecs::entity::Entity;
 #[doc(hidden)]
 pub use bevy::ecs::system::{NonSend, Res, SystemParam};
 #[doc(hidden)]
+#[cfg(feature = "bevy_log")]
 pub use bevy::log::error;
 #[doc(hidden)]
 pub use ref_cast::RefCast;
@@ -314,6 +315,7 @@ impl AsyncExtension for World {
         if let Some(mut res) = self.get_resource_mut::<ScopedTasks<S>>() {
             res.tasks.entry(state).or_default().push(task);
         } else {
+            #[cfg(feature = "bevy_log")]
             error!(
                 "Cannot spawn state scoped futures without `react_to_state::<{}>`.",
                 type_name::<S>()

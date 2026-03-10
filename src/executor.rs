@@ -4,6 +4,7 @@ use async_executor::{LocalExecutor, Task};
 #[cfg(feature = "bevy_asset")]
 use bevy::asset::AssetServer;
 use bevy::ecs::world::World;
+#[cfg(feature = "bevy_log")]
 use bevy::log::error;
 use std::fmt::Display;
 use std::future::Future;
@@ -68,7 +69,9 @@ impl AsyncExecutor {
     ) {
         self.0
             .spawn(async {
+                #[allow(unused_variables, reason = "usage of e is feature gated behind bevy_log")]
                 if let Err(e) = future.await {
+                    #[cfg(feature = "bevy_log")]
                     error!("{e}")
                 }
             })
