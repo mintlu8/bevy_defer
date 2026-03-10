@@ -32,6 +32,7 @@ pub mod signals;
 mod spawn;
 pub(crate) mod sync;
 pub mod tween;
+#[cfg(feature = "bevy_asset")]
 pub use access::async_asset::AssetSet;
 pub use access::async_query::{OwnedQueryState, OwnedReadonlyQueryState};
 pub use access::AsyncWorld;

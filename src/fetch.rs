@@ -1,3 +1,4 @@
+#[cfg(feature = "bevy_asset")]
 use bevy::asset::{Asset, AssetId, Handle};
 use bevy::ecs::{
     prelude::{Component, Entity, Resource},
@@ -5,9 +6,11 @@ use bevy::ecs::{
 };
 use std::borrow::Borrow;
 
+#[cfg(feature = "bevy_asset")]
+use crate::access::AsyncAsset;
 use crate::{
     access::{
-        AsyncAsset, AsyncComponent, AsyncEntityMut, AsyncEntityQuery, AsyncQuery, AsyncResource,
+        AsyncComponent, AsyncEntityMut, AsyncEntityQuery, AsyncQuery, AsyncResource,
     },
     AsyncWorld,
 };
@@ -116,6 +119,7 @@ impl<T: Borrow<Entity>> FetchOne<ComponentMarker> for T {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
     type Out = AsyncAsset<A>;
 
@@ -124,6 +128,7 @@ impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
     type Out = AsyncAsset<A>;
 
@@ -132,6 +137,7 @@ impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
     type Out = AsyncAsset<A>;
 
@@ -140,6 +146,7 @@ impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
     type Out = AsyncAsset<A>;
 
@@ -148,6 +155,7 @@ impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for AsyncAsset<A> {
     type Out = AsyncAsset<A>;
 
@@ -174,6 +182,7 @@ pub fn fetch<T: FetchEntity<M>, M>(entity: &impl Borrow<Entity>) -> T::Out {
 
 #[cfg(test)]
 mod text {
+    #[cfg(feature = "bevy_asset")]
     use crate::access::AsyncAsset;
     use crate::AsyncWorld;
     use bevy::asset::{AssetId, Handle};
@@ -198,15 +207,18 @@ mod text {
         let _b = fetch!(&Transform);
         let _c = fetch!((&Transform, &GlobalTransform));
         let _d = fetch!((&Transform, With<GlobalTransform>));
-        let a1 = Handle::<Image>::default();
-        let a2 = AssetId::<Image>::default();
-        let a3 = AsyncAsset::new_weak(&a1);
-        let a4 = &a1;
-        let a5 = &a2;
-        let _a = fetch!(#a1);
-        let _b = fetch!(#a2);
-        let _c = fetch!(#a3);
-        let _d = fetch!(#a4);
-        let _e = fetch!(#a5);
+        #[cfg(feature = "bevy_asset")]
+        {
+            let a1 = Handle::<Image>::default();
+            let a2 = AssetId::<Image>::default();
+            let a3 = AsyncAsset::new_weak(&a1);
+            let a4 = &a1;
+            let a5 = &a2;
+            let _a = fetch!(#a1);
+            let _b = fetch!(#a2);
+            let _c = fetch!(#a3);
+            let _d = fetch!(#a4);
+            let _e = fetch!(#a5);
+        }
     }
 }
