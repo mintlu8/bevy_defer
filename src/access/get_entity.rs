@@ -5,24 +5,26 @@ use bevy::ecs::{
 };
 use std::{any::type_name, marker::PhantomData};
 
-pub trait TryGetEntity {
+/// An [`Entity`] or a descriptor of an `Entity` that may or may not exist in the `World`.
+pub trait VirtualEntity {
     fn try_get_entity(&self, world: &World) -> AccessResult<Entity>;
 }
 
-impl TryGetEntity for Entity {
+impl VirtualEntity for Entity {
     fn try_get_entity(&self, _: &World) -> AccessResult<Entity> {
         Ok(*self)
     }
 }
 
 #[derive(Debug)]
-pub struct FirstChild<E: TryGetEntity, F: QueryFilter + 'static, R: RelationshipTarget = Children> {
-    pub(crate) inner: E,
-    pub(crate) p: PhantomData<(F, R)>,
+pub struct FilterChild<E: VirtualEntity, F: QueryFilter + 'static, R: RelationshipTarget = Children>
+{
+    inner: E,
+    p: PhantomData<(F, R)>,
 }
 
-impl<E: TryGetEntity + Clone, F: QueryFilter + 'static, R: RelationshipTarget> Clone
-    for FirstChild<E, F, R>
+impl<E: VirtualEntity + Clone, F: QueryFilter + 'static, R: RelationshipTarget> Clone
+    for FilterChild<E, F, R>
 {
     fn clone(&self) -> Self {
         Self {
@@ -32,13 +34,19 @@ impl<E: TryGetEntity + Clone, F: QueryFilter + 'static, R: RelationshipTarget> C
     }
 }
 
-impl<E: TryGetEntity + Copy, F: QueryFilter + 'static, R: RelationshipTarget> Copy
-    for FirstChild<E, F, R>
+impl<E: VirtualEntity + Copy, F: QueryFilter + 'static, R: RelationshipTarget> Copy
+    for FilterChild<E, F, R>
 {
 }
 
-impl<E: TryGetEntity, F: QueryFilter + 'static, R: RelationshipTarget> TryGetEntity
-    for FirstChild<E, F, R>
+impl<E: VirtualEntity, F: QueryFilter + 'static, R: RelationshipTarget> FilterChild<E, F, R> {
+    pub fn new(entity: E) -> Self {
+        Self { inner: entity, p: PhantomData }
+    }
+}
+
+impl<E: VirtualEntity, F: QueryFilter + 'static, R: RelationshipTarget> VirtualEntity
+    for FilterChild<E, F, R>
 {
     fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
         let parent = self.inner.try_get_entity(world)?;
@@ -59,13 +67,23 @@ impl<E: TryGetEntity, F: QueryFilter + 'static, R: RelationshipTarget> TryGetEnt
 }
 
 #[derive(Debug)]
-pub struct IndexedChild<E: TryGetEntity, R: RelationshipTarget = Children> {
-    pub(crate) inner: E,
-    pub(crate) index: usize,
-    pub(crate) p: PhantomData<R>,
+pub struct IndexedChild<E: VirtualEntity, R: RelationshipTarget = Children> {
+    inner: E,
+    index: usize,
+    p: PhantomData<R>,
 }
 
-impl<E: TryGetEntity + Clone, R: RelationshipTarget> Clone for IndexedChild<E, R> {
+impl<E: VirtualEntity, R: RelationshipTarget> IndexedChild<E, R> {
+    pub fn new(entity: E, index: usize) -> Self {
+        Self {
+            inner: entity,
+            index,
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: VirtualEntity + Clone, R: RelationshipTarget> Clone for IndexedChild<E, R> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -75,9 +93,9 @@ impl<E: TryGetEntity + Clone, R: RelationshipTarget> Clone for IndexedChild<E, R
     }
 }
 
-impl<E: TryGetEntity + Copy, R: RelationshipTarget> Copy for IndexedChild<E, R> {}
+impl<E: VirtualEntity + Copy, R: RelationshipTarget> Copy for IndexedChild<E, R> {}
 
-impl<E: TryGetEntity, R: RelationshipTarget> TryGetEntity for IndexedChild<E, R> {
+impl<E: VirtualEntity, R: RelationshipTarget> VirtualEntity for IndexedChild<E, R> {
     fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
         let parent = self.inner.try_get_entity(world)?;
         if let Some(children) = world.get::<R>(parent) {
@@ -92,13 +110,23 @@ impl<E: TryGetEntity, R: RelationshipTarget> TryGetEntity for IndexedChild<E, R>
 }
 
 #[derive(Debug)]
-pub struct NamedChild<'t, E: TryGetEntity, R: RelationshipTarget = Children> {
-    pub(crate) inner: E,
-    pub(crate) name: &'t str,
-    pub(crate) p: PhantomData<R>,
+pub struct NamedChild<'t, E: VirtualEntity, R: RelationshipTarget = Children> {
+    inner: E,
+    name: &'t str,
+    p: PhantomData<R>,
 }
 
-impl<E: TryGetEntity + Clone, R: RelationshipTarget> Clone for NamedChild<'_, E, R> {
+impl<'t, E: VirtualEntity, R: RelationshipTarget> NamedChild<'t, E, R> {
+    pub fn new(entity: E, name: &'t str) -> Self {
+        Self {
+            inner: entity,
+            name,
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: VirtualEntity + Clone, R: RelationshipTarget> Clone for NamedChild<'_, E, R> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -108,9 +136,9 @@ impl<E: TryGetEntity + Clone, R: RelationshipTarget> Clone for NamedChild<'_, E,
     }
 }
 
-impl<E: TryGetEntity + Copy, R: RelationshipTarget> Copy for NamedChild<'_, E, R> {}
+impl<E: VirtualEntity + Copy, R: RelationshipTarget> Copy for NamedChild<'_, E, R> {}
 
-impl<E: TryGetEntity, R: RelationshipTarget> TryGetEntity for NamedChild<'_, E, R> {
+impl<E: VirtualEntity, R: RelationshipTarget> VirtualEntity for NamedChild<'_, E, R> {
     fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
         let parent = self.inner.try_get_entity(world)?;
         if let Some(children) = world.get::<R>(parent) {

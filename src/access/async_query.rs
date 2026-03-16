@@ -1,6 +1,6 @@
 use crate::access::AsyncEntity;
 use crate::executor::with_world_mut;
-use crate::{access::get_entity::TryGetEntity, OwnedQueryState};
+use crate::{access::get_entity::VirtualEntity, OwnedQueryState};
 #[allow(unused)]
 use bevy::ecs::system::Query;
 use bevy::ecs::{
@@ -32,7 +32,7 @@ impl<T: QueryData, F: QueryFilter> Clone for AsyncQuery<T, F> {
 }
 
 /// Async version of [`Query`] on a specific entity.
-pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = (), E: TryGetEntity = Entity> {
+pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = (), E: VirtualEntity = Entity> {
     pub(crate) entity: E,
     pub(crate) p: PhantomData<(T, F)>,
 }
@@ -53,15 +53,15 @@ impl<T: QueryData, F: QueryFilter> AsyncEntityQuery<T, F> {
     }
 }
 
-impl<T: QueryData, F: QueryFilter, E: TryGetEntity> AsyncEntityQuery<T, F, E> {
+impl<T: QueryData, F: QueryFilter, E: VirtualEntity> AsyncEntityQuery<T, F, E> {
     pub fn entity(self) -> AsyncEntity<E> {
         AsyncEntity(self.entity)
     }
 }
 
-impl<T: QueryData, F: QueryFilter, E: TryGetEntity + Copy> Copy for AsyncEntityQuery<T, F, E> {}
+impl<T: QueryData, F: QueryFilter, E: VirtualEntity + Copy> Copy for AsyncEntityQuery<T, F, E> {}
 
-impl<T: QueryData, F: QueryFilter, E: TryGetEntity + Clone> Clone for AsyncEntityQuery<T, F, E> {
+impl<T: QueryData, F: QueryFilter, E: VirtualEntity + Clone> Clone for AsyncEntityQuery<T, F, E> {
     fn clone(&self) -> Self {
         AsyncEntityQuery {
             entity: self.entity.clone(),

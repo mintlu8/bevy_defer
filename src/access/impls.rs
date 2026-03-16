@@ -1,5 +1,5 @@
 //! Access traits for `bevy_defer`.
-use crate::access::get_entity::TryGetEntity;
+use crate::access::get_entity::VirtualEntity;
 use crate::access::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
     AsyncRelatedQuery, AsyncResource, AsyncWorld, RelatedQueryState,
@@ -475,10 +475,10 @@ impl_async_access! {
 }
 
 /// Not a loading resource, ignore.
-impl<C: Component, E: TryGetEntity> ShouldContinue for AsyncComponent<C, E> {}
+impl<C: Component, E: VirtualEntity> ShouldContinue for AsyncComponent<C, E> {}
 
 impl_async_access! {
-    impl[C: Component, E: TryGetEntity] AsyncComponent [C, E] {
+    impl[C: Component, E: VirtualEntity] AsyncComponent [C, E] {
         fn get(this: &Self, world: &World) -> AccessResult<&C> {
             let entity = this.entity.try_get_entity(world)?;
             world

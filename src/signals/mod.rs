@@ -36,12 +36,12 @@ pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 
 use crate::{
-    access::{get_entity::TryGetEntity, AsyncEntity},
+    access::{get_entity::VirtualEntity, AsyncEntity},
     executor::with_world_mut,
     AccessError, AccessResult,
 };
 
-impl<E: TryGetEntity> AsyncEntity<E> {
+impl<E: VirtualEntity> AsyncEntity<E> {
     /// Send data through a signal on this entity.
     ///
     /// Returns `true` if the signal exists.

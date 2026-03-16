@@ -1,4 +1,4 @@
-use crate::access::get_entity::TryGetEntity;
+use crate::access::get_entity::VirtualEntity;
 use crate::access::{AsyncEntity, AsyncWorld};
 use crate::AccessResult;
 use bevy::ecs::component::Component;
@@ -36,7 +36,7 @@ impl AsyncWorld {
     }
 }
 
-impl<E: TryGetEntity> AsyncEntity<E> {
+impl<E: VirtualEntity> AsyncEntity<E> {
     /// Obtain a child by name.
     pub fn spawned(self, name: impl Into<String> + Borrow<str>) -> AccessResult<AsyncEntity> {
         self.child_by_name(name.borrow()).realize_entity()

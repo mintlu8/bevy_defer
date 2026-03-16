@@ -1,5 +1,5 @@
 use crate::access::async_world::AsyncEntity;
-use crate::access::get_entity::{FirstChild, IndexedChild, NamedChild, TryGetEntity};
+use crate::access::get_entity::{FilterChild, IndexedChild, NamedChild, VirtualEntity};
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
 use crate::InspectEntity;
@@ -25,9 +25,13 @@ use rustc_hash::FxHashMap;
 use std::any::type_name;
 use std::borrow::Borrow;
 use std::future::{ready, Future};
-use std::marker::PhantomData;
 
-impl<E: TryGetEntity> AsyncEntity<E> {
+impl<E: VirtualEntity> AsyncEntity<E> {
+    /// Create a virtual entity
+    pub fn from_virtual(entity: E) -> Self {
+        Self(entity)
+    }
+
     /// Realize a virtual entity.
     pub fn realize_entity(&self) -> AccessResult<AsyncEntity> {
         with_world_ref(|world| self.0.try_get_entity(world).map(AsyncEntity))
@@ -95,7 +99,7 @@ impl<E: TryGetEntity> AsyncEntity<E> {
         })
     }
 
-    /// Check if an [`Entity`] exists.
+    /// Check if the entity exists.
     pub fn exists(&self) -> bool {
         with_world_mut(
             move |world: &mut World| match self.0.try_get_entity(world) {
@@ -546,28 +550,37 @@ impl<E: TryGetEntity> AsyncEntity<E> {
 
     /// Obtain a child entity by index.
     pub fn child(self, index: usize) -> AsyncEntity<IndexedChild<E>> {
-        AsyncEntity(IndexedChild {
-            inner: self.0,
-            index,
-            p: PhantomData,
-        })
+        AsyncEntity(IndexedChild::new(self.0, index))
     }
 
     /// Obtain a child entity by index.
     pub fn child_by_name<'t>(self, name: &'t str) -> AsyncEntity<NamedChild<'t, E>> {
-        AsyncEntity(NamedChild {
-            inner: self.0,
-            name,
-            p: PhantomData,
-        })
+        AsyncEntity(NamedChild::new(self.0, name))
     }
 
     /// Obtain the first child that satisfies a filter.
-    pub fn child_by_filter<F: QueryFilter + 'static>(self) -> AsyncEntity<FirstChild<E, F>> {
-        AsyncEntity(FirstChild {
-            inner: self.0,
-            p: PhantomData,
-        })
+    pub fn child_by_filter<F: QueryFilter + 'static>(self) -> AsyncEntity<FilterChild<E, F>> {
+        AsyncEntity(FilterChild::new(self.0))
+    }
+
+    /// Obtain a related entity by index.
+    pub fn related<R: RelationshipTarget>(self, index: usize) -> AsyncEntity<IndexedChild<E, R>> {
+        AsyncEntity(IndexedChild::new(self.0, index))
+    }
+
+    /// Obtain a related entity by index.
+    pub fn related_by_name<'t, R: RelationshipTarget>(
+        self,
+        name: &'t str,
+    ) -> AsyncEntity<NamedChild<'t, E, R>> {
+        AsyncEntity(NamedChild::new(self.0, name))
+    }
+
+    /// Obtain the first related entity that satisfies a filter.
+    pub fn related_by_filter<F: QueryFilter + 'static, R: RelationshipTarget>(
+        self,
+    ) -> AsyncEntity<FilterChild<E, F, R>> {
+        AsyncEntity(FilterChild::new(self.0))
     }
 
     /// Collect [`Children`] into a [`Vec`].
@@ -635,14 +648,15 @@ impl<E: TryGetEntity> AsyncEntity<E> {
         use bevy::prelude::Visibility;
         with_world_ref(|world| {
             let entity = self.0.try_get_entity(world).ok()?;
-            let entity = world.get_entity(entity).ok()?;
+            let mut entity = world.get_entity(entity).ok()?;
             match entity.get::<Visibility>()? {
                 Visibility::Inherited => (),
                 Visibility::Hidden => return Some(false),
                 Visibility::Visible => return Some(true),
             }
             while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
-                match world.get_entity(parent).ok()?.get::<Visibility>()? {
+                entity = world.get_entity(parent).ok()?;
+                match entity.get::<Visibility>()? {
                     Visibility::Inherited => (),
                     Visibility::Hidden => return Some(false),
                     Visibility::Visible => return Some(true),

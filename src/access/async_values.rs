@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
-pub struct AsyncComponent<C: Component, E: TryGetEntity = Entity> {
+pub struct AsyncComponent<C: Component, E: VirtualEntity = Entity> {
     pub(crate) entity: E,
     pub(crate) p: PhantomData<C>,
 }
@@ -20,7 +20,7 @@ impl<C: Component> Debug for AsyncComponent<C> {
     }
 }
 
-impl<C: Component, E: TryGetEntity> AsyncComponent<C, E> {
+impl<C: Component, E: VirtualEntity> AsyncComponent<C, E> {
     pub fn entity(self) -> AsyncEntity<E> {
         AsyncEntity(self.entity)
     }
@@ -32,9 +32,9 @@ impl<C: Component> AsyncComponent<C, Entity> {
     }
 }
 
-impl<C: Component, E: TryGetEntity + Copy> Copy for AsyncComponent<C, E> {}
+impl<C: Component, E: VirtualEntity + Copy> Copy for AsyncComponent<C, E> {}
 
-impl<C: Component, E: TryGetEntity + Clone> Clone for AsyncComponent<C, E> {
+impl<C: Component, E: VirtualEntity + Clone> Clone for AsyncComponent<C, E> {
     fn clone(&self) -> Self {
         AsyncComponent {
             entity: self.entity.clone(),
@@ -55,7 +55,7 @@ impl<C: Component> From<Entity> for AsyncComponent<C> {
 #[allow(unused)]
 pub use bevy::ecs::system::NonSend;
 
-use crate::access::get_entity::TryGetEntity;
+use crate::access::get_entity::VirtualEntity;
 use crate::access::AsyncEntity;
 
 /// An `AsyncSystemParam` that gets or sets a `!Send` resource on the `World`.

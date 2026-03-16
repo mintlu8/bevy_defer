@@ -1,5 +1,5 @@
 #![allow(deprecated)]
-use crate::access::get_entity::TryGetEntity;
+use crate::access::get_entity::VirtualEntity;
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
 use crate::executor::{QUERY_QUEUE, WORLD};
 use crate::in_async_context;
@@ -112,11 +112,13 @@ impl AsyncWorld {
 /// calling any function outside of a `bevy_defer` future
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
+/// 
+/// Spawning can always be used inside world access functions.
 ///
 /// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
 #[derive(Debug, Clone, Copy)]
-pub struct AsyncEntity<E: TryGetEntity = Entity>(pub(crate) E);
+pub struct AsyncEntity<E: VirtualEntity = Entity>(pub(crate) E);
 
 impl Display for AsyncEntity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -166,7 +168,7 @@ impl AsyncEntity {
     }
 }
 
-impl<E: TryGetEntity> AsyncEntity<E> {
+impl<E: VirtualEntity> AsyncEntity<E> {
     /// Get an [`struct@AsyncComponent`] on this entity.
     ///
     /// # Note

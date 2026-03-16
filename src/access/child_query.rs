@@ -8,20 +8,20 @@ use bevy::ecs::{
     world::unsafe_world_cell::UnsafeWorldCell,
 };
 
-use crate::access::{get_entity::TryGetEntity, AsyncEntity};
+use crate::access::{get_entity::VirtualEntity, AsyncEntity};
 
 #[derive(Debug)]
 pub struct AsyncRelatedQuery<
     R: RelationshipTarget,
     D: QueryData,
     F: QueryFilter,
-    E: TryGetEntity = Entity,
+    E: VirtualEntity = Entity,
 > {
     entity: E,
     p: PhantomData<(R, D, F)>,
 }
 
-impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: TryGetEntity + Clone> Clone
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: VirtualEntity + Clone> Clone
     for AsyncRelatedQuery<R, D, F, E>
 {
     fn clone(&self) -> Self {
@@ -32,7 +32,7 @@ impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: TryGetEntity + Clon
     }
 }
 
-impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: TryGetEntity + Copy> Copy
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: VirtualEntity + Copy> Copy
     for AsyncRelatedQuery<R, D, F, E>
 {
 }
@@ -43,7 +43,7 @@ impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> AsyncRelatedQuery<R, D
     }
 }
 
-impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: TryGetEntity>
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: VirtualEntity>
     AsyncRelatedQuery<R, D, F, E>
 {
     pub fn entity(self) -> AsyncEntity<E> {
@@ -51,7 +51,7 @@ impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: TryGetEntity>
     }
 }
 
-impl<E: TryGetEntity> AsyncEntity<E> {
+impl<E: VirtualEntity> AsyncEntity<E> {
     pub fn query_children<D: QueryData, F: QueryFilter>(
         self,
     ) -> AsyncRelatedQuery<Children, D, F, E> {
@@ -71,6 +71,7 @@ impl<E: TryGetEntity> AsyncEntity<E> {
     }
 }
 
+/// Safe [`QueryState`] for borrowing from both parent and children.
 pub struct RelatedQueryState<'t, R: RelationshipTarget, D: QueryData, F: QueryFilter> {
     pub(super) world: UnsafeWorldCell<'t>,
     pub(super) query: &'t mut QueryState<D, F>,
