@@ -1,18 +1,17 @@
 //! Access traits for `bevy_defer`.
-
-use crate::access::async_query::OwnedReadonlyQueryState;
+use crate::access::get_entity::TryGetEntity;
 use crate::access::{
     AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
     AsyncRelatedQuery, AsyncResource, AsyncWorld, RelatedQueryState,
 };
 use crate::tween::{AsSeconds, Playback};
-use crate::OwnedQueryState;
 use crate::{
     cancellation::TaskCancellation,
     executor::{with_world_mut, with_world_ref},
     sync::oneshot::{ChannelOut, InterpolateOut},
     AccessError, AccessResult,
 };
+use crate::{OwnedQueryState, OwnedReadonlyQueryState};
 use bevy::asset::{Asset, Assets};
 use bevy::ecs::component::Mutable;
 use bevy::ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
@@ -97,10 +96,10 @@ macro_rules! impl_async_access1 {
             /// Can be used inside a readonly world access scope.
             #[track_caller]
             pub fn get_on_load<A: 'static>(
-                &self,
+                self,
                 mut f: impl FnMut($Ref) -> A + 'static,
-            ) -> ChannelOut<AccessResult<A>> {
-                let $this = self.clone();
+            ) -> ChannelOut<AccessResult<A>> where Self: 'static {
+                let $this = self;
                 AsyncWorld.watch(move |$world| {
                     let out = tri!{
                         inject!(out $($stmts)*);
@@ -168,8 +167,8 @@ macro_rules! impl_async_access1 {
 
             /// Remove and obtain the item from the world once loaded.
             #[track_caller]
-            pub fn take_on_load(&self) -> ChannelOut<AccessResult<$Ref>> {
-                let $this = self.clone();
+            pub fn take_on_load(self) -> ChannelOut<AccessResult<$Ref>> where Self: 'static {
+                let $this = self;
                 AsyncWorld.watch(move |$world| {
                     let out = tri! {
                         inject!(out $($stmts)*);
@@ -302,8 +301,8 @@ macro_rules! impl_async_access2 {
             ///
             /// Can be used inside a readonly world access scope.
             #[track_caller]
-            pub fn clone_on_load(&self) -> ChannelOut<AccessResult<$Ref>> where $Ref: Clone {
-                let $this = self.clone();
+            pub fn clone_on_load(self) -> ChannelOut<AccessResult<$Ref>> where $Ref: Clone, Self: 'static {
+                let $this = self;
                 AsyncWorld.watch(move |$world| {
                     let out = tri!{
                         inject!(out $($stmts)*);
@@ -476,12 +475,12 @@ impl_async_access! {
 }
 
 /// Not a loading resource, ignore.
-impl<C: Component> ShouldContinue for AsyncComponent<C> {}
+impl<C: Component, E: TryGetEntity> ShouldContinue for AsyncComponent<C, E> {}
 
 impl_async_access! {
-    impl[C: Component] AsyncComponent [C] {
+    impl[C: Component, E: TryGetEntity] AsyncComponent [C, E] {
         fn get(this: &Self, world: &World) -> AccessResult<&C> {
-            let entity = this.id();
+            let entity = this.entity.try_get_entity(world)?;
             world
                 .get_entity(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?
@@ -492,7 +491,7 @@ impl_async_access! {
         }
 
         fn take(this: &Self, world: &mut World) -> AccessResult<C> {
-            let entity = this.id();
+            let entity = this.entity.try_get_entity(world)?;
             world
                 .get_entity_mut(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?

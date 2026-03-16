@@ -5,10 +5,9 @@ use bevy::ecs::{
 };
 use std::borrow::Borrow;
 
+use crate::access::AsyncEntity;
 use crate::{
-    access::{
-        AsyncAsset, AsyncComponent, AsyncEntityMut, AsyncEntityQuery, AsyncQuery, AsyncResource,
-    },
+    access::{AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncQuery, AsyncResource},
     AsyncWorld,
 };
 
@@ -109,7 +108,7 @@ impl<T: QueryData> FetchEntity<QueryMarker> for T {
 }
 
 impl<T: Borrow<Entity>> FetchOne<ComponentMarker> for T {
-    type Out = AsyncEntityMut;
+    type Out = AsyncEntity;
 
     fn fetch(&self) -> Self::Out {
         AsyncWorld.entity(*self.borrow())

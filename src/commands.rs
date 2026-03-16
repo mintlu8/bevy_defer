@@ -1,9 +1,10 @@
+use crate::access::async_world::AsyncEntity;
 use crate::access::AsyncResource;
 use crate::channel;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, WORLD};
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
-use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use crate::{access::AsyncWorld, AccessError, AccessResult};
+use crate::{reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use async_shared::Value;
 use bevy::app::AppExit;
 use bevy::ecs::event::Event;
@@ -279,7 +280,7 @@ impl AsyncWorld {
     /// AsyncWorld.spawn_empty()
     /// # );
     /// ```
-    pub fn spawn_empty(&self) -> AsyncEntityMut {
+    pub fn spawn_empty(&self) -> AsyncEntity {
         self.entity(with_world_mut(move |world: &mut World| {
             world.spawn_empty().id()
         }))
@@ -294,7 +295,7 @@ impl AsyncWorld {
     /// AsyncWorld.spawn_bundle(Int(4))
     /// # );
     /// ```
-    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMut {
+    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntity {
         self.entity(with_world_mut(move |world: &mut World| {
             world.spawn(bundle).id()
         }))

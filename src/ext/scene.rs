@@ -1,4 +1,5 @@
-use crate::access::{AsyncEntityMut, AsyncWorld};
+use crate::access::get_entity::TryGetEntity;
+use crate::access::{AsyncEntity, AsyncWorld};
 use crate::AccessResult;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
@@ -27,17 +28,17 @@ impl AsyncWorld {
     /// Spawn a scene and wait for spawning to complete.
     ///
     /// Requires [`react_to_scene_load`] to function.
-    pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncEntityMut {
+    pub async fn spawn_scene(&self, bun: impl Bundle) -> AsyncEntity {
         let (send, recv) = async_oneshot::oneshot();
         let entity = self.spawn_bundle((bun, SceneSignal(send))).id();
         let _ = recv.await;
-        AsyncEntityMut(entity)
+        AsyncEntity(entity)
     }
 }
 
-impl AsyncEntityMut {
-    /// Obtain a child by name, alias for `child_by_name`.
-    pub fn spawned(&self, name: impl Into<String> + Borrow<str>) -> AccessResult<AsyncEntityMut> {
-        self.child_by_name(name)
+impl<E: TryGetEntity> AsyncEntity<E> {
+    /// Obtain a child by name.
+    pub fn spawned(self, name: impl Into<String> + Borrow<str>) -> AccessResult<AsyncEntity> {
+        self.child_by_name(name.borrow()).realize_entity()
     }
 }

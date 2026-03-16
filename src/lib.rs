@@ -33,7 +33,7 @@ mod spawn;
 pub(crate) mod sync;
 pub mod tween;
 pub use access::async_asset::AssetSet;
-pub use access::async_query::{OwnedQueryState, OwnedReadonlyQueryState};
+pub use access::query::{OwnedQueryState, OwnedReadonlyQueryState};
 pub use access::AsyncWorld;
 pub use async_executor::Task;
 use bevy::ecs::{
@@ -70,6 +70,7 @@ pub mod systems {
     pub use crate::ext::scene::react_to_scene_load;
 }
 
+use crate::access::query::QueryCache;
 pub use crate::sync::oneshot::channel;
 use std::future::Future;
 
@@ -108,6 +109,7 @@ impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
         app.init_non_send_resource::<QueryQueue>()
             .init_non_send_resource::<AsyncExecutor>()
+            .init_non_send_resource::<QueryCache>()
             .init_resource::<Reactors>()
             .init_resource::<EntityInspectors>()
             .register_type::<Signals>()

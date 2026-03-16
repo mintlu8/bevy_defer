@@ -31,19 +31,23 @@ mod signal_utils;
 use std::{any::type_name, sync::Arc};
 
 pub use async_shared::Value;
-use bevy::ecs::world::World;
+use bevy::ecs::{event::EntityEvent, observer::On, world::World};
 pub use signal_component::{SignalMap, Signals};
 pub use signal_utils::*;
 
-use crate::{access::AsyncEntityMut, executor::with_world_mut, AccessError, AccessResult};
+use crate::{
+    access::{get_entity::TryGetEntity, AsyncEntity},
+    executor::with_world_mut,
+    AccessError, AccessResult,
+};
 
-impl AsyncEntityMut {
+impl<E: TryGetEntity> AsyncEntity<E> {
     /// Send data through a signal on this entity.
     ///
     /// Returns `true` if the signal exists.
     pub fn send_signal<S: SignalId>(&self, data: S::Data) -> AccessResult<bool> {
-        let entity = self.0;
         with_world_mut(move |world: &mut World| {
+            let entity = self.0.try_get_entity(world)?;
             let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(AccessError::EntityNotFound(entity));
             };
@@ -58,8 +62,8 @@ impl AsyncEntityMut {
 
     /// Init or borrow a sender from an entity with shared read tick.
     pub fn signal_sender<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
-        let entity = self.0;
         with_world_mut(move |world: &mut World| {
+            let entity = self.0.try_get_entity(world)?;
             let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(AccessError::EntityNotFound(entity));
             };
@@ -73,8 +77,8 @@ impl AsyncEntityMut {
 
     /// Init or borrow a receiver from an entity with shared read tick.
     pub fn signal_receiver<S: SignalId>(&self) -> AccessResult<Arc<Value<S::Data>>> {
-        let entity = self.0;
         with_world_mut(move |world: &mut World| {
+            let entity = self.0.try_get_entity(world)?;
             let Ok(mut entity) = world.get_entity_mut(entity) else {
                 return Err(AccessError::EntityNotFound(entity));
             };
@@ -84,5 +88,21 @@ impl AsyncEntityMut {
             };
             Ok(signals.init_receiver::<S>())
         })
+    }
+
+    /// Initialize a signal receiver [`Observed<T>`] on this entity
+    /// and spawn an observer that feeds into that signal receiver.
+    ///
+    /// Call [`AsyncEntityMut::signal_receiver`] to read from that signal.
+    pub fn signal_observe<T: EntityEvent + Clone>(&self) -> AccessResult {
+        let signal = self.signal_receiver::<Observed<T>>()?;
+        with_world_mut(|world| {
+            let entity = self.0.try_get_entity(world)?;
+            world.entity_mut(entity).observe(move |trigger: On<T>| {
+                signal.write(trigger.event().clone());
+            });
+            Ok(())
+        })?;
+        Ok(())
     }
 }
