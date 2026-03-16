@@ -112,7 +112,7 @@ impl AsyncWorld {
 /// calling any function outside of a `bevy_defer` future
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
-/// 
+///
 /// Spawning can always be used inside world access functions.
 ///
 /// If you need the functionalities defined here in sync code, see non-send resources

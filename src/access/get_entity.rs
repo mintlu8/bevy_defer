@@ -41,7 +41,10 @@ impl<E: VirtualEntity + Copy, F: QueryFilter + 'static, R: RelationshipTarget> C
 
 impl<E: VirtualEntity, F: QueryFilter + 'static, R: RelationshipTarget> FilterChild<E, F, R> {
     pub fn new(entity: E) -> Self {
-        Self { inner: entity, p: PhantomData }
+        Self {
+            inner: entity,
+            p: PhantomData,
+        }
     }
 }
 
