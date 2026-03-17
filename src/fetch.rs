@@ -18,11 +18,11 @@ use crate::{
 /// * `fetch!(entity, Type)`
 ///
 /// Obtain a [`struct@AsyncComponent`] or [`AsyncEntityQuery`] depend on the type.
-/// `entity` can be [`Entity`] or [`AsyncEntityMut`].
+/// `entity` can be [`Entity`] or [`AsyncEntity`].
 ///
 /// * `fetch!(#expr)`
 ///
-/// Obtain a [`AsyncEntityMut`] or [`AsyncAsset`] from an underlying expr.
+/// Obtain a [`AsyncEntity`] or [`AsyncAsset`] from an underlying expr.
 ///
 /// * `fetch!(Type)`
 ///

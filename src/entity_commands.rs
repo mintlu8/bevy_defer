@@ -1,5 +1,5 @@
 use crate::access::async_world::AsyncEntity;
-use crate::access::get_entity::{FilterChild, IndexedChild, NamedChild, VirtualEntity};
+use crate::access::get_entity::VirtualEntity;
 use crate::access::AsyncWorld;
 use crate::executor::{with_world_mut, with_world_ref};
 use crate::InspectEntity;
@@ -11,7 +11,6 @@ use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::QueryFilter;
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
 use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
 use bevy::ecs::world::{EntityRef, EntityWorldMut};
@@ -27,21 +26,6 @@ use std::borrow::Borrow;
 use std::future::{ready, Future};
 
 impl<E: VirtualEntity> AsyncEntity<E> {
-    /// Create a virtual entity
-    pub fn from_virtual(entity: E) -> Self {
-        Self(entity)
-    }
-
-    /// Realize a virtual entity.
-    pub fn realize_entity(&self) -> AccessResult<AsyncEntity> {
-        with_world_ref(|world| self.0.try_get_entity(world).map(AsyncEntity))
-    }
-
-    /// Try obtain the underlying [`Entity`] from a virtual entity.
-    pub fn try_get_id(&self) -> AccessResult<Entity> {
-        self.realize_entity().map(|x| x.0)
-    }
-
     /// Run a function on the [`EntityRef`].
     ///
     /// Can be used inside a readonly world access scope and
@@ -289,7 +273,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         Ok(AsyncWorld.entity(entity))
     }
 
-    /// Adds a single child, returns the parent [`AsyncEntityMut`].
+    /// Adds a single child, returns the parent [`AsyncEntity`].
     ///
     /// # Example
     ///
@@ -314,7 +298,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         Ok(AsyncEntity(entity))
     }
 
-    /// Adds a single child, returns the parent [`AsyncEntityMut`].
+    /// Adds a single child, returns the parent [`AsyncEntity`].
     ///
     /// # Example
     ///
@@ -337,31 +321,6 @@ impl<E: VirtualEntity> AsyncEntity<E> {
             Ok(entity)
         })?;
         Ok(AsyncEntity(entity))
-    }
-
-    /// Obtain parent of an entity.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # bevy_defer::test_spawn!({
-    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
-    /// # let child = entity.spawn_child(Int(1)).unwrap();
-    /// child.parent()
-    /// # ;
-    /// # assert_eq!(child.parent().unwrap().id(), entity.id());
-    /// # });
-    /// ```
-    pub fn parent(&self) -> AccessResult<AsyncEntity> {
-        let child = with_world_mut(move |world: &mut World| {
-            let entity = self.0.try_get_entity(world)?;
-            world
-                .get_entity(entity)
-                .ok()
-                .and_then(|entity| entity.get::<ChildOf>().map(|x| x.parent()))
-                .ok_or(AccessError::EntityNotFound(entity))
-        })?;
-        Ok(AsyncEntity(child))
     }
 
     /// Set parent to an entity.
@@ -546,41 +505,6 @@ impl<E: VirtualEntity> AsyncEntity<E> {
                 format!("Entity {entity} missing!")
             }
         })
-    }
-
-    /// Obtain a child entity by index.
-    pub fn child(self, index: usize) -> AsyncEntity<IndexedChild<E>> {
-        AsyncEntity(IndexedChild::new(self.0, index))
-    }
-
-    /// Obtain a child entity by index.
-    pub fn child_by_name<'t>(self, name: &'t str) -> AsyncEntity<NamedChild<'t, E>> {
-        AsyncEntity(NamedChild::new(self.0, name))
-    }
-
-    /// Obtain the first child that satisfies a filter.
-    pub fn child_by_filter<F: QueryFilter + 'static>(self) -> AsyncEntity<FilterChild<E, F>> {
-        AsyncEntity(FilterChild::new(self.0))
-    }
-
-    /// Obtain a related entity by index.
-    pub fn related<R: RelationshipTarget>(self, index: usize) -> AsyncEntity<IndexedChild<E, R>> {
-        AsyncEntity(IndexedChild::new(self.0, index))
-    }
-
-    /// Obtain a related entity by index.
-    pub fn related_by_name<'t, R: RelationshipTarget>(
-        self,
-        name: &'t str,
-    ) -> AsyncEntity<NamedChild<'t, E, R>> {
-        AsyncEntity(NamedChild::new(self.0, name))
-    }
-
-    /// Obtain the first related entity that satisfies a filter.
-    pub fn related_by_filter<F: QueryFilter + 'static, R: RelationshipTarget>(
-        self,
-    ) -> AsyncEntity<FilterChild<E, F, R>> {
-        AsyncEntity(FilterChild::new(self.0))
     }
 
     /// Collect [`Children`] into a [`Vec`].

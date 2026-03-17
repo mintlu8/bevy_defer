@@ -1,8 +1,8 @@
 #![allow(deprecated)]
 use crate::access::get_entity::VirtualEntity;
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
-use crate::executor::{QUERY_QUEUE, WORLD};
-use crate::in_async_context;
+use crate::executor::{with_world_ref, QUERY_QUEUE, WORLD};
+use crate::{in_async_context, AccessResult};
 use bevy::ecs::{
     component::Component,
     entity::Entity,
@@ -29,6 +29,8 @@ use super::AsyncQuerySingle;
 /// calling any function outside of a `bevy_defer` future
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
+///
+/// Spawning related functions can be used inside world access function.
 ///
 /// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
@@ -169,6 +171,21 @@ impl AsyncEntity {
 }
 
 impl<E: VirtualEntity> AsyncEntity<E> {
+    /// Create a virtual entity
+    pub fn from_virtual(entity: E) -> Self {
+        Self(entity)
+    }
+
+    /// Realize a virtual entity to a `AsyncEntity<Entity>`.
+    pub fn realize_entity(&self) -> AccessResult<AsyncEntity> {
+        with_world_ref(|world| self.0.try_get_entity(world).map(AsyncEntity))
+    }
+
+    /// Try obtain the underlying [`Entity`] from a virtual entity.
+    pub fn try_get_id(&self) -> AccessResult<Entity> {
+        self.realize_entity().map(|x| x.0)
+    }
+
     /// Get an [`struct@AsyncComponent`] on this entity.
     ///
     /// # Note

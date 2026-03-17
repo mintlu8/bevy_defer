@@ -33,8 +33,8 @@ mod spawn;
 pub(crate) mod sync;
 pub mod tween;
 pub use access::async_asset::AssetSet;
+pub use access::async_world::AsyncWorld;
 pub use access::query::{OwnedQueryState, OwnedReadonlyQueryState};
-pub use access::AsyncWorld;
 pub use async_executor::Task;
 use bevy::ecs::{
     schedule::{ScheduleLabel, SystemSet},
@@ -93,10 +93,6 @@ pub use bevy_defer_derive::{async_access, async_dyn};
 
 /// Result type of spawned tasks.
 pub type AccessResult<T = ()> = Result<T, AccessError>;
-
-pub type BoxedFuture = Pin<Box<dyn Future<Output = AccessResult>>>;
-
-pub type BoxedSharedFuture = Pin<Box<dyn Future<Output = AccessResult> + Send + Sync>>;
 
 #[derive(Debug, Default, Clone, Copy)]
 
@@ -259,7 +255,7 @@ pub trait AsyncExtension {
     ///  in `bevy_defer`'s scope.
     ///
     /// Only the first successful formatting function will be called according to their priorities.
-    /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
+    /// A [`Name`](bevy::ecs::name::Name) based method is automatically added at priority `0`.
     fn register_inspect_entity_by_component<C: Component>(
         &mut self,
         priority: i32,
@@ -273,7 +269,7 @@ pub trait AsyncExtension {
     ///  in `bevy_defer`'s scope.
     ///
     /// Only the first successful formatting function will be called according to their priorities.
-    /// A [`Name`](bevy::core::Name) based method is automatically added at priority `0`.
+    /// A [`Name`](bevy::ecs::name::Name) based method is automatically added at priority `0`.
     fn register_inspect_entity_by_query<
         Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
         F: QueryFilter + 'static,

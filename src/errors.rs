@@ -105,6 +105,8 @@ pub enum AccessError {
     ChildNotFound { index: usize },
     #[error("child of type {} missing", fmt(query))]
     TypedChildNotFound { query: &'static str },
+    #[error("parent of type {} missing", fmt(query))]
+    TypedParentNotFound { query: &'static str },
     #[error("component <{}> not found", fmt(name))]
     ComponentNotFound { name: &'static str },
     #[error("resource <{}> not found", fmt(name))]

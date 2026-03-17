@@ -93,7 +93,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     /// Initialize a signal receiver [`Observed<T>`] on this entity
     /// and spawn an observer that feeds into that signal receiver.
     ///
-    /// Call [`AsyncEntityMut::signal_receiver`] to read from that signal.
+    /// Call [`AsyncEntity::signal_receiver`] to read from that signal.
     pub fn signal_observe<T: EntityEvent + Clone>(&self) -> AccessResult {
         let signal = self.signal_receiver::<Observed<T>>()?;
         with_world_mut(|world| {

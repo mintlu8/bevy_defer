@@ -1,7 +1,11 @@
-use crate::{AccessError, AccessResult, OwnedReadonlyQueryState};
+use crate::{access::AsyncEntity, AccessError, AccessResult, OwnedReadonlyQueryState};
 use bevy::ecs::{
-    entity::Entity, hierarchy::Children, name::Name, query::QueryFilter,
-    relationship::RelationshipTarget, world::World,
+    entity::Entity,
+    hierarchy::{ChildOf, Children},
+    name::Name,
+    query::QueryFilter,
+    relationship::{Relationship, RelationshipTarget},
+    world::World,
 };
 use std::{any::type_name, marker::PhantomData};
 
@@ -155,5 +159,186 @@ impl<E: VirtualEntity, R: RelationshipTarget> VirtualEntity for NamedChild<'_, E
             }
         }
         Err(AccessError::NamedChildNotFound)
+    }
+}
+
+#[derive(Debug)]
+pub struct GetParent<E: VirtualEntity, R: Relationship = ChildOf> {
+    inner: E,
+    p: PhantomData<R>,
+}
+
+impl<E: VirtualEntity + Clone, R: Relationship> Clone for GetParent<E, R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: VirtualEntity + Copy, R: Relationship> Copy for GetParent<E, R> {}
+
+impl<E: VirtualEntity, R: Relationship> GetParent<E, R> {
+    pub fn new(entity: E) -> Self {
+        Self {
+            inner: entity,
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: VirtualEntity, R: Relationship> VirtualEntity for GetParent<E, R> {
+    fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
+        let parent = self.inner.try_get_entity(world)?;
+        let Some(parent) = world.get::<R>(parent) else {
+            return Err(AccessError::TypedParentNotFound {
+                query: type_name::<R>(),
+            });
+        };
+        Ok(parent.get())
+    }
+}
+
+impl<E: VirtualEntity> AsyncEntity<E> {
+    /// Obtain a child entity by index.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// # assert_eq!(
+    /// entity.child(0)
+    /// # .realize_entity().unwrap().id(), child.id());
+    /// # });
+    /// ```
+    pub fn child(self, index: usize) -> AsyncEntity<IndexedChild<E>> {
+        AsyncEntity(IndexedChild::new(self.0, index))
+    }
+
+    /// Obtain a child entity by [`Name`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Name::new("bevy")).unwrap();
+    /// # assert_eq!(
+    /// entity.child_by_name("bevy")
+    /// # .realize_entity().unwrap().id(), child.id());
+    /// # });
+    /// ```
+    pub fn child_by_name<'t>(self, name: &'t str) -> AsyncEntity<NamedChild<'t, E>> {
+        AsyncEntity(NamedChild::new(self.0, name))
+    }
+
+    /// Obtain the first child that satisfies a filter.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// # assert_eq!(
+    /// entity.child_by_filter::<With<Int>>()
+    /// # .realize_entity().unwrap().id(), child.id());
+    /// # });
+    /// ```
+    pub fn child_by_filter<F: QueryFilter + 'static>(self) -> AsyncEntity<FilterChild<E, F>> {
+        AsyncEntity(FilterChild::new(self.0))
+    }
+
+    /// Obtain a related entity by index.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// # assert_eq!(
+    /// entity.related::<Children>(0)
+    /// # .realize_entity().unwrap().id(), child.id());
+    /// # });
+    /// ```
+    pub fn related<R: RelationshipTarget>(self, index: usize) -> AsyncEntity<IndexedChild<E, R>> {
+        AsyncEntity(IndexedChild::new(self.0, index))
+    }
+
+    /// Obtain a related entity by [`Name`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Name::new("bevy")).unwrap();
+    /// # assert_eq!(
+    /// entity.related_by_name::<Children>("bevy")
+    /// # .realize_entity().unwrap().id(), child.id());
+    /// # });
+    /// ```
+    pub fn related_by_name<'t, R: RelationshipTarget>(
+        self,
+        name: &'t str,
+    ) -> AsyncEntity<NamedChild<'t, E, R>> {
+        AsyncEntity(NamedChild::new(self.0, name))
+    }
+
+    /// Obtain the first related entity that satisfies a filter.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// # assert_eq!(
+    /// entity.related_by_filter::<With<Int>, Children>()
+    /// # .realize_entity().unwrap().id(), child.id());
+    /// # });
+    /// ```
+    pub fn related_by_filter<F: QueryFilter + 'static, R: RelationshipTarget>(
+        self,
+    ) -> AsyncEntity<FilterChild<E, F, R>> {
+        AsyncEntity(FilterChild::new(self.0))
+    }
+
+    /// Obtain parent of an entity.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// #  assert_eq!(
+    /// child.parent()
+    /// # .realize_entity().unwrap().id(), entity.id());
+    /// # });
+    /// ```
+    pub fn parent(self) -> AsyncEntity<GetParent<E>> {
+        AsyncEntity(GetParent::new(self.0))
+    }
+
+    /// Obtain a related parent of an entity.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child = entity.spawn_child(Int(1)).unwrap();
+    /// # assert_eq!(
+    /// child.related_parent::<ChildOf>()
+    /// # .realize_entity().unwrap().id(), entity.id());
+    /// # });
+    /// ```
+    pub fn related_parent<R: Relationship>(self) -> AsyncEntity<GetParent<E, R>> {
+        AsyncEntity(GetParent::new(self.0))
     }
 }
