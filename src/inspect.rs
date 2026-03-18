@@ -141,7 +141,7 @@ impl Default for EntityInspectors {
                 AsyncWorld
                     .entity(entity)
                     .component::<Name>()
-                    .get_mut(|x| {
+                    .get(|x| {
                         write!(
                             fmt,
                             "Entity({},{},{})",

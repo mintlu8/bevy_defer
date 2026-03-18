@@ -53,6 +53,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
             };
             let Some(signals) = entity.get_mut::<Signals>() else {
                 return Err(AccessError::ComponentNotFound {
+                    entity: entity.id(),
                     name: type_name::<S>(),
                 });
             };

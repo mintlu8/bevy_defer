@@ -468,6 +468,7 @@ impl_async_access! {
                 .get_mut::<C>()
                 .map(|x| x.into_inner())
                 .ok_or(AccessError::ComponentNotFound {
+                    entity,
                     name: type_name::<C>(),
                 })
         }
@@ -486,6 +487,7 @@ impl_async_access! {
                 .map_err(|_| AccessError::EntityNotFound(entity))?
                 .get::<C>()
                 .ok_or(AccessError::ComponentNotFound {
+                    entity,
                     name: type_name::<C>(),
                 })
         }
@@ -497,6 +499,7 @@ impl_async_access! {
                 .map_err(|_| AccessError::EntityNotFound(entity))?
                 .take::<C>()
                 .ok_or(AccessError::ComponentNotFound {
+                    entity,
                     name: type_name::<C>(),
                 })
         }

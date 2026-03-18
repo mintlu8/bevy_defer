@@ -107,8 +107,8 @@ pub enum AccessError {
     TypedChildNotFound { query: &'static str },
     #[error("parent of type {} missing", fmt(query))]
     TypedParentNotFound { query: &'static str },
-    #[error("component <{}> not found", fmt(name))]
-    ComponentNotFound { name: &'static str },
+    #[error("component <{}> not found on entity {}", fmt(name), InspectEntity(*entity))]
+    ComponentNotFound { entity: Entity, name: &'static str },
     #[error("resource <{}> not found", fmt(name))]
     ResourceNotFound { name: &'static str },
     #[error("asset <{}> not found", fmt(name))]
@@ -141,8 +141,9 @@ pub enum AccessError {
 }
 
 impl AccessError {
-    pub fn component<T>() -> Self {
+    pub fn component<T>(entity: Entity) -> Self {
         AccessError::ComponentNotFound {
+            entity,
             name: type_name::<T>(),
         }
     }

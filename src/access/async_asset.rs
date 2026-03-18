@@ -118,11 +118,11 @@ impl AsyncWorld {
     pub fn load_asset<A: Asset>(
         &self,
         path: impl Into<AssetPath<'static>> + Send + 'static,
-    ) -> AsyncAsset<A> {
+    ) -> Handle<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset::Strong(ASSET_SERVER.with(|s| s.load::<A>(path)))
+        ASSET_SERVER.with(|s| s.load::<A>(path))
     }
 
     /// Begins loading an Asset of type `A` stored at path.
@@ -131,11 +131,11 @@ impl AsyncWorld {
         &self,
         path: impl Into<AssetPath<'static>> + Send + 'static,
         f: impl Fn(&mut S) + Send + Sync + 'static,
-    ) -> AsyncAsset<A> {
+    ) -> Handle<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset::Strong(ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f)))
+        ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f))
     }
 
     /// Add an asset and obtain its handle.

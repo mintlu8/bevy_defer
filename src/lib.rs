@@ -51,9 +51,6 @@ pub use queue::LoopForFrameData;
 pub use queue::QueryQueue;
 use reactors::Reactors;
 pub use spawn::ScopedTasks;
-#[doc(hidden)]
-#[cfg(feature = "spawn_macro")]
-pub mod spawn_macro;
 
 /// Systems in `bevy_defer`.
 pub mod systems {

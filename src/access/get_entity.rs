@@ -188,6 +188,65 @@ impl<E: VirtualEntity, R: Relationship> GetParent<E, R> {
     }
 }
 
+#[derive(Debug)]
+pub struct NamedDescendant<'t, E: VirtualEntity, R: RelationshipTarget = Children> {
+    inner: E,
+    name: &'t str,
+    p: PhantomData<R>,
+}
+
+impl<'t, E: VirtualEntity, R: RelationshipTarget> NamedDescendant<'t, E, R> {
+    pub fn new(entity: E, name: &'t str) -> Self {
+        Self {
+            inner: entity,
+            name,
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: VirtualEntity + Clone, R: RelationshipTarget> Clone for NamedDescendant<'_, E, R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            name: self.name,
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: VirtualEntity + Copy, R: RelationshipTarget> Copy for NamedDescendant<'_, E, R> {}
+
+fn get_descendant_recursive<R: RelationshipTarget>(
+    world: &World,
+    entity: Entity,
+    f: &mut impl FnMut(&World, Entity) -> bool,
+) -> Option<Entity> {
+    if let Some(children) = world.get::<R>(entity) {
+        for child in children.iter() {
+            if f(world, child) {
+                return Some(child);
+            }
+            if let Some(result) = get_descendant_recursive::<R>(world, child, f) {
+                return Some(result);
+            }
+        }
+    }
+    None
+}
+
+impl<E: VirtualEntity, R: RelationshipTarget> VirtualEntity for NamedDescendant<'_, E, R> {
+    fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
+        let entity = self.inner.try_get_entity(world)?;
+        get_descendant_recursive::<R>(world, entity, &mut |world, entity| {
+            world
+                .get::<Name>(entity)
+                .is_some_and(|x| x.as_str() == self.name)
+        })
+        .ok_or(AccessError::NamedChildNotFound)
+    }
+}
+
 impl<E: VirtualEntity, R: Relationship> VirtualEntity for GetParent<E, R> {
     fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
         let parent = self.inner.try_get_entity(world)?;
@@ -340,5 +399,44 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     /// ```
     pub fn related_parent<R: Relationship>(self) -> AsyncEntity<GetParent<E, R>> {
         AsyncEntity(GetParent::new(self.0))
+    }
+
+    /// Obtain a descendant entity by [`Name`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child1 = entity.spawn_child(Name::new("aaa")).unwrap();
+    /// # let child2 = child1.spawn_child(Name::new("bevy")).unwrap();
+    /// # assert_eq!(
+    /// entity.descendant_by_name("bevy")
+    /// # .realize_entity().unwrap().id(), child2.id());
+    /// # });
+    /// ```
+    pub fn descendant_by_name<'t>(self, name: &'t str) -> AsyncEntity<NamedDescendant<'t, E>> {
+        AsyncEntity(NamedDescendant::new(self.0, name))
+    }
+
+    /// Obtain a descendant entity by [`Name`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!({
+    /// # let entity = AsyncWorld.spawn_bundle(Int(1));
+    /// # let child1 = entity.spawn_child(Name::new("aaa")).unwrap();
+    /// # let child2 = child1.spawn_child(Name::new("bevy")).unwrap();
+    /// # assert_eq!(
+    /// entity.related_descendant_by_name::<Children>("bevy")
+    /// # .realize_entity().unwrap().id(), child2.id());
+    /// # });
+    /// ```
+    pub fn related_descendant_by_name<'t, R: RelationshipTarget>(
+        self,
+        name: &'t str,
+    ) -> AsyncEntity<NamedDescendant<'t, E, R>> {
+        AsyncEntity(NamedDescendant::new(self.0, name))
     }
 }

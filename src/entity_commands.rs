@@ -185,6 +185,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
                 .map_err(|_| AccessError::EntityNotFound(entity))
                 .and_then(|mut e| {
                     e.take::<T>().ok_or(AccessError::ComponentNotFound {
+                        entity,
                         name: type_name::<T>(),
                     })
                 })
@@ -446,6 +447,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
                 .get::<Name>(entity)
                 .map(|x| x.to_string())
                 .ok_or(AccessError::ComponentNotFound {
+                    entity,
                     name: type_name::<Name>(),
                 })
         })
@@ -482,7 +484,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     }
 
     /// Obtain the [`InspectEntity`] string.
-    pub fn inspect_string(&self) -> String {
+    pub fn inspect(&self) -> String {
         if let Ok(entity) = self.try_get_id() {
             InspectEntity(entity).to_string()
         } else {
@@ -493,7 +495,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     /// Returns a string containing the names of all component types on this entity.
     ///
     /// If the entity is missing, returns an error message.
-    pub fn debug_print(&self) -> String {
+    pub fn inspect_components(&self) -> String {
         with_world_ref(|world| {
             let Ok(entity) = self.0.try_get_entity(world) else {
                 return "Invalid entity!".to_string();
@@ -522,7 +524,22 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         })
     }
 
-    /// Obtain a child entity by [`Name`].
+    /// Collect [`RelationshipTarget`] into a [`Vec`].
+    pub fn relation_vec<R: RelationshipTarget>(&self) -> Vec<Entity> {
+        with_world_ref(|world| {
+            if let Ok(entity) = self.0.try_get_entity(world) {
+                world
+                    .entity(entity)
+                    .get::<R>()
+                    .map(|x| x.iter().collect())
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        })
+    }
+
+    /// Obtain child entities by [`Name`].
     pub fn descendants_by_names<I: IntoIterator>(&self, names: I) -> NameEntityMap
     where
         I::Item: Into<String>,
@@ -547,8 +564,10 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     ///
     /// If [`Entity`] or [`Transform`] is missing in one of the target's ancestors.
     pub fn global_transform(&self) -> AccessResult<GlobalTransform> {
+        let mut entity_out = Entity::PLACEHOLDER;
         with_world_ref(|world| {
             let entity = self.0.try_get_entity(world).ok()?;
+            entity_out = entity;
             let mut entity = world.get_entity(entity).ok()?;
             let mut transform = *entity.get::<Transform>()?;
             while let Some(parent) = entity.get::<ChildOf>().map(|x| x.parent()) {
@@ -558,6 +577,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
             Some(transform.into())
         })
         .ok_or(AccessError::ComponentNotFound {
+            entity: entity_out,
             name: type_name::<GlobalTransform>(),
         })
     }
@@ -570,8 +590,10 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     #[cfg(feature = "bevy_render")]
     pub fn visibility(&self) -> AccessResult<bool> {
         use bevy::prelude::Visibility;
+        let mut entity_out = Entity::PLACEHOLDER;
         with_world_ref(|world| {
             let entity = self.0.try_get_entity(world).ok()?;
+            entity_out = entity;
             let mut entity = world.get_entity(entity).ok()?;
             match entity.get::<Visibility>()? {
                 Visibility::Inherited => (),
@@ -589,6 +611,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
             Some(true)
         })
         .ok_or(AccessError::ComponentNotFound {
+            entity: entity_out,
             name: type_name::<Visibility>(),
         })
     }
