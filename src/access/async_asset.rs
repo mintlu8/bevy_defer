@@ -52,7 +52,11 @@ impl AssetSet {
             panic!("AssetServer does not exist.")
         }
         self.0.count.fetch_add(1, Ordering::AcqRel);
-        ASSET_SERVER.with(|s| s.load_acquire::<A, _>(path, AssetBarrierGuard(self.0.clone())))
+        ASSET_SERVER.with(|s| {
+            s.load_builder()
+                .with_guard(AssetBarrierGuard(self.0.clone()))
+                .load(path)
+        })
     }
 
     /// Wait for all loading to complete.
@@ -118,11 +122,11 @@ impl AsyncWorld {
     pub fn load_asset<A: Asset>(
         &self,
         path: impl Into<AssetPath<'static>> + Send + 'static,
-    ) -> AsyncAsset<A> {
+    ) -> Handle<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset::Strong(ASSET_SERVER.with(|s| s.load::<A>(path)))
+        ASSET_SERVER.with(|s| s.load::<A>(path))
     }
 
     /// Begins loading an Asset of type `A` stored at path.
@@ -131,11 +135,11 @@ impl AsyncWorld {
         &self,
         path: impl Into<AssetPath<'static>> + Send + 'static,
         f: impl Fn(&mut S) + Send + Sync + 'static,
-    ) -> AsyncAsset<A> {
+    ) -> Handle<A> {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        AsyncAsset::Strong(ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f)))
+        ASSET_SERVER.with(|s| s.load_builder().with_settings(f).load(path))
     }
 
     /// Add an asset and obtain its handle.

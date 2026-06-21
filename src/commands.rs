@@ -1,9 +1,10 @@
+use crate::access::async_world::AsyncEntity;
 use crate::access::AsyncResource;
 use crate::channel;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, WORLD};
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
-use crate::{access::AsyncEntityMut, reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use crate::{access::AsyncWorld, AccessError, AccessResult};
+use crate::{reactors::StateSignal, signals::SignalId, tween::AsSeconds};
 use async_shared::Value;
 use bevy::app::AppExit;
 use bevy::ecs::event::Event;
@@ -40,7 +41,7 @@ impl AsyncWorld {
     /// AsyncWorld.apply_command(|w: &mut World| println!("{:?}", w))
     /// # );
     /// ```
-    pub fn apply_command(&self, command: impl Command) {
+    pub fn apply_command<C: Command>(&self, command: C) -> C::Out {
         with_world_mut(|w| command.apply(w))
     }
 
@@ -65,7 +66,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.run(|w: &mut World| w.resource::<Int>().0)
+    /// AsyncWorld.run(|w: &mut World| w.resource::<IntR>().0)
     /// # );
     /// ```
     pub fn run<T>(&self, f: impl FnOnce(&mut World) -> T) -> T {
@@ -85,7 +86,7 @@ impl AsyncWorld {
     /// AsyncWorld.read(|w: &World|
     ///     // can be used inside a world access scope
     ///     AsyncWorld.read(|w: &World|
-    ///         w.resource::<Int>().0
+    ///         w.resource::<IntR>().0
     ///     )
     /// )
     /// # );
@@ -104,7 +105,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.watch(|w: &mut World| w.get_resource::<Int>().map(|r| r.0)).await
+    /// AsyncWorld.watch(|w: &mut World| w.get_resource::<IntR>().map(|r| r.0)).await
     /// # );
     /// ```
     pub fn watch<T: 'static>(
@@ -150,7 +151,7 @@ impl AsyncWorld {
     ///
     /// ```
     /// # bevy_defer::test_spawn!(
-    /// AsyncWorld.run(|w: &mut World| w.resource::<Int>().0)
+    /// AsyncWorld.run(|w: &mut World| w.resource::<IntR>().0)
     /// # );
     /// ```
     pub fn resource_scope<R: Resource, T>(&self, f: impl FnOnce(Mut<R>) -> T) -> T {
@@ -279,7 +280,7 @@ impl AsyncWorld {
     /// AsyncWorld.spawn_empty()
     /// # );
     /// ```
-    pub fn spawn_empty(&self) -> AsyncEntityMut {
+    pub fn spawn_empty(&self) -> AsyncEntity {
         self.entity(with_world_mut(move |world: &mut World| {
             world.spawn_empty().id()
         }))
@@ -294,7 +295,7 @@ impl AsyncWorld {
     /// AsyncWorld.spawn_bundle(Int(4))
     /// # );
     /// ```
-    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntityMut {
+    pub fn spawn_bundle(&self, bundle: impl Bundle) -> AsyncEntity {
         self.entity(with_world_mut(move |world: &mut World| {
             world.spawn(bundle).id()
         }))

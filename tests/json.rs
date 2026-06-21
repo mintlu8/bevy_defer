@@ -9,7 +9,10 @@ use std::{
 
 use bevy::asset::{AssetLoader, AsyncReadExt};
 use bevy::{prelude::*, tasks::ConditionalSendFuture};
-use bevy_defer::{access::AsyncWorld, AsyncExtension, AsyncPlugin};
+use bevy_defer::{
+    access::{AsyncAsset, AsyncWorld},
+    AsyncExtension, AsyncPlugin,
+};
 
 #[derive(Debug, Asset, TypePath, Clone, PartialEq)]
 pub struct JsonNumber(i64);
@@ -50,9 +53,9 @@ pub fn procedural() {
     let lock2 = lock.clone();
     app.spawn_task(async move {
         let world = AsyncWorld;
-        let one = world.load_asset::<JsonNumber>("1.json");
-        let four = world.load_asset::<JsonNumber>("4.json");
-        let sixty_nine = world.load_asset::<JsonNumber>("69.json");
+        let one = AsyncAsset::Strong(world.load_asset::<JsonNumber>("1.json"));
+        let four = AsyncAsset::Strong(world.load_asset::<JsonNumber>("4.json"));
+        let sixty_nine = AsyncAsset::Strong(world.load_asset::<JsonNumber>("69.json"));
         assert_eq!(one.get_on_load(|x| x.0).await?, 1);
         assert_eq!(four.get_on_load(|x| x.0).await?, 4);
         assert_eq!(sixty_nine.get_on_load(|x| x.0).await?, 69);
@@ -82,9 +85,9 @@ pub fn concurrent() {
     app.spawn_task(async move {
         let world = AsyncWorld;
         let (one, four, sixty_nine) = (
-            world.load_asset::<JsonNumber>("1.json"),
-            world.load_asset::<JsonNumber>("4.json"),
-            world.load_asset::<JsonNumber>("69.json"),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("1.json")),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("4.json")),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("69.json")),
         );
 
         let (one, four, sixty_nine) = futures::try_join!(
@@ -121,9 +124,9 @@ pub fn cloned() {
     app.spawn_task(async move {
         let world = AsyncWorld;
         let (one, four, sixty_nine) = (
-            world.load_asset::<JsonNumber>("1.json"),
-            world.load_asset::<JsonNumber>("4.json"),
-            world.load_asset::<JsonNumber>("69.json"),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("1.json")),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("4.json")),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("69.json")),
         );
         let (one, four, sixty_nine) = futures::try_join!(
             one.clone_on_load(),
@@ -159,9 +162,9 @@ pub fn take() {
     app.spawn_task(async move {
         let world = AsyncWorld;
         let (one, four, sixty_nine) = (
-            world.load_asset::<JsonNumber>("1.json"),
-            world.load_asset::<JsonNumber>("4.json"),
-            world.load_asset::<JsonNumber>("69.json"),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("1.json")),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("4.json")),
+            AsyncAsset::Strong(world.load_asset::<JsonNumber>("69.json")),
         );
         let (one, four, sixty_nine) = futures::try_join!(
             one.take_on_load(),

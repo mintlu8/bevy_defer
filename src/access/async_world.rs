@@ -1,7 +1,8 @@
 #![allow(deprecated)]
+use crate::access::get_entity::VirtualEntity;
 use crate::access::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncResource};
-use crate::executor::{QUERY_QUEUE, WORLD};
-use crate::in_async_context;
+use crate::executor::{with_world_ref, QUERY_QUEUE, WORLD};
+use crate::{in_async_context, AccessResult};
 use bevy::ecs::{
     component::Component,
     entity::Entity,
@@ -9,11 +10,10 @@ use bevy::ecs::{
     query::{QueryData, QueryFilter},
     resource::Resource,
 };
-use ref_cast::RefCast;
 use std::borrow::Borrow;
 use std::fmt::Display;
+use std::marker::PhantomData;
 use std::time::Duration;
-use std::{marker::PhantomData, ops::Deref};
 
 #[allow(unused)]
 use bevy::ecs::{system::Commands, world::World};
@@ -29,6 +29,8 @@ use super::AsyncQuerySingle;
 /// calling any function outside of a `bevy_defer` future
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
+///
+/// Spawning related functions can be used inside world access function.
 ///
 /// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
@@ -58,8 +60,8 @@ impl AsyncWorld {
     /// # Note
     ///
     /// This does not mean the entity exists in the world.
-    pub fn entity(&self, entity: Entity) -> AsyncEntityMut {
-        AsyncEntityMut(entity)
+    pub fn entity(&self, entity: Entity) -> AsyncEntity {
+        AsyncEntity(entity)
     }
 
     /// Obtain an [`struct@AsyncResource`].
@@ -76,7 +78,7 @@ impl AsyncWorld {
     /// # Note
     ///
     /// This does not mean the resource exists in the world.
-    pub fn non_send_resource<R: 'static>(&self) -> AsyncNonSend<R> {
+    pub fn non_send<R: 'static>(&self) -> AsyncNonSend<R> {
         AsyncNonSend(PhantomData)
     }
 
@@ -113,12 +115,14 @@ impl AsyncWorld {
 /// or inside a world access function (a closure with `World` as a parameter)
 /// will likely panic.
 ///
+/// Spawning can always be used inside world access functions.
+///
 /// If you need the functionalities defined here in sync code, see non-send resources
 /// [`AsyncExecutor`] and [`QueryQueue`].
 #[derive(Debug, Clone, Copy)]
-pub struct AsyncEntityMut(pub(crate) Entity);
+pub struct AsyncEntity<E: VirtualEntity = Entity>(pub(crate) E);
 
-impl Display for AsyncEntityMut {
+impl Display for AsyncEntity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let e = self.0;
         if WORLD.is_set() {
@@ -135,39 +139,51 @@ impl Display for AsyncEntityMut {
     }
 }
 
-impl From<Entity> for AsyncEntityMut {
+impl From<Entity> for AsyncEntity {
     fn from(value: Entity) -> Self {
-        AsyncEntityMut(value)
+        AsyncEntity(value)
     }
 }
 
-impl Borrow<Entity> for AsyncEntityMut {
+impl Borrow<Entity> for AsyncEntity {
     fn borrow(&self) -> &Entity {
         &self.0
     }
 }
 
-impl Borrow<Entity> for &AsyncEntityMut {
+impl Borrow<Entity> for &AsyncEntity {
     fn borrow(&self) -> &Entity {
         &self.0
     }
 }
 
-impl Borrow<Entity> for &&AsyncEntityMut {
+impl Borrow<Entity> for &&AsyncEntity {
     fn borrow(&self) -> &Entity {
         &self.0
     }
 }
 
-impl AsyncEntityMut {
+impl AsyncEntity {
     /// Obtain the underlying [`Entity`] id.
     pub fn id(&self) -> Entity {
         self.0
     }
+}
 
-    /// Obtain the underlying [`AsyncWorld`]
-    pub fn world(&self) -> AsyncWorld {
-        AsyncWorld
+impl<E: VirtualEntity> AsyncEntity<E> {
+    /// Create a virtual entity
+    pub fn from_virtual(entity: E) -> Self {
+        Self(entity)
+    }
+
+    /// Realize a virtual entity to a `AsyncEntity<Entity>`.
+    pub fn realize_entity(&self) -> AccessResult<AsyncEntity> {
+        with_world_ref(|world| self.0.try_get_entity(world).map(AsyncEntity))
+    }
+
+    /// Try obtain the underlying [`Entity`] from a virtual entity.
+    pub fn try_get_id(&self) -> AccessResult<Entity> {
+        self.realize_entity().map(|x| x.0)
     }
 
     /// Get an [`struct@AsyncComponent`] on this entity.
@@ -175,7 +191,7 @@ impl AsyncEntityMut {
     /// # Note
     ///
     /// This does not mean the component or the entity exists in the world.
-    pub fn component<C: Component>(&self) -> AsyncComponent<C> {
+    pub fn component<C: Component>(self) -> AsyncComponent<C, E> {
         AsyncComponent {
             entity: self.0,
             p: PhantomData,
@@ -187,7 +203,7 @@ impl AsyncEntityMut {
     /// # Note
     ///
     /// This does not mean the component or the entity exists in the world.
-    pub fn query<T: QueryData>(&self) -> AsyncEntityQuery<T, ()> {
+    pub fn query<T: QueryData>(self) -> AsyncEntityQuery<T, (), E> {
         AsyncEntityQuery {
             entity: self.0,
             p: PhantomData,
@@ -199,24 +215,10 @@ impl AsyncEntityMut {
     /// # Note
     ///
     /// This does not mean the component or the entity exists in the world.
-    pub fn query_filtered<T: QueryData, F: QueryFilter>(&self) -> AsyncEntityQuery<T, F> {
+    pub fn query_filtered<T: QueryData, F: QueryFilter>(self) -> AsyncEntityQuery<T, F, E> {
         AsyncEntityQuery {
             entity: self.0,
             p: PhantomData,
         }
-    }
-}
-
-/// [`AsyncEntityParam`] on an indexed child.
-#[derive(Debug, Clone, RefCast)]
-#[repr(transparent)]
-#[deprecated = "This item should have been removed."]
-pub struct AsyncChild<const N: usize = 0>(AsyncEntityMut);
-
-impl Deref for AsyncChild {
-    type Target = AsyncEntityMut;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }

@@ -70,7 +70,7 @@ impl AsyncAnimator {
     pub async fn animate(&self, name: &'static str) -> Result<(), AccessError> {
         let len = name.len();
         self.0.get_mut(move |comp| {
-            println!("Animating from {} to {}", &comp.0, name);
+            println!("Animating from {} to {}", comp.0, name);
             name.clone_into(&mut comp.0);
         })?;
         AsyncWorld.sleep(Duration::from_secs(len as u64)).await;

@@ -27,14 +27,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 default = ["bevy_animation", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
 derive = ["bevy_defer_derive"]
 bevy_animation = ["bevy/bevy_animation"]
-bevy_scene = ["bevy/bevy_scene"]
+bevy_scene = ["bevy/bevy_world_serialization"]
 bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_sprite_render"]
 bevy_render = ["bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text"]
 bevy_picking = ["bevy/bevy_picking"]
 bevy_pbr = ["bevy/bevy_pbr"]
-# Enable the `default_constructor` macro.
-spawn_macro = ["default-constructor"]
 # Displays full type path in `AccessError`s.
 full_types = []
 
@@ -52,11 +50,10 @@ scoped-tls-hkt = "0.1.4"
 event-listener = "5.3.0"
 ty_map_gen = "0.1.6"
 
-bevy = { version = "0.18.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
+bevy = { version = "0.19.0", default-features = false, features = ["bevy_state", "bevy_log", "bevy_asset"] }
 pretty-type-name = "1.0.1"
-default-constructor = { version = "0.5.1", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.18.0" }
+bevy = { version = "0.19.0" }
 fastrand = "2.1.0"
 futures = { version = "0.3.30" }
