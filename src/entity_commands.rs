@@ -453,36 +453,6 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         })
     }
 
-    /// Obtain all descendent entities in the hierarchy.
-    ///
-    /// # Guarantee
-    ///
-    /// The first item is always this entity,
-    /// use `[1..]` to exclude it.
-    pub fn descendants(&self) -> Vec<Entity> {
-        fn get_children(world: &World, parent: Entity, result: &mut Vec<Entity>) {
-            let Ok(entity) = world.get_entity(parent) else {
-                return;
-            };
-            if let Some(children) = entity.get::<Children>() {
-                result.extend(children.iter());
-                for child in children {
-                    get_children(world, *child, result);
-                }
-            }
-        }
-
-        let mut result = vec![];
-
-        with_world_ref(|world| {
-            if let Ok(entity) = self.0.try_get_entity(world) {
-                result.push(entity);
-                get_children(world, entity, &mut result)
-            }
-        });
-        result
-    }
-
     /// Obtain the [`InspectEntity`] string.
     pub fn inspect(&self) -> String {
         if let Ok(entity) = self.try_get_id() {
@@ -539,11 +509,41 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         })
     }
 
+    /// Obtain all descendent entities in the hierarchy.
+    ///
+    /// # Guarantee
+    ///
+    /// The first item is always this entity,
+    /// use `[1..]` to exclude it.
+    pub fn descendants(&self) -> Vec<Entity> {
+        fn get_children(world: &World, parent: Entity, result: &mut Vec<Entity>) {
+            let Ok(entity) = world.get_entity(parent) else {
+                return;
+            };
+            if let Some(children) = entity.get::<Children>() {
+                result.extend(children.iter());
+                for child in children {
+                    get_children(world, *child, result);
+                }
+            }
+        }
+
+        let mut result = vec![];
+
+        with_world_ref(|world| {
+            if let Ok(entity) = self.0.try_get_entity(world) {
+                result.push(entity);
+                get_children(world, entity, &mut result)
+            }
+        });
+        result
+    }
+
     /// Obtain child entities by [`Name`].
-    pub fn descendants_by_names<I: IntoIterator>(&self, names: I) -> NameEntityMap
-    where
-        I::Item: Into<String>,
-    {
+    pub fn descendants_by_names<I: IntoIterator<Item: Into<String>>>(
+        &self,
+        names: I,
+    ) -> NameEntityMap {
         let descendants = self.descendants();
         let mut result = NameEntityMap(names.into_iter().map(|n| (n.into(), None)).collect());
         with_world_ref(|world| {

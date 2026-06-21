@@ -208,10 +208,10 @@ macro_rules! impl_async_access1 {
             /// Run a function on this item until it returns `Some`.
             #[track_caller]
             pub fn watch<A: 'static>(
-                &self,
+                self,
                 mut f: impl FnMut($Ref) -> Option<A> + 'static,
-            ) -> ChannelOut<AccessResult<A>> {
-                let $this = self.clone();
+            ) -> ChannelOut<AccessResult<A>> where Self: 'static{
+                let $this = self;
                 AsyncWorld.watch(move |$world| {
                     let out = (|| {
                         inject!(out $($stmts)*);
@@ -231,10 +231,10 @@ macro_rules! impl_async_access1 {
             /// Run a function on this item and obtain the result once loaded.
             #[track_caller]
             pub fn get_mut_on_load<A: 'static>(
-                &self,
+                self,
                 mut f: impl FnMut($Ref) -> A + 'static,
-            ) -> ChannelOut<AccessResult<A>> {
-                let $this = self.clone();
+            ) -> ChannelOut<AccessResult<A>> where Self: 'static {
+                let $this = self;
                 AsyncWorld.watch(move |$world| {
                     let out = tri! {
                         inject!(out $($stmts)*);
@@ -340,15 +340,15 @@ macro_rules! impl_async_access2 {
             /// Interpolate to a new value from the previous value.
             #[track_caller]
             pub fn interpolate_to<V: StableInterpolate + 'static>(
-                &self,
+                self,
                 to: V,
                 mut get: impl FnMut(&$Ref) -> V + Send + 'static,
                 mut set: impl FnMut(&mut $Ref, V) + Send + 'static,
                 mut curve: impl FnMut(f32) -> f32 + Send + 'static,
                 duration: impl AsSeconds,
                 cancel: impl Into<TaskCancellation>,
-            ) -> InterpolateOut {
-                let $this = self.clone();
+            ) -> InterpolateOut where Self: 'static {
+                let $this = self;
                 let mut t = 0.0;
                 let duration = duration.as_secs();
                 let source = OnceCell::<V>::new();
@@ -389,15 +389,15 @@ macro_rules! impl_async_access2 {
             /// ```
             #[track_caller]
             pub fn interpolate<V>(
-                &self,
+                self,
                 mut span: impl FnMut(f32) -> V + 'static,
                 mut write: impl FnMut(&mut $Ref, V) + 'static,
                 mut curve: impl FnMut(f32) -> f32 + 'static,
                 duration: impl AsSeconds,
                 playback: Playback,
                 cancel: impl Into<TaskCancellation>,
-            ) -> InterpolateOut {
-                let $this = self.clone();
+            ) -> InterpolateOut where Self: 'static {
+                let $this = self;
                 let duration = duration.as_secs();
                 let mut t = 0.0;
                 let cancel = cancel.into();
@@ -458,9 +458,9 @@ macro_rules! impl_async_access2 {
 }
 
 impl_async_access! {
-    impl[C: Component<Mutability = Mutable>] AsyncComponent [C] {
+    impl[C: Component<Mutability = Mutable>, E: VirtualEntity] AsyncComponent [C, E] {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<&mut C> {
-            let entity = this.id();
+            let entity = this.entity.try_get_entity(world)?;
             let mut entity_mut = world
                 .get_entity_mut(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?;
@@ -629,12 +629,12 @@ impl_async_access! {
     }
 }
 
-impl<D: QueryData, F: QueryFilter> ShouldContinue for AsyncEntityQuery<D, F> {}
+impl<D: QueryData, F: QueryFilter, E: VirtualEntity> ShouldContinue for AsyncEntityQuery<D, F, E> {}
 
 impl_async_access! {
-    impl[D: ReadOnlyQueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static] AsyncEntityQuery [D, F] {
+    impl[D: ReadOnlyQueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static, E: VirtualEntity] AsyncEntityQuery [D, F, E] {
         fn get(this: &Self, world: &World) -> AccessResult<D::Item<'_, '_>> {
-            let entity = this.id();
+            let entity = this.entity.try_get_entity(world)?;
             world
                 .get_entity(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?
@@ -648,9 +648,9 @@ impl_async_access! {
 }
 
 impl_async_access! {
-    impl[D: QueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static] AsyncEntityQuery [D, F] {
+    impl[D: QueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static, E: VirtualEntity] AsyncEntityQuery [D, F, E] {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<D::Item<'_, '_>> {
-            let entity = this.id();
+            let entity = this.entity.try_get_entity(world)?;
             let mut e = world
                 .get_entity_mut(entity)
                 .map_err(|_| AccessError::EntityNotFound(entity))?;

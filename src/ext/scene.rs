@@ -1,12 +1,9 @@
-use crate::access::get_entity::VirtualEntity;
 use crate::access::{AsyncEntity, AsyncWorld};
-use crate::AccessResult;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query};
 use bevy::ecs::{bundle::Bundle, entity::Entity};
 use bevy::scene::SceneInstance;
-use std::borrow::Borrow;
 
 /// A component that sends a signal and removes itself
 /// if a paired `Scene` is loaded.
@@ -33,12 +30,5 @@ impl AsyncWorld {
         let entity = self.spawn_bundle((bun, SceneSignal(send))).id();
         let _ = recv.await;
         AsyncEntity(entity)
-    }
-}
-
-impl<E: VirtualEntity> AsyncEntity<E> {
-    /// Obtain a child by name.
-    pub fn spawned(self, name: impl Into<String> + Borrow<str>) -> AccessResult<AsyncEntity> {
-        self.child_by_name(name.borrow()).realize_entity()
     }
 }

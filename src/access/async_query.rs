@@ -37,9 +37,10 @@ pub struct AsyncEntityQuery<T: QueryData, F: QueryFilter = (), E: VirtualEntity 
     pub(crate) p: PhantomData<(T, F)>,
 }
 
-impl<T: QueryData, F: QueryFilter> Debug for AsyncEntityQuery<T, F> {
+impl<T: QueryData, F: QueryFilter, E: VirtualEntity + Debug> Debug for AsyncEntityQuery<T, F, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AsyncEntityQuery")
+            .field("entity", &self.entity)
             .field("data", &type_name::<T>())
             .field("filter", &type_name::<F>())
             .field("entity", &self.entity)
