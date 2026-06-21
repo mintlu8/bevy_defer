@@ -1,6 +1,6 @@
 use crate::{executor::with_world_mut, AccessError};
 use bevy::ecs::entity::EntityEquivalent;
-use bevy::ecs::query::{QuerySingleError, ReadOnlyQueryData};
+use bevy::ecs::query::{IterQueryData, QuerySingleError, ReadOnlyQueryData};
 #[allow(unused)]
 use bevy::ecs::system::Query;
 use bevy::ecs::world::CommandQueue;
@@ -105,7 +105,7 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     }
 }
 
-impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
+impl<T: QueryData + IterQueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     /// Run a function on the iterator.
     pub fn for_each(&self, mut f: impl FnMut(T::Item<'_, '_>)) {
         with_world_mut(move |w| {
@@ -185,7 +185,10 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             })
     }
 
-    pub fn single_mut(&mut self) -> Result<D::Item<'_, '_>, AccessError> {
+    pub fn single_mut(&mut self) -> Result<D::Item<'_, '_>, AccessError>
+    where
+        D: IterQueryData,
+    {
         self.state
             .as_mut()
             .unwrap()
@@ -235,7 +238,10 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
     pub fn iter_many_mut<E: IntoIterator<Item: EntityEquivalent>>(
         &mut self,
         entities: E,
-    ) -> QueryManyIter<'_, '_, D, F, E::IntoIter> {
+    ) -> QueryManyIter<'_, '_, D, F, E::IntoIter>
+    where
+        D: IterQueryData,
+    {
         self.state
             .as_mut()
             .unwrap()
@@ -246,12 +252,15 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
         self.state.as_mut().unwrap().iter(self.world)
     }
 
-    pub fn iter_mut(&mut self) -> QueryIter<'_, '_, D, F> {
+    pub fn iter_mut(&mut self) -> QueryIter<'_, '_, D, F>
+    where
+        D: IterQueryData,
+    {
         self.state.as_mut().unwrap().iter_mut(self.world)
     }
 }
 
-impl<'s, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
+impl<'s, D: QueryData + IterQueryData + 'static, F: QueryFilter + 'static> IntoIterator
     for &'s mut OwnedQueryState<'_, D, F>
 {
     type Item = D::Item<'s, 's>;

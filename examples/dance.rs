@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::state::app::StatesPlugin;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::MinimalPlugins;
 use bevy_defer::{
@@ -103,6 +104,7 @@ async fn sound_routine(entity: Entity) -> Result<(), AccessError> {
 pub fn main() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
+    app.add_plugins(StatesPlugin);
     app.add_plugins(AsyncPlugin::default_settings());
     app.react_to_state::<GameState>();
 

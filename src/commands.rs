@@ -41,7 +41,9 @@ impl AsyncWorld {
     /// # );
     /// ```
     pub fn apply_command(&self, command: impl Command) {
-        with_world_mut(|w| command.apply(w))
+        with_world_mut(|w| {
+            command.apply(w);
+        })
     }
 
     /// Apply a [`CommandQueue`].

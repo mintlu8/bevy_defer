@@ -77,8 +77,8 @@ impl AsyncExecutor {
 /// System for running [`AsyncExecutor`].
 pub fn run_async_executor(world: &mut World) {
     let reactors = world.resource::<Reactors>().clone();
-    let queue = world.non_send_resource::<QueryQueue>().clone();
-    let executor = world.non_send_resource::<AsyncExecutor>().clone();
+    let queue = world.non_send::<QueryQueue>().clone();
+    let executor = world.non_send::<AsyncExecutor>().clone();
     let assets = world.get_resource::<AssetServer>().cloned();
 
     let mut f = || {
