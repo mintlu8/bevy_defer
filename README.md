@@ -253,7 +253,9 @@ blocking tasks, so pay extra attention to this.
 | 0.14 | 0.12               |
 | 0.15 | 0.13               |
 | 0.16 | 0.14               |
-| 0.17 | 0.15-latest        |
+| 0.17 | 0.15               |
+| 0.18 | 0.17               |
+| 0.19 | 0.18-latest        |
 
 ## License
 

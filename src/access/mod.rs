@@ -20,7 +20,7 @@ use bevy::ecs::entity::Entity;
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
 pub use child_query::{AsyncRelatedQuery, RelatedQueryState};
-pub use dyn_access::DynAccess;
+// pub use dyn_access::DynAccess;
 pub use get_entity::{FilterChild, GetParent, IndexedChild, NamedChild, VirtualEntity};
 #[deprecated = "Use AsyncEntity or AsyncEntity<Entity>."]
 pub type AsyncEntityMut = AsyncEntity<Entity>;

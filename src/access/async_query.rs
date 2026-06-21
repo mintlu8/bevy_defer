@@ -1,6 +1,7 @@
 use crate::access::AsyncEntity;
 use crate::executor::with_world_mut;
 use crate::{access::get_entity::VirtualEntity, OwnedQueryState};
+use bevy::ecs::query::IterQueryData;
 #[allow(unused)]
 use bevy::ecs::system::Query;
 use bevy::ecs::{
@@ -106,7 +107,7 @@ impl<T: QueryData, F: QueryFilter> AsyncQuery<T, F> {
     }
 }
 
-impl<T: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
+impl<T: IterQueryData + 'static, F: QueryFilter + 'static> AsyncQuery<T, F> {
     /// Run a function on the iterator.
     pub fn for_each(&self, mut f: impl FnMut(T::Item<'_, '_>)) {
         with_world_mut(move |w| {

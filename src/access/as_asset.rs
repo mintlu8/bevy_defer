@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use super::{AsyncAsset, AsyncComponent, AsyncNonSend, AsyncResource, AsyncWorld};
-use crate::{AccessResult, FetchEntity, FetchWorld};
+use crate::{AccessError, AccessResult, FetchEntity, FetchWorld};
 use bevy::{
     asset::{Asset, AssetId, Handle},
     prelude::{Component, Entity, Resource},
@@ -10,28 +10,28 @@ use bevy::{
 /// Types, usually a [`Component`], that contains a single [`Handle`].
 pub trait GetHandle {
     type Asset: Asset;
-    fn get_asset_id(&self) -> AssetId<Self::Asset>;
-    fn get_handle(&self) -> Handle<Self::Asset>;
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>>;
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>>;
 }
 
 impl<C: Component + GetHandle> AsyncComponent<C> {
     /// Obtain the underlying [`Asset`] according to [`GetHandle`].
     pub fn asset(&self) -> AccessResult<AsyncAsset<C::Asset>> {
-        Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())?))
+        Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())??))
     }
 }
 
 impl<C: Resource + GetHandle> AsyncResource<C> {
     /// Obtain the underlying [`Asset`] according to [`GetHandle`].
     pub fn asset(&self) -> AccessResult<AsyncAsset<C::Asset>> {
-        Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())?))
+        Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())??))
     }
 }
 
 impl<C: GetHandle> AsyncNonSend<C> {
     /// Obtain the underlying [`Asset`] according to [`GetHandle`].
     pub fn asset(&self) -> AccessResult<AsyncAsset<C::Asset>> {
-        Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())?))
+        Ok(AsyncAsset::Strong(self.get(|x| x.get_handle())??))
     }
 }
 
@@ -58,12 +58,12 @@ impl<T: Resource + GetHandle> FetchWorld for AssetOf<T> {
 impl GetHandle for bevy::prelude::Mesh2d {
     type Asset = bevy::prelude::Mesh;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.0.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        Ok(self.0.id())
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.0.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        Ok(self.0.clone())
     }
 }
 
@@ -71,12 +71,12 @@ impl GetHandle for bevy::prelude::Mesh2d {
 impl GetHandle for bevy::prelude::Mesh3d {
     type Asset = bevy::prelude::Mesh;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.0.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        Ok(self.0.id())
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.0.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        Ok(self.0.clone())
     }
 }
 
@@ -84,12 +84,12 @@ impl GetHandle for bevy::prelude::Mesh3d {
 impl<M: bevy::sprite_render::Material2d> GetHandle for bevy::prelude::MeshMaterial2d<M> {
     type Asset = M;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.0.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        Ok(self.0.id())
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.0.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        Ok(self.0.clone())
     }
 }
 
@@ -97,12 +97,12 @@ impl<M: bevy::sprite_render::Material2d> GetHandle for bevy::prelude::MeshMateri
 impl<M: bevy::pbr::Material> GetHandle for bevy::pbr::MeshMaterial3d<M> {
     type Asset = M;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.0.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        Ok(self.0.id())
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.0.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        Ok(self.0.clone())
     }
 }
 
@@ -110,12 +110,12 @@ impl<M: bevy::pbr::Material> GetHandle for bevy::pbr::MeshMaterial3d<M> {
 impl GetHandle for bevy::sprite::Sprite {
     type Asset = bevy::image::Image;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.image.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        Ok(self.image.id())
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.image.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        Ok(self.image.clone())
     }
 }
 
@@ -123,12 +123,12 @@ impl GetHandle for bevy::sprite::Sprite {
 impl GetHandle for bevy::image::TextureAtlas {
     type Asset = bevy::image::TextureAtlasLayout;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.layout.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        Ok(self.layout.id())
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.layout.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        Ok(self.layout.clone())
     }
 }
 
@@ -136,11 +136,21 @@ impl GetHandle for bevy::image::TextureAtlas {
 impl GetHandle for bevy::text::TextFont {
     type Asset = bevy::text::Font;
 
-    fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.font.id()
+    fn get_asset_id(&self) -> AccessResult<AssetId<Self::Asset>> {
+        use bevy::text::FontSource;
+
+        match &self.font {
+            FontSource::Handle(handle) => Ok(handle.id()),
+            _ => Err(AccessError::Custom("TextFont does not point to an asset.")),
+        }
     }
 
-    fn get_handle(&self) -> Handle<Self::Asset> {
-        self.font.clone()
+    fn get_handle(&self) -> AccessResult<Handle<Self::Asset>> {
+        use bevy::text::FontSource;
+
+        match &self.font {
+            FontSource::Handle(handle) => Ok(handle.clone()),
+            _ => Err(AccessError::Custom("TextFont does not point to an asset.")),
+        }
     }
 }

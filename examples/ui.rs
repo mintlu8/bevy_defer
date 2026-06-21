@@ -81,7 +81,7 @@ fn setup(mut commands: Commands) {
                         Text::new("Button"),
                         TextFont {
                             font: Default::default(),
-                            font_size: 20.0,
+                            font_size: FontSize::Px(20.0),
                             ..Default::default()
                         },
                         Pickable {
@@ -96,7 +96,7 @@ fn setup(mut commands: Commands) {
                     Text::new("Receiving"),
                     TextFont {
                         font: Default::default(),
-                        font_size: 20.0,
+                        font_size: FontSize::Px(20.0),
                         ..Default::default()
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),

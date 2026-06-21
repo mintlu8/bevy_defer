@@ -6,8 +6,8 @@ use std::{
 use bevy::ecs::{
     entity::{Entity, EntityEquivalent},
     query::{
-        QueryData, QueryFilter, QueryIter, QueryManyIter, QuerySingleError, QueryState,
-        ReadOnlyQueryData,
+        IterQueryData, QueryData, QueryFilter, QueryIter, QueryManyIter, QuerySingleError,
+        QueryState, ReadOnlyQueryData,
     },
     world::{CommandQueue, World},
 };
@@ -59,10 +59,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
 impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
     pub fn new(world: &mut World) -> OwnedQueryState<'_, D, F> {
         OwnedQueryState {
-            state: match world
-                .non_send_resource::<QueryCache>()
-                .take_query_state::<D, F>()
-            {
+            state: match world.non_send::<QueryCache>().take_query_state::<D, F>() {
                 Some(item) => Some(item),
                 None => Some(Box::new(QueryState::new(world))),
             },
@@ -70,6 +67,33 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
         }
     }
 
+    pub fn get(
+        &mut self,
+        entity: Entity,
+    ) -> Result<<D::ReadOnly as QueryData>::Item<'_, '_>, AccessError> {
+        self.state
+            .as_mut()
+            .unwrap()
+            .get(self.world, entity)
+            .map_err(|_| AccessError::QueryConditionNotMet {
+                entity,
+                query: type_name::<(D, F)>(),
+            })
+    }
+
+    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_, '_>, AccessError> {
+        self.state
+            .as_mut()
+            .unwrap()
+            .get_mut(self.world, entity)
+            .map_err(|_| AccessError::QueryConditionNotMet {
+                entity,
+                query: type_name::<(D, F)>(),
+            })
+    }
+}
+
+impl<D: IterQueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F> {
     pub fn single(&mut self) -> Result<<D::ReadOnly as QueryData>::Item<'_, '_>, AccessError> {
         self.state
             .as_mut()
@@ -100,31 +124,6 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
             })
     }
 
-    pub fn get(
-        &mut self,
-        entity: Entity,
-    ) -> Result<<D::ReadOnly as QueryData>::Item<'_, '_>, AccessError> {
-        self.state
-            .as_mut()
-            .unwrap()
-            .get(self.world, entity)
-            .map_err(|_| AccessError::QueryConditionNotMet {
-                entity,
-                query: type_name::<(D, F)>(),
-            })
-    }
-
-    pub fn get_mut(&mut self, entity: Entity) -> Result<D::Item<'_, '_>, AccessError> {
-        self.state
-            .as_mut()
-            .unwrap()
-            .get_mut(self.world, entity)
-            .map_err(|_| AccessError::QueryConditionNotMet {
-                entity,
-                query: type_name::<(D, F)>(),
-            })
-    }
-
     pub fn iter_many<E: IntoIterator<Item: EntityEquivalent>>(
         &mut self,
         entities: E,
@@ -151,7 +150,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> OwnedQueryState<'_, D, F>
     }
 }
 
-impl<'s, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
+impl<'s, D: IterQueryData + 'static, F: QueryFilter + 'static> IntoIterator
     for &'s mut OwnedQueryState<'_, D, F>
 {
     type Item = D::Item<'s, 's>;
@@ -165,7 +164,7 @@ impl<'s, D: QueryData + 'static, F: QueryFilter + 'static> IntoIterator
 impl<D: QueryData + 'static, F: QueryFilter + 'static> Drop for OwnedQueryState<'_, D, F> {
     fn drop(&mut self) {
         self.world
-            .non_send_resource::<QueryCache>()
+            .non_send::<QueryCache>()
             .push_query_state(self.state.take().unwrap());
     }
 }
@@ -183,10 +182,7 @@ pub struct OwnedReadonlyQueryState<'t, D: ReadOnlyQueryData + 'static, F: QueryF
 impl<D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static> OwnedReadonlyQueryState<'_, D, F> {
     pub fn new(world: &World) -> OwnedReadonlyQueryState<'_, D, F> {
         OwnedReadonlyQueryState {
-            state: match world
-                .non_send_resource::<QueryCache>()
-                .take_query_state::<D, F>()
-            {
+            state: match world.non_send::<QueryCache>().take_query_state::<D, F>() {
                 Some(item) => Some(item),
                 None => QueryState::try_new(world).map(Box::new),
             },
@@ -250,7 +246,7 @@ impl<D: ReadOnlyQueryData + 'static, F: QueryFilter + 'static> Drop
 {
     fn drop(&mut self) {
         self.world
-            .non_send_resource::<QueryCache>()
+            .non_send::<QueryCache>()
             .push_query_state(self.state.take().unwrap());
     }
 }

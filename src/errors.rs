@@ -44,10 +44,8 @@ fn split_tuple_2(s: &str) -> Option<(&str, &str)> {
             b'}' => brace = brace.checked_sub(1)?,
             b'<' => angle_bracket += 1,
             b'>' => angle_bracket = angle_bracket.checked_sub(1)?,
-            b',' => {
-                if paren == 0 && brace == 0 && bracket == 0 && angle_bracket == 0 {
-                    return Some((s.get(0..idx)?.trim(), s.get(idx + 1..)?.trim()));
-                }
+            b',' if paren == 0 && brace == 0 && bracket == 0 && angle_bracket == 0 => {
+                return Some((s.get(0..idx)?.trim(), s.get(idx + 1..)?.trim()));
             }
             _ => (),
         }

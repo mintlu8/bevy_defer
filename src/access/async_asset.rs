@@ -52,7 +52,11 @@ impl AssetSet {
             panic!("AssetServer does not exist.")
         }
         self.0.count.fetch_add(1, Ordering::AcqRel);
-        ASSET_SERVER.with(|s| s.load_acquire::<A, _>(path, AssetBarrierGuard(self.0.clone())))
+        ASSET_SERVER.with(|s| {
+            s.load_builder()
+                .with_guard(AssetBarrierGuard(self.0.clone()))
+                .load(path)
+        })
     }
 
     /// Wait for all loading to complete.
@@ -135,7 +139,7 @@ impl AsyncWorld {
         if !ASSET_SERVER.is_set() {
             panic!("AssetServer does not exist.")
         }
-        ASSET_SERVER.with(|s| s.load_with_settings::<A, S>(path, f))
+        ASSET_SERVER.with(|s| s.load_builder().with_settings(f).load(path))
     }
 
     /// Add an asset and obtain its handle.

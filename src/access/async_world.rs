@@ -78,7 +78,7 @@ impl AsyncWorld {
     /// # Note
     ///
     /// This does not mean the resource exists in the world.
-    pub fn non_send_resource<R: 'static>(&self) -> AsyncNonSend<R> {
+    pub fn non_send<R: 'static>(&self) -> AsyncNonSend<R> {
         AsyncNonSend(PhantomData)
     }
 

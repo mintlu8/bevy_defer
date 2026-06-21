@@ -5,7 +5,9 @@ use bevy::app::{App, First, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::intern::Interned;
 use bevy::ecs::message::Message;
-use bevy::ecs::query::{QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData};
+use bevy::ecs::query::{
+    QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData, SingleEntityQueryData,
+};
 use bevy::ecs::schedule::IntoScheduleConfigs as _;
 use bevy::ecs::system::Command;
 use bevy::prelude::EntityCommands;
@@ -100,9 +102,9 @@ pub struct CoreAsyncPlugin;
 
 impl Plugin for CoreAsyncPlugin {
     fn build(&self, app: &mut App) {
-        app.init_non_send_resource::<QueryQueue>()
-            .init_non_send_resource::<AsyncExecutor>()
-            .init_non_send_resource::<QueryCache>()
+        app.init_non_send::<QueryQueue>()
+            .init_non_send::<AsyncExecutor>()
+            .init_non_send::<QueryCache>()
             .init_resource::<Reactors>()
             .init_resource::<EntityInspectors>()
             .register_type::<Signals>()
@@ -268,7 +270,7 @@ pub trait AsyncExtension {
     /// Only the first successful formatting function will be called according to their priorities.
     /// A [`Name`](bevy::ecs::name::Name) based method is automatically added at priority `0`.
     fn register_inspect_entity_by_query<
-        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        Q: ReadOnlyQueryData + SingleEntityQueryData + ReleaseStateQueryData + 'static,
         F: QueryFilter + 'static,
     >(
         &mut self,
@@ -279,7 +281,7 @@ pub trait AsyncExtension {
 
 impl AsyncExtension for World {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
-        self.non_send_resource::<AsyncExecutor>().spawn(f);
+        self.non_send::<AsyncExecutor>().spawn(f);
         self
     }
 
@@ -296,7 +298,7 @@ impl AsyncExtension for World {
                 })
             }
         };
-        let task = self.non_send_resource::<AsyncExecutor>().spawn_task(fut);
+        let task = self.non_send::<AsyncExecutor>().spawn_task(fut);
         if let Some(mut res) = self.get_resource_mut::<ScopedTasks<S>>() {
             res.tasks.entry(state).or_default().push(task);
         } else {
@@ -318,7 +320,7 @@ impl AsyncExtension for World {
     }
 
     fn register_inspect_entity_by_query<
-        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        Q: ReadOnlyQueryData + SingleEntityQueryData + ReleaseStateQueryData + 'static,
         F: QueryFilter + 'static,
     >(
         &mut self,
@@ -338,7 +340,7 @@ impl AsyncExtension for World {
 
 impl AsyncExtension for App {
     fn spawn_task(&mut self, f: impl Future<Output = AccessResult> + 'static) -> &mut Self {
-        self.world().non_send_resource::<AsyncExecutor>().spawn(f);
+        self.world().non_send::<AsyncExecutor>().spawn(f);
         self
     }
 
@@ -366,7 +368,7 @@ impl AsyncExtension for App {
     }
 
     fn register_inspect_entity_by_query<
-        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        Q: ReadOnlyQueryData + SingleEntityQueryData + ReleaseStateQueryData + 'static,
         F: QueryFilter + 'static,
     >(
         &mut self,
@@ -531,6 +533,8 @@ impl SpawnFn {
 }
 
 impl Command for SpawnFn {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         world.spawn_task(self.0());
     }
@@ -555,6 +559,8 @@ impl<S: States> StateScopedSpawnFn<S> {
 }
 
 impl<S: States> Command for StateScopedSpawnFn<S> {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         let _ = world.spawn_state_scoped(self.state, (self.future)());
     }
@@ -648,11 +654,17 @@ macro_rules! test_spawn {
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
         use bevy::state::app::StatesPlugin;
-        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Component, Event, Asset, TypePath)]
         pub struct Int(i32);
 
-        #[derive(Debug, Clone, Copy, Component, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        pub struct IntR(i32);
+
+        #[derive(Debug, Clone, Copy, Component, Event, Asset, TypePath)]
         pub struct Str(&'static str);
+
+        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        pub struct StrR(&'static str);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
         pub enum MyState {
@@ -669,10 +681,10 @@ macro_rules! test_spawn {
         app.add_plugins(bevy_defer::AsyncPlugin::default_settings());
         app.world_mut().spawn(Int(4));
         app.world_mut().spawn(Str("Ferris"));
-        app.insert_resource(Int(4));
-        app.insert_resource(Str("Ferris"));
-        app.insert_non_send_resource(Int(4));
-        app.insert_non_send_resource(Str("Ferris"));
+        app.insert_resource(IntR(4));
+        app.insert_resource(StrR("Ferris"));
+        app.insert_non_send(Int(4));
+        app.insert_non_send(Str("Ferris"));
         app.insert_state(MyState::A);
         app.spawn_task(async move {
             $expr;

@@ -14,7 +14,9 @@ use crate::{
 use crate::{OwnedQueryState, OwnedReadonlyQueryState};
 use bevy::asset::{Asset, Assets};
 use bevy::ecs::component::Mutable;
-use bevy::ecs::query::{ReadOnlyQueryData, ReleaseStateQueryData};
+use bevy::ecs::query::{
+    IterQueryData, ReadOnlyQueryData, ReleaseStateQueryData, SingleEntityQueryData,
+};
 use bevy::ecs::relationship::RelationshipTarget;
 use bevy::ecs::{
     component::Component,
@@ -521,7 +523,11 @@ impl_async_access! {
                 name: type_name::<R>(),
             })
         }
+    }
+}
 
+impl_async_access! {
+    impl[R: Resource<Mutability = Mutable>] AsyncResource [R] {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<&mut R> {
             world.get_resource_mut::<R>()
                 .map(|x| x.into_inner())
@@ -543,13 +549,13 @@ impl<R: 'static> ShouldContinue for AsyncNonSend<R> {
 impl_async_access! {
     impl[R: 'static] AsyncNonSend [R] {
         fn get(this: &Self, world: &World) -> AccessResult<&R> {
-            world.get_non_send_resource::<R>().ok_or(AccessError::ResourceNotFound {
+            world.get_non_send::<R>().ok_or(AccessError::ResourceNotFound {
                 name: type_name::<R>(),
             })
         }
 
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<&mut R> {
-            world.get_non_send_resource_mut::<R>()
+            world.get_non_send_mut::<R>()
                 .map(|x| x.into_inner())
                 .ok_or(AccessError::ResourceNotFound {
                     name: type_name::<R>(),
@@ -590,6 +596,7 @@ impl_async_access! {
                     name: type_name::<Assets<T>>(),
                 })?
                 .get_mut(id)
+                .map(|x| x.into_inner())
                 .ok_or(AccessError::AssetNotFound {
                     name: type_name::<T>(),
                 })
@@ -632,7 +639,7 @@ impl_async_access! {
 impl<D: QueryData, F: QueryFilter, E: VirtualEntity> ShouldContinue for AsyncEntityQuery<D, F, E> {}
 
 impl_async_access! {
-    impl[D: ReadOnlyQueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static, E: VirtualEntity] AsyncEntityQuery [D, F, E] {
+    impl[D: ReadOnlyQueryData + SingleEntityQueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static, E: VirtualEntity] AsyncEntityQuery [D, F, E] {
         fn get(this: &Self, world: &World) -> AccessResult<D::Item<'_, '_>> {
             let entity = this.entity.try_get_entity(world)?;
             world
@@ -648,7 +655,7 @@ impl_async_access! {
 }
 
 impl_async_access! {
-    impl[D: QueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static, E: VirtualEntity] AsyncEntityQuery [D, F, E] {
+    impl[D: SingleEntityQueryData + ReleaseStateQueryData + 'static, F: QueryFilter + 'static, E: VirtualEntity] AsyncEntityQuery [D, F, E] {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<D::Item<'_, '_>> {
             let entity = this.entity.try_get_entity(world)?;
             let mut e = world
@@ -666,7 +673,7 @@ impl_async_access! {
 impl<D: QueryData, F: QueryFilter> ShouldContinue for AsyncQuerySingle<D, F> {}
 
 impl_async_access! {
-    impl[D: QueryData + 'static, F: QueryFilter + 'static] AsyncQuerySingle [D, F] {
+    impl[D: IterQueryData + 'static, F: QueryFilter + 'static] AsyncQuerySingle [D, F] {
         fn get_mut(this: &Self, world: &mut World) -> AccessResult<D::Item<'_, '_>> {
             let mut query = OwnedQueryState::<D, F>::new(world);
             query.single_mut()
@@ -714,7 +721,7 @@ impl<D: QueryData + 'static, F: QueryFilter + 'static> AsyncQuery<D, F> {
     }
 }
 
-impl<R: Resource> AsyncResource<R> {
+impl<R: Resource<Mutability = Mutable>> AsyncResource<R> {
     /// Run a function on this resource, panics if not exist.
     #[track_caller]
     pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
@@ -726,6 +733,6 @@ impl<R: 'static> AsyncNonSend<R> {
     /// Run a function on this non-send resource, panics if not exist.
     #[track_caller]
     pub fn with<A>(&self, f: impl FnOnce(&mut R) -> A) -> A {
-        with_world_mut(|world| f(world.non_send_resource_mut::<R>().into_inner()))
+        with_world_mut(|world| f(world.non_send_mut::<R>().into_inner()))
     }
 }
