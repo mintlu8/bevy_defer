@@ -137,10 +137,16 @@ impl GetHandle for bevy::text::TextFont {
     type Asset = bevy::text::Font;
 
     fn get_asset_id(&self) -> AssetId<Self::Asset> {
-        self.font.id()
+        match &self.font {
+            bevy::text::FontSource::Handle(handle) => handle.id(),
+            _ => panic!("TextFont does not contain a font asset handle"),
+        }
     }
 
     fn get_handle(&self) -> Handle<Self::Asset> {
-        self.font.clone()
+        match &self.font {
+            bevy::text::FontSource::Handle(handle) => handle.clone(),
+            _ => panic!("TextFont does not contain a font asset handle"),
+        }
     }
 }
