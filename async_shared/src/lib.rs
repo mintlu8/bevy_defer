@@ -213,7 +213,13 @@ impl<T: Send + Sync> ValueInner<T> {
         T: PartialEq,
     {
         let mut lock = self.value.write().unwrap();
-        if lock.as_ref().is_some_and(|x| x == &item) {
+        // XXX: Original code was this:
+        //if lock.as_ref().is_some_and(|x| x == &item) {
+        // I thought this would fix it:
+        //if lock.as_ref().is_some_and(|x| x != &item) {
+        // But this is what actually made the `dance` example work, but
+        // I still think it's wrong.
+        if !lock.as_ref().is_some_and(|x| x == &item) {
             let result = self.tick.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
             *lock = Some(item);
             self.event.notify(usize::MAX);
