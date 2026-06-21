@@ -8,7 +8,6 @@ pub(crate) mod async_query;
 pub(crate) mod async_values;
 pub(crate) mod async_world;
 pub(crate) mod child_query;
-pub(crate) mod dyn_access;
 pub(crate) mod get_entity;
 pub(crate) mod query;
 pub use as_asset::{AssetOf, GetHandle};
@@ -20,7 +19,6 @@ use bevy::ecs::entity::Entity;
 #[cfg(feature = "derive")]
 pub use bevy_defer_derive::{AsyncComponent, AsyncNonSend, AsyncResource};
 pub use child_query::{AsyncRelatedQuery, RelatedQueryState};
-// pub use dyn_access::DynAccess;
 pub use get_entity::{FilterChild, GetParent, IndexedChild, NamedChild, VirtualEntity};
 #[deprecated = "Use AsyncEntity or AsyncEntity<Entity>."]
 pub type AsyncEntityMut = AsyncEntity<Entity>;
