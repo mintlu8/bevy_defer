@@ -28,6 +28,7 @@ use std::{
 
 #[allow(unused)]
 use bevy::ecs::entity::Entity;
+use bevy::scene::{Scene, WorldSceneExt};
 
 impl AsyncWorld {
     /// Apply a command.
@@ -299,6 +300,24 @@ impl AsyncWorld {
         self.entity(with_world_mut(move |world: &mut World| {
             world.spawn(bundle).id()
         }))
+    }
+
+    /// Spawn a new [`Entity`] from a given BSN Scene
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # bevy_defer::test_spawn!(
+    /// AsyncWorld.spawn_bsn(bsn! {
+    ///     Str("Ferris")
+    ///     Int(4)
+    /// })
+    /// # );
+    /// ```
+    pub fn spawn_bsn(&self, scene: impl Scene) -> AccessResult<AsyncEntity> {
+        Ok(self.entity(with_world_mut(move |world: &mut World| {
+            world.spawn_scene(scene).map(|e| e.id()).map_err(|_| { AccessError::SpawnSceneFailed })
+        })?))
     }
 
     /// Initializes a new resource.

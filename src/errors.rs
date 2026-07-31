@@ -133,6 +133,8 @@ pub enum AccessError {
         message: &'static &'static str,
         ty: &'static str,
     },
+    #[error("cannot spawn scene")]
+    SpawnSceneFailed,
     /// Equivalent to `unreachable!`.
     #[error("this error should not have happened")]
     ShouldNotHappen,

@@ -654,16 +654,16 @@ macro_rules! test_spawn {
         use ::bevy_defer::access::*;
         use ::bevy_defer::*;
         use bevy::state::app::StatesPlugin;
-        #[derive(Debug, Clone, Copy, Component, Event, Asset, TypePath)]
+        #[derive(Debug, Default, Clone, Copy, Component, Event, Asset, TypePath)]
         pub struct Int(i32);
 
-        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Default, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct IntR(i32);
 
-        #[derive(Debug, Clone, Copy, Component, Event, Asset, TypePath)]
+        #[derive(Debug, Default, Clone, Copy, Component, Event, Asset, TypePath)]
         pub struct Str(&'static str);
 
-        #[derive(Debug, Clone, Copy, Resource, Event, Asset, TypePath)]
+        #[derive(Debug, Default, Clone, Copy, Resource, Event, Asset, TypePath)]
         pub struct StrR(&'static str);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, States)]
