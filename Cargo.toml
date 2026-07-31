@@ -24,10 +24,11 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["bevy_animation", "bevy_scene", "bevy_sprite", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
+default = ["bevy_animation", "bevy_scene", "bevy_bsn", "bevy_sprite", "bevy_render", "bevy_text", "bevy_pbr", "bevy_picking", "derive"]
 derive = ["bevy_defer_derive"]
 bevy_animation = ["bevy/bevy_animation"]
 bevy_scene = ["bevy/bevy_world_serialization"]
+bevy_bsn = ["bevy/bevy_scene"]
 bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_sprite_render"]
 bevy_render = ["bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text"]
