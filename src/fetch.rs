@@ -1,3 +1,4 @@
+#[cfg(feature = "bevy_asset")]
 use bevy::asset::{Asset, AssetId, Handle};
 use bevy::ecs::{
     prelude::{Component, Entity, Resource},
@@ -5,9 +6,10 @@ use bevy::ecs::{
 };
 use std::borrow::Borrow;
 
-use crate::access::AsyncEntity;
+#[cfg(feature = "bevy_asset")]
+use crate::access::AsyncAsset;
 use crate::{
-    access::{AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncQuery, AsyncResource},
+    access::{AsyncComponent, AsyncEntity, AsyncEntityQuery, AsyncQuery, AsyncResource},
     AsyncWorld,
 };
 
@@ -65,6 +67,7 @@ pub struct ResourceMarker;
 pub struct ComponentMarker;
 pub struct QueryMarker;
 pub struct QueryFilteredMarker;
+#[cfg(feature = "bevy_asset")]
 pub struct AssetMarker;
 
 impl<T: Resource> FetchWorld<ResourceMarker> for T {
@@ -115,6 +118,7 @@ impl<T: Borrow<Entity>> FetchOne<ComponentMarker> for T {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
     type Out = AsyncAsset<A>;
 
@@ -123,6 +127,7 @@ impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
     type Out = AsyncAsset<A>;
 
@@ -131,6 +136,7 @@ impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
     type Out = AsyncAsset<A>;
 
@@ -139,6 +145,7 @@ impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
     type Out = AsyncAsset<A>;
 
@@ -147,6 +154,7 @@ impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<A: Asset> FetchOne<AssetMarker> for AsyncAsset<A> {
     type Out = AsyncAsset<A>;
 

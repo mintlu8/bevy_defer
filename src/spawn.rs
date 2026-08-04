@@ -1,27 +1,43 @@
 use async_executor::Task;
+#[cfg(feature = "bevy_state")]
 use bevy::ecs::prelude::Resource;
+#[cfg(feature = "bevy_log")]
 use bevy::log::error;
+#[cfg(feature = "bevy_state")]
 use bevy::state::prelude::{State, States};
+#[cfg(feature = "bevy_state")]
 use rustc_hash::FxHashMap;
-use std::any::type_name;
-use std::{future::Future, marker::PhantomData};
+#[cfg(feature = "bevy_state")]
+use std::{
+    any::type_name,
+    marker::PhantomData
+};
+use std::future::Future;
 
-use crate::executor::{with_world_mut, with_world_ref};
-use crate::{executor::SPAWNER, AccessError, AccessResult, AsyncWorld};
+
+#[cfg(feature = "bevy_state")]
+use crate::{
+    executor::{with_world_mut, with_world_ref},
+    AccessError
+};
+use crate::{executor::SPAWNER, AccessResult, AsyncWorld};
 
 /// A list of tasks constrained by [`States`].
+#[cfg(feature = "bevy_state")]
 #[derive(Debug, Resource)]
 pub struct ScopedTasks<T: States> {
     pub(crate) tasks: FxHashMap<T, Vec<Task<AccessResult<()>>>>,
     p: PhantomData<T>,
 }
 
+#[cfg(feature = "bevy_state")]
 impl<T: States> Default for ScopedTasks<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "bevy_state")]
 impl<T: States> ScopedTasks<T> {
     pub fn new() -> Self {
         ScopedTasks {
@@ -108,6 +124,7 @@ impl AsyncWorld {
     /// # Panics
     ///
     /// * If used outside a `bevy_defer` future.
+    #[cfg(feature = "bevy_state")]
     pub fn spawn_state_scoped<S: States>(
         &self,
         state: S,
@@ -129,6 +146,7 @@ impl AsyncWorld {
                     .or_default()
                     .push(SPAWNER.with(|s| s.spawn(fut)));
             } else {
+                #[cfg(feature = "bevy_log")]
                 error!(
                     "Cannot spawn state scoped futures without `react_to_state::<{}>`.",
                     type_name::<S>()
@@ -158,8 +176,15 @@ impl AsyncWorld {
             let task = s.spawn(fut).fallible();
             s.spawn(async move {
                 match task.await {
-                    Some(Err(e)) => error!("{e}"),
-                    None => error!("Task panicked!"),
+                    #[allow(unused_variables, reason = "usage of e is feature gated behind bevy_log")]
+                    Some(Err(e)) => {
+                        #[cfg(feature = "bevy_log")]
+                        error!("{e}")
+                    },
+                    None => {
+                        #[cfg(feature = "bevy_log")]
+                        error!("Task panicked!")
+                    },
                     Some(_) => (),
                 }
             })
