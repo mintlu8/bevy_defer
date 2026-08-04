@@ -7,7 +7,7 @@ use bevy::ecs::{
     component::Component,
     entity::Entity,
     name::Name,
-    query::{QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData},
+    query::{QueryFilter, ReadOnlyQueryData, ReleaseStateQueryData, SingleEntityQueryData},
     resource::Resource,
 };
 use ref_cast::RefCast;
@@ -104,7 +104,7 @@ impl EntityInspectors {
 
     /// Add an inspector function at a priority if a query is successful.
     pub fn push_query<
-        Q: ReadOnlyQueryData + ReleaseStateQueryData + 'static,
+        Q: ReadOnlyQueryData + SingleEntityQueryData + ReleaseStateQueryData + 'static,
         F: QueryFilter + 'static,
     >(
         &mut self,
@@ -141,7 +141,7 @@ impl Default for EntityInspectors {
                 AsyncWorld
                     .entity(entity)
                     .component::<Name>()
-                    .get_mut(|x| {
+                    .get(|x| {
                         write!(
                             fmt,
                             "Entity({},{},{})",

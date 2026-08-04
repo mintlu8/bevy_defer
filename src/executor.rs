@@ -69,7 +69,10 @@ impl AsyncExecutor {
     ) {
         self.0
             .spawn(async {
-                #[allow(unused_variables, reason = "usage of e is feature gated behind bevy_log")]
+                #[allow(
+                    unused_variables,
+                    reason = "usage of e is feature gated behind bevy_log"
+                )]
                 if let Err(e) = future.await {
                     #[cfg(feature = "bevy_log")]
                     error!("{e}")
@@ -82,8 +85,8 @@ impl AsyncExecutor {
 /// System for running [`AsyncExecutor`].
 pub fn run_async_executor(world: &mut World) {
     let reactors = world.resource::<Reactors>().clone();
-    let queue = world.non_send_resource::<QueryQueue>().clone();
-    let executor = world.non_send_resource::<AsyncExecutor>().clone();
+    let queue = world.non_send::<QueryQueue>().clone();
+    let executor = world.non_send::<AsyncExecutor>().clone();
     #[cfg(feature = "bevy_asset")]
     let assets = world.get_resource::<AssetServer>().cloned();
 

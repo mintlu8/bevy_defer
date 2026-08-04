@@ -8,52 +8,70 @@ use bevy::ecs::{
     world::unsafe_world_cell::UnsafeWorldCell,
 };
 
-use super::AsyncEntityMut;
+use crate::access::{get_entity::VirtualEntity, AsyncEntity};
 
 #[derive(Debug)]
-pub struct AsyncRelatedQuery<R: RelationshipTarget, D: QueryData, F: QueryFilter> {
-    entity: Entity,
+pub struct AsyncRelatedQuery<
+    R: RelationshipTarget,
+    D: QueryData,
+    F: QueryFilter,
+    E: VirtualEntity = Entity,
+> {
+    entity: E,
     p: PhantomData<(R, D, F)>,
 }
 
-impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> Clone for AsyncRelatedQuery<R, D, F> {
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: VirtualEntity + Clone> Clone
+    for AsyncRelatedQuery<R, D, F, E>
+{
     fn clone(&self) -> Self {
-        *self
+        Self {
+            entity: self.entity.clone(),
+            p: PhantomData,
+        }
     }
 }
 
-impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> Copy for AsyncRelatedQuery<R, D, F> {}
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: VirtualEntity + Copy> Copy
+    for AsyncRelatedQuery<R, D, F, E>
+{
+}
 
 impl<R: RelationshipTarget, D: QueryData, F: QueryFilter> AsyncRelatedQuery<R, D, F> {
     pub fn id(&self) -> Entity {
         self.entity
     }
+}
 
-    pub fn entity(&self) -> AsyncEntityMut {
-        AsyncEntityMut(self.entity)
+impl<R: RelationshipTarget, D: QueryData, F: QueryFilter, E: VirtualEntity>
+    AsyncRelatedQuery<R, D, F, E>
+{
+    pub fn entity(self) -> AsyncEntity<E> {
+        AsyncEntity(self.entity)
     }
 }
 
-impl AsyncEntityMut {
+impl<E: VirtualEntity> AsyncEntity<E> {
     pub fn query_children<D: QueryData, F: QueryFilter>(
-        &self,
-    ) -> AsyncRelatedQuery<Children, D, F> {
+        self,
+    ) -> AsyncRelatedQuery<Children, D, F, E> {
         AsyncRelatedQuery {
-            entity: self.id(),
+            entity: self.0,
             p: PhantomData,
         }
     }
 
     pub fn query_related<R: RelationshipTarget, D: QueryData, F: QueryFilter>(
-        &self,
-    ) -> AsyncRelatedQuery<R, D, F> {
+        self,
+    ) -> AsyncRelatedQuery<R, D, F, E> {
         AsyncRelatedQuery {
-            entity: self.id(),
+            entity: self.0,
             p: PhantomData,
         }
     }
 }
 
+/// Safe [`QueryState`] for borrowing from both parent and children.
 pub struct RelatedQueryState<'t, R: RelationshipTarget, D: QueryData, F: QueryFilter> {
     pub(super) world: UnsafeWorldCell<'t>,
     pub(super) query: &'t mut QueryState<D, F>,

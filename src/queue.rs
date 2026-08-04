@@ -167,18 +167,18 @@ impl QueryQueue {
 
 /// System that tries to resolve queries sent to the queue.
 pub fn run_watch_queries(world: &mut World) {
-    let query_queue = world.remove_non_send_resource::<QueryQueue>().unwrap();
+    let query_queue = world.remove_non_send::<QueryQueue>().unwrap();
     query_queue
         .repeat_queue
         .borrow_mut()
         .retain_mut(|f| (f.command)(world));
     query_queue.yielded.wake();
-    world.insert_non_send_resource(query_queue);
+    world.insert_non_send(query_queue);
 }
 
 /// Run `fixed_queue` on [`Update`].
 pub fn run_fixed_queue(world: &mut World) {
-    let query_queue = world.remove_non_send_resource::<QueryQueue>().unwrap();
+    let query_queue = world.remove_non_send::<QueryQueue>().unwrap();
     let delta_time = world.resource::<Time>().delta();
     query_queue.fixed_queue.borrow_mut().retain_mut(|x| {
         if x.cancel.cancelled() {
@@ -186,7 +186,7 @@ pub fn run_fixed_queue(world: &mut World) {
         }
         !(x.task)(world, delta_time)
     });
-    world.insert_non_send_resource(query_queue);
+    world.insert_non_send(query_queue);
 }
 
 /// Run `sleep` and `sleep_frames` reactors.

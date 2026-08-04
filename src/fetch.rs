@@ -9,9 +9,7 @@ use std::borrow::Borrow;
 #[cfg(feature = "bevy_asset")]
 use crate::access::AsyncAsset;
 use crate::{
-    access::{
-        AsyncComponent, AsyncEntityMut, AsyncEntityQuery, AsyncQuery, AsyncResource,
-    },
+    access::{AsyncComponent, AsyncEntity, AsyncEntityQuery, AsyncQuery, AsyncResource},
     AsyncWorld,
 };
 
@@ -22,11 +20,11 @@ use crate::{
 /// * `fetch!(entity, Type)`
 ///
 /// Obtain a [`struct@AsyncComponent`] or [`AsyncEntityQuery`] depend on the type.
-/// `entity` can be [`Entity`] or [`AsyncEntityMut`].
+/// `entity` can be [`Entity`] or [`AsyncEntity`].
 ///
 /// * `fetch!(#expr)`
 ///
-/// Obtain a [`AsyncEntityMut`] or [`AsyncAsset`] from an underlying expr.
+/// Obtain a [`AsyncEntity`] or [`AsyncAsset`] from an underlying expr.
 ///
 /// * `fetch!(Type)`
 ///
@@ -113,7 +111,7 @@ impl<T: QueryData> FetchEntity<QueryMarker> for T {
 }
 
 impl<T: Borrow<Entity>> FetchOne<ComponentMarker> for T {
-    type Out = AsyncEntityMut;
+    type Out = AsyncEntity;
 
     fn fetch(&self) -> Self::Out {
         AsyncWorld.entity(*self.borrow())

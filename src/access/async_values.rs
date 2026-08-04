@@ -6,8 +6,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 /// An `AsyncSystemParam` that gets or sets a component on the current `Entity`.
-pub struct AsyncComponent<C: Component> {
-    pub(crate) entity: Entity,
+pub struct AsyncComponent<C: Component, E: VirtualEntity = Entity> {
+    pub(crate) entity: E,
     pub(crate) p: PhantomData<C>,
 }
 
@@ -20,21 +20,26 @@ impl<C: Component> Debug for AsyncComponent<C> {
     }
 }
 
-impl<C: Component> AsyncComponent<C> {
-    pub fn entity(&self) -> AsyncEntityMut {
-        AsyncEntityMut(self.entity)
+impl<C: Component, E: VirtualEntity> AsyncComponent<C, E> {
+    pub fn entity(self) -> AsyncEntity<E> {
+        AsyncEntity(self.entity)
     }
+}
 
+impl<C: Component> AsyncComponent<C, Entity> {
     pub fn id(&self) -> Entity {
         self.entity
     }
 }
 
-impl<C: Component> Copy for AsyncComponent<C> {}
+impl<C: Component, E: VirtualEntity + Copy> Copy for AsyncComponent<C, E> {}
 
-impl<C: Component> Clone for AsyncComponent<C> {
+impl<C: Component, E: VirtualEntity + Clone> Clone for AsyncComponent<C, E> {
     fn clone(&self) -> Self {
-        *self
+        AsyncComponent {
+            entity: self.entity.clone(),
+            p: PhantomData,
+        }
     }
 }
 
@@ -50,7 +55,8 @@ impl<C: Component> From<Entity> for AsyncComponent<C> {
 #[allow(unused)]
 pub use bevy::ecs::system::NonSend;
 
-use super::AsyncEntityMut;
+use crate::access::get_entity::VirtualEntity;
+use crate::access::AsyncEntity;
 
 /// An `AsyncSystemParam` that gets or sets a `!Send` resource on the `World`.
 pub struct AsyncNonSend<R: 'static>(pub(crate) PhantomData<R>);
