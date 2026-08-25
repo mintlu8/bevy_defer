@@ -215,7 +215,7 @@ impl AsyncPlugin {
 }
 
 impl<E: WorldExtract> AsyncPlugin<E> {
-    pub fn with_extension<E2: WorldExtract>(self) -> AsyncPlugin<(E, E2)> {
+    pub fn with_extract<E2: WorldExtract>(self) -> AsyncPlugin<(E, E2)> {
         AsyncPlugin {
             schedules: self.schedules,
             p: PhantomData,
