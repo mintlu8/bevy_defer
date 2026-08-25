@@ -15,6 +15,7 @@ use bevy::state::prelude::State;
 use bevy::state::state::States;
 use bevy::time::TimeSystems;
 use std::fmt::Formatter;
+use std::marker::PhantomData;
 use std::{any::type_name, pin::Pin};
 
 pub mod access;
@@ -34,6 +35,7 @@ pub mod signals;
 mod spawn;
 pub(crate) mod sync;
 pub mod tween;
+#[cfg(feature = "bevy_asset")]
 pub use access::async_asset::AssetSet;
 pub use access::async_world::AsyncWorld;
 pub use access::query::{OwnedQueryState, OwnedReadonlyQueryState};
@@ -46,7 +48,7 @@ use bevy::ecs::{
 use bevy::reflect::std_traits::ReflectDefault;
 pub use errors::AccessError;
 pub use event::EventChannel;
-pub use executor::{in_async_context, AsyncExecutor};
+pub use executor::{in_async_context, AsyncExecutor, WorldExtract};
 #[doc(hidden)]
 pub use fetch::{fetch, fetch0, fetch1, fetch2, FetchEntity, FetchOne, FetchWorld};
 pub use queue::LoopForFrameData;
@@ -57,7 +59,6 @@ pub use spawn::ScopedTasks;
 /// Systems in `bevy_defer`.
 pub mod systems {
     pub use crate::event::react_to_message;
-    pub use crate::executor::run_async_executor;
     pub use crate::queue::{run_fixed_queue, run_time_series, run_watch_queries};
     pub use crate::reactors::{react_to_component_change, react_to_state};
 
@@ -65,11 +66,12 @@ pub mod systems {
     pub use crate::ext::anim::react_to_animation;
     #[cfg(feature = "bevy_animation")]
     pub use crate::ext::anim::react_to_main_animation_change;
-    #[cfg(feature = "bevy_scene")]
-    pub use crate::ext::scene::react_to_scene_load;
+    #[cfg(feature = "bevy_world_serialization")]
+    pub use crate::ext::world::react_to_scene_load as react_to_world_load;
 }
 
 use crate::access::query::QueryCache;
+use crate::executor::run_async_executor;
 pub use crate::sync::oneshot::channel;
 use std::future::Future;
 
@@ -115,7 +117,7 @@ impl Plugin for CoreAsyncPlugin {
             .add_systems(BeforeAsyncExecutor, systems::run_watch_queries);
 
         #[cfg(feature = "bevy_scene")]
-        app.add_systems(BeforeAsyncExecutor, systems::react_to_scene_load);
+        app.add_systems(BeforeAsyncExecutor, systems::react_to_world_load);
         #[cfg(feature = "bevy_animation")]
         app.add_systems(BeforeAsyncExecutor, systems::react_to_animation);
         #[cfg(feature = "bevy_animation")]
@@ -139,10 +141,27 @@ pub fn run_before_async_executor(world: &mut World) {
 /// An `bevy_defer` plugin that can run the executor through user configuration.
 ///
 /// This plugin is not unique and can be used repeatedly to add runs.
+///
+/// # Extract Statics
+///
+/// Use [`AsyncPlugin::with_extension`] and the [`WorldExtract`] trait to extract items in the world as statics.
 #[derive(Debug)]
-pub struct AsyncPlugin {
+pub struct AsyncPlugin<E: WorldExtract = ()> {
     schedules: Vec<(Interned<dyn ScheduleLabel>, Option<Interned<dyn SystemSet>>)>,
+    p: PhantomData<E>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SystemSet)]
+pub struct AsyncSet;
+
+/// # Safety
+///
+/// Safe since E is PhantomData.
+unsafe impl<E: WorldExtract> Send for AsyncPlugin<E> {}
+/// # Safety
+///
+/// Safe since E is PhantomData.
+unsafe impl<E: WorldExtract> Sync for AsyncPlugin<E> {}
 
 impl AsyncPlugin {
     /// Equivalent to [`CoreAsyncPlugin`].
@@ -151,6 +170,7 @@ impl AsyncPlugin {
     pub fn empty() -> Self {
         AsyncPlugin {
             schedules: Vec::new(),
+            p: PhantomData,
         }
     }
 
@@ -161,6 +181,7 @@ impl AsyncPlugin {
     pub fn default_settings() -> Self {
         AsyncPlugin {
             schedules: vec![(Interned(Box::leak(Box::new(Update))), None)],
+            p: PhantomData,
         }
     }
 
@@ -172,11 +193,10 @@ impl AsyncPlugin {
                 (Interned(Box::leak(Box::new(Update))), None),
                 (Interned(Box::leak(Box::new(PostUpdate))), None),
             ],
+            p: PhantomData,
         }
     }
-}
 
-impl AsyncPlugin {
     /// Run the executor in a specific `Schedule`.
     pub fn run_in(mut self, schedule: impl ScheduleLabel) -> Self {
         self.schedules
@@ -194,9 +214,17 @@ impl AsyncPlugin {
     }
 }
 
-impl Plugin for AsyncPlugin {
+impl<E: WorldExtract> AsyncPlugin<E> {
+    pub fn with_extension<E2: WorldExtract>(self) -> AsyncPlugin<(E, E2)> {
+        AsyncPlugin {
+            schedules: self.schedules,
+            p: PhantomData,
+        }
+    }
+}
+
+impl<E: WorldExtract> Plugin for AsyncPlugin<E> {
     fn build(&self, app: &mut App) {
-        use crate::systems::*;
         if !app.is_plugin_added::<CoreAsyncPlugin>() {
             app.add_plugins(CoreAsyncPlugin);
         }
@@ -205,18 +233,20 @@ impl Plugin for AsyncPlugin {
                 app.add_systems(
                     *schedule,
                     (
-                        run_before_async_executor.before(run_async_executor),
-                        run_async_executor,
+                        run_before_async_executor.before(run_async_executor::<E>),
+                        run_async_executor::<E>,
                     )
-                        .in_set(*set),
+                        .in_set(*set)
+                        .in_set(AsyncSet),
                 );
             } else {
                 app.add_systems(
                     *schedule,
                     (
-                        run_before_async_executor.before(run_async_executor),
-                        run_async_executor,
-                    ),
+                        run_before_async_executor.before(run_async_executor::<E>),
+                        run_async_executor::<E>,
+                    )
+                        .in_set(AsyncSet),
                 );
             }
         }

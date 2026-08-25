@@ -1,7 +1,6 @@
 use crate::queue::QueryQueue;
 use crate::reactors::Reactors;
 use async_executor::{LocalExecutor, Task};
-use bevy::asset::AssetServer;
 use bevy::ecs::world::World;
 use bevy::log::error;
 use std::fmt::Display;
@@ -33,7 +32,8 @@ pub(crate) fn with_world_mut<T>(f: impl FnOnce(&mut World) -> T) -> T {
     WORLD.with(f)
 }
 
-scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASSET_SERVER: AssetServer);
+#[cfg(feature = "bevy_asset")]
+scoped_tls_hkt::scoped_thread_local!(pub(crate) static ASSET_SERVER: ::bevy::asset::AssetServer);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static QUERY_QUEUE: QueryQueue);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static SPAWNER: LocalExecutor<'static>);
 scoped_tls_hkt::scoped_thread_local!(pub(crate) static REACTORS: Reactors);
@@ -75,25 +75,83 @@ impl AsyncExecutor {
 }
 
 /// System for running [`AsyncExecutor`].
-pub fn run_async_executor(world: &mut World) {
-    let reactors = world.resource::<Reactors>().clone();
-    let queue = world.non_send::<QueryQueue>().clone();
+pub fn run_async_executor<E: WorldExtract>(world: &mut World) {
+    #[cfg(feature = "bevy_asset")]
+    type AssetServer = ::bevy::asset::AssetServer;
+    #[cfg(not(feature = "bevy_asset"))]
+    type AssetServer = ();
+
+    type Extract<E> = (AsyncExecutor, (Reactors, (QueryQueue, (AssetServer, E))));
     let executor = world.non_send::<AsyncExecutor>().clone();
-    let assets = world.get_resource::<AssetServer>().cloned();
 
-    let mut f = || {
-        SPAWNER.set(&executor.0.clone(), || {
-            QUERY_QUEUE.set(&queue, || {
-                REACTORS.set(&reactors, || {
-                    WORLD.set(world, || while executor.0.try_tick() {});
-                })
-            })
-        })
-    };
+    Extract::<E>::extract_from_world(world, |world| {
+        WORLD.set(world, || while executor.0.try_tick() {})
+    })
+}
 
-    if let Some(assets) = assets {
-        ASSET_SERVER.set(&assets, f)
-    } else {
-        f()
+pub trait WorldExtract: 'static {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World));
+}
+
+impl WorldExtract for () {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+        f(world)
+    }
+}
+
+impl<A: WorldExtract, B: WorldExtract> WorldExtract for (A, B) {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+        A::extract_from_world(world, |world| B::extract_from_world(world, f));
+    }
+}
+
+impl WorldExtract for AsyncExecutor {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+        let executor = world.non_send::<AsyncExecutor>().clone();
+        SPAWNER.set(&executor.0, || f(world))
+    }
+}
+
+impl WorldExtract for QueryQueue {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+        let queue = world.non_send::<QueryQueue>().clone();
+        QUERY_QUEUE.set(&queue, || f(world))
+    }
+}
+
+impl WorldExtract for Reactors {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+        let reactors = world.resource::<Reactors>().clone();
+        REACTORS.set(&reactors, || f(world))
+    }
+}
+
+#[cfg(feature = "bevy_asset")]
+impl WorldExtract for ::bevy::asset::AssetServer {
+    fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+        if let Some(asset_server) = world.get_resource::<::bevy::asset::AssetServer>() {
+            let asset_server = asset_server.clone();
+            ASSET_SERVER.set(&asset_server, || f(world))
+        } else {
+            f(world)
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use bevy::ecs::{resource::Resource, world::World};
+
+    use crate::WorldExtract;
+
+    #[derive(Resource)]
+    pub struct R;
+
+    scoped_tls_hkt::scoped_thread_local!(static mut STATIC: R);
+
+    impl WorldExtract for R {
+        fn extract_from_world(world: &mut World, f: impl FnOnce(&mut World)) {
+            world.resource_scope::<R, _>(|world, res| STATIC.set(res.into_inner(), || f(world)))
+        }
     }
 }

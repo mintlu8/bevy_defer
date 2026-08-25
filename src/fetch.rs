@@ -1,4 +1,3 @@
-use bevy::asset::{Asset, AssetId, Handle};
 use bevy::ecs::{
     prelude::{Component, Entity, Resource},
     query::{QueryData, QueryFilter},
@@ -7,7 +6,7 @@ use std::borrow::Borrow;
 
 use crate::access::AsyncEntity;
 use crate::{
-    access::{AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncQuery, AsyncResource},
+    access::{AsyncComponent, AsyncEntityQuery, AsyncQuery, AsyncResource},
     AsyncWorld,
 };
 
@@ -115,45 +114,51 @@ impl<T: Borrow<Entity>> FetchOne<ComponentMarker> for T {
     }
 }
 
-impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
-    type Out = AsyncAsset<A>;
+#[cfg(feature = "bevy_asset")]
+const _: () = {
+    use crate::access::AsyncAsset;
+    use bevy::asset::{Asset, AssetId, Handle};
 
-    fn fetch(&self) -> Self::Out {
-        AsyncAsset::Weak(self.id())
+    impl<A: Asset> FetchOne<AssetMarker> for Handle<A> {
+        type Out = AsyncAsset<A>;
+
+        fn fetch(&self) -> Self::Out {
+            AsyncAsset::Weak(self.id())
+        }
     }
-}
 
-impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
-    type Out = AsyncAsset<A>;
+    impl<A: Asset> FetchOne<AssetMarker> for AssetId<A> {
+        type Out = AsyncAsset<A>;
 
-    fn fetch(&self) -> Self::Out {
-        AsyncAsset::Weak(*self)
+        fn fetch(&self) -> Self::Out {
+            AsyncAsset::Weak(*self)
+        }
     }
-}
 
-impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
-    type Out = AsyncAsset<A>;
+    impl<A: Asset> FetchOne<AssetMarker> for &Handle<A> {
+        type Out = AsyncAsset<A>;
 
-    fn fetch(&self) -> Self::Out {
-        AsyncAsset::Weak(self.id())
+        fn fetch(&self) -> Self::Out {
+            AsyncAsset::Weak(self.id())
+        }
     }
-}
 
-impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
-    type Out = AsyncAsset<A>;
+    impl<A: Asset> FetchOne<AssetMarker> for &AssetId<A> {
+        type Out = AsyncAsset<A>;
 
-    fn fetch(&self) -> Self::Out {
-        AsyncAsset::Weak(**self)
+        fn fetch(&self) -> Self::Out {
+            AsyncAsset::Weak(**self)
+        }
     }
-}
 
-impl<A: Asset> FetchOne<AssetMarker> for AsyncAsset<A> {
-    type Out = AsyncAsset<A>;
+    impl<A: Asset> FetchOne<AssetMarker> for AsyncAsset<A> {
+        type Out = AsyncAsset<A>;
 
-    fn fetch(&self) -> Self::Out {
-        self.clone()
+        fn fetch(&self) -> Self::Out {
+            self.clone()
+        }
     }
-}
+};
 
 pub fn fetch0<T: FetchWorld<M>, M>() -> T::Out {
     T::fetch()

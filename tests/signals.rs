@@ -16,7 +16,7 @@ use bevy_defer::{
     access::AsyncWorld, signal_ids, signals::SignalSender, AppReactorExtension, AsyncExtension,
     AsyncPlugin,
 };
-use bevy_defer::{signals::Signals, systems::run_async_executor, AsyncCommandsExtension};
+use bevy_defer::{signals::Signals, AsyncCommandsExtension, AsyncSet};
 use futures::StreamExt;
 signal_ids! {
     SigText: &'static str,
@@ -37,7 +37,7 @@ pub fn main() {
     app.add_plugins(FrameCountPlugin);
     app.add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, init)
-        .add_systems(Update, update.before(run_async_executor));
+        .add_systems(Update, update.before(AsyncSet));
     app.update();
     app.update();
     app.update();

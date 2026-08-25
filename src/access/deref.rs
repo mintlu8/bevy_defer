@@ -1,6 +1,5 @@
 //! Traits for adding extension methods on asynchronous accessors to the `World` through `deref`.
 
-use bevy::asset::Asset;
 use bevy::ecs::{
     component::Component,
     query::{QueryData, QueryFilter},
@@ -8,9 +7,7 @@ use bevy::ecs::{
 };
 use std::ops::Deref;
 
-use super::{
-    AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource,
-};
+use super::{AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuerySingle, AsyncResource};
 
 /// Add method to [`struct@AsyncComponent`] through deref.
 ///
@@ -72,12 +69,14 @@ where
 /// Add method to [`AsyncAsset`] through deref.
 ///
 /// It is recommended to derive [`RefCast`](ref_cast) for this.
-pub trait AsyncAssetDeref: Asset + Sized {
+#[cfg(feature = "bevy_asset")]
+pub trait AsyncAssetDeref: bevy::asset::Asset + Sized {
     type Target;
-    fn async_deref(this: &AsyncAsset<Self>) -> &Self::Target;
+    fn async_deref(this: &super::AsyncAsset<Self>) -> &Self::Target;
 }
 
-impl<C> Deref for AsyncAsset<C>
+#[cfg(feature = "bevy_asset")]
+impl<C> Deref for super::AsyncAsset<C>
 where
     C: AsyncAssetDeref,
 {

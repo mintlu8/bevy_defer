@@ -1,7 +1,7 @@
 //! Access traits for `bevy_defer`.
 use crate::access::get_entity::VirtualEntity;
 use crate::access::{
-    AsyncAsset, AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
+    AsyncComponent, AsyncEntityQuery, AsyncNonSend, AsyncQuery, AsyncQuerySingle,
     AsyncRelatedQuery, AsyncResource, AsyncWorld, RelatedQueryState,
 };
 use crate::tween::{AsSeconds, Playback};
@@ -12,7 +12,6 @@ use crate::{
     AccessError, AccessResult,
 };
 use crate::{OwnedQueryState, OwnedReadonlyQueryState};
-use bevy::asset::{Asset, Assets};
 use bevy::ecs::component::Mutable;
 use bevy::ecs::query::{
     IterQueryData, ReadOnlyQueryData, ReleaseStateQueryData, SingleEntityQueryData,
@@ -564,59 +563,64 @@ impl_async_access! {
     }
 }
 
-impl<T: Asset> ShouldContinue for AsyncAsset<T> {
-    fn should_continue(e: AccessError) -> bool {
-        e == AccessError::AssetNotFound {
-            name: type_name::<T>(),
+#[cfg(feature = "bevy_asset")]
+const _: () = {
+    use crate::access::AsyncAsset;
+    use bevy::asset::{Asset, Assets};
+
+    impl<T: Asset> ShouldContinue for AsyncAsset<T> {
+        fn should_continue(e: AccessError) -> bool {
+            e == AccessError::AssetNotFound {
+                name: type_name::<T>(),
+            }
         }
     }
-}
+    impl_async_access! {
+        impl[T: Asset] AsyncAsset [T] {
+            fn get(this: &Self, world: &World) -> AccessResult<&T> {
+                let id = this.id();
+                world
+                    .get_resource::<Assets<T>>()
+                    .ok_or(AccessError::ResourceNotFound {
+                        name: type_name::<Assets<T>>(),
+                    })?
+                    .get(id)
+                    .ok_or(AccessError::AssetNotFound {
+                        name: type_name::<T>(),
+                    })
+            }
 
-impl_async_access! {
-    impl[T: Asset] AsyncAsset [T] {
-        fn get(this: &Self, world: &World) -> AccessResult<&T> {
-            let id = this.id();
-            world
-                .get_resource::<Assets<T>>()
-                .ok_or(AccessError::ResourceNotFound {
-                    name: type_name::<Assets<T>>(),
-                })?
-                .get(id)
-                .ok_or(AccessError::AssetNotFound {
-                    name: type_name::<T>(),
-                })
-        }
+            fn get_mut(this: &Self, world: &mut World) -> AccessResult<&mut T> {
+                let id = this.id();
+                world
+                    .get_resource_mut::<Assets<T>>()
+                    .map(|x| x.into_inner())
+                    .ok_or(AccessError::ResourceNotFound {
+                        name: type_name::<Assets<T>>(),
+                    })?
+                    .get_mut(id)
+                    .map(|x| x.into_inner())
+                    .ok_or(AccessError::AssetNotFound {
+                        name: type_name::<T>(),
+                    })
+            }
 
-        fn get_mut(this: &Self, world: &mut World) -> AccessResult<&mut T> {
-            let id = this.id();
-            world
-                .get_resource_mut::<Assets<T>>()
-                .map(|x| x.into_inner())
-                .ok_or(AccessError::ResourceNotFound {
-                    name: type_name::<Assets<T>>(),
-                })?
-                .get_mut(id)
-                .map(|x| x.into_inner())
-                .ok_or(AccessError::AssetNotFound {
-                    name: type_name::<T>(),
-                })
-        }
-
-        fn take(this: &Self, world: &mut World) -> AccessResult<T> {
-            let id = this.id();
-            world
-                .get_resource_mut::<Assets<T>>()
-                .map(|x| x.into_inner())
-                .ok_or(AccessError::ResourceNotFound {
-                    name: type_name::<Assets<T>>(),
-                })?
-                .remove(id)
-                .ok_or(AccessError::AssetNotFound {
-                    name: type_name::<T>(),
-                })
+            fn take(this: &Self, world: &mut World) -> AccessResult<T> {
+                let id = this.id();
+                world
+                    .get_resource_mut::<Assets<T>>()
+                    .map(|x| x.into_inner())
+                    .ok_or(AccessError::ResourceNotFound {
+                        name: type_name::<Assets<T>>(),
+                    })?
+                    .remove(id)
+                    .ok_or(AccessError::AssetNotFound {
+                        name: type_name::<T>(),
+                    })
+            }
         }
     }
-}
+};
 
 impl<D: QueryData, F: QueryFilter> ShouldContinue for AsyncQuery<D, F> {}
 
