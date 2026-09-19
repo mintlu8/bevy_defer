@@ -22,10 +22,10 @@ pub fn react_to_scene_load(
 }
 
 impl AsyncWorld {
-    /// Spawn a scene and wait for spawning to complete.
+    /// Spawn a [`WorldAssetRoot`](bevy::world_serialization::WorldAssetRoot) and wait for spawning to complete.
     ///
     /// Requires [`react_to_scene_load`] to function.
-    pub async fn spawn_dynamic_world(&self, bun: impl Bundle) -> AsyncEntity {
+    pub async fn spawn_world_asset(&self, bun: impl Bundle) -> AsyncEntity {
         let (send, recv) = async_oneshot::oneshot();
         let entity = self.spawn_bundle((bun, DynamicWorldSignal(send))).id();
         let _ = recv.await;
