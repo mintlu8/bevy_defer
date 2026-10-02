@@ -97,6 +97,11 @@ impl AsyncWorld {
         AsyncQuery(PhantomData)
     }
 
+    /// Obtain an [`AsyncQuerySingle`].
+    pub fn query_single_filtered<Q: QueryData, F: QueryFilter>(&self) -> AsyncQuerySingle<Q, F> {
+        AsyncQuerySingle(PhantomData)
+    }
+
     /// Obtain duration from `init`, according to the executor.
     pub fn now(&self) -> Duration {
         QUERY_QUEUE.with(|q| q.now.get())

@@ -1,5 +1,5 @@
 use crate::access::async_world::AsyncEntity;
-use crate::access::AsyncResource;
+use crate::access::{AsyncNonSend, AsyncResource};
 use crate::channel;
 use crate::executor::{with_world_mut, with_world_ref, QUERY_QUEUE, REACTORS, WORLD};
 use crate::sync::oneshot::{ChannelOut, MaybeChannelOut};
@@ -313,6 +313,21 @@ impl AsyncWorld {
     pub fn insert_resource<R: Resource>(&self, resource: R) -> AsyncResource<R> {
         with_world_mut(move |world: &mut World| world.insert_resource(resource));
         self.resource()
+    }
+
+
+    /// Initializes a new non-send resource.
+    ///
+    /// If the resource already exists, nothing happens.
+    pub fn init_non_send<R: FromWorld + 'static>(&self) -> AsyncNonSend<R> {
+        with_world_mut(move |world: &mut World| world.init_non_send::<R>());
+        self.non_send()
+    }
+
+    /// Inserts a new non-send resource with the given value.
+    pub fn insert_non_send<R: 'static>(&self, resource: R) -> AsyncNonSend<R> {
+        with_world_mut(move |world: &mut World| world.insert_non_send(resource));
+        self.non_send()
     }
 
     /// Transition to a new [`States`].

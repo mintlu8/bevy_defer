@@ -66,6 +66,13 @@ impl<T: Send + Sync> EventChannel<T> {
         self.queue.push_back(value);
     }
 
+    pub fn push_front(&mut self, value: T) {
+        if self.queue.is_empty() {
+            self.event.notify(usize::MAX);
+        }
+        self.queue.push_front(value);
+    }
+
     pub fn clear(&mut self) {
         self.queue.clear();
     }
@@ -156,6 +163,13 @@ impl AsyncWorld {
                     .await;
             }
         }
+    }
+
+    /// Put an one-shot event to the front of a [`EventChannel`].
+    pub fn push_event_front<E: Send + Sync + 'static>(&self, event: E) -> AccessResult {
+        AsyncWorld
+            .resource::<EventChannel<E>>()
+            .get_mut(|x| x.push_front(event))
     }
 }
 
