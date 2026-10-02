@@ -315,7 +315,6 @@ impl AsyncWorld {
         self.resource()
     }
 
-
     /// Initializes a new non-send resource.
     ///
     /// If the resource already exists, nothing happens.

@@ -38,27 +38,6 @@ impl<T: Send + Sync> EventChannel<T> {
         self.queue.pop_front()
     }
 
-    /// Try process the next item, return [`Err`] to push the item back into the channel.
-    pub fn try_consume<U>(&mut self, f: impl FnOnce(T) -> Result<U, T>) -> Option<U> {
-        match f(self.queue.pop_front()?) {
-            Ok(result) => Some(result),
-            Err(rejected) => {
-                self.queue.push_front(rejected);
-                None
-            }
-        }
-    }
-
-    fn _async_try_consume<U>(&mut self, f: impl FnOnce(T) -> Result<U, T>) -> Option<Option<U>> {
-        match f(self.queue.pop_front()?) {
-            Ok(result) => Some(Some(result)),
-            Err(rejected) => {
-                self.queue.push_front(rejected);
-                Some(None)
-            }
-        }
-    }
-
     pub fn push(&mut self, value: T) {
         if self.queue.is_empty() {
             self.event.notify(usize::MAX);
@@ -136,36 +115,7 @@ impl AsyncWorld {
             .get_mut(|x| x.push(event))
     }
 
-    /// Process the next event in a [`EventChannel`], if failed, return `Err(event)` to
-    /// push it back into the event queue.
-    ///
-    /// # Panics
-    ///
-    /// If the event is not registered.
-    /// Register [`EventChannel<E>`] if that happens.
-    pub async fn try_consume_event<E: Send + Sync + 'static, T>(
-        &self,
-        mut f: impl FnMut(E) -> Result<T, E>,
-    ) -> Option<T> {
-        loop {
-            let f = &mut f;
-            let result = AsyncWorld
-                .resource::<EventChannel<E>>()
-                .get_mut(|x| x._async_try_consume(f))
-                .expect("Event not registered");
-            if let Some(result) = result {
-                return result;
-            } else {
-                AsyncWorld
-                    .resource::<EventChannel<E>>()
-                    .get(|x| x.event.listen())
-                    .expect("Event not registered")
-                    .await;
-            }
-        }
-    }
-
-    /// Put an one-shot event to the front of a [`EventChannel`].
+    /// Push an one-shot event to the front of a [`EventChannel`].
     pub fn push_event_front<E: Send + Sync + 'static>(&self, event: E) -> AccessResult {
         AsyncWorld
             .resource::<EventChannel<E>>()
