@@ -57,6 +57,8 @@ pub use bevy::ecs::system::NonSend;
 
 use crate::access::get_entity::VirtualEntity;
 use crate::access::AsyncEntity;
+use crate::executor::with_world_ref;
+use crate::{AccessError, AccessResult, AsyncWorld};
 
 /// An `AsyncSystemParam` that gets or sets a `!Send` resource on the `World`.
 pub struct AsyncNonSend<R: 'static>(pub(crate) PhantomData<R>);
@@ -93,5 +95,33 @@ impl<R: Resource> Copy for AsyncResource<R> {}
 impl<R: Resource> Clone for AsyncResource<R> {
     fn clone(&self) -> Self {
         *self
+    }
+}
+
+impl<R: Resource> AsyncResource<R> {
+    /// Get the underlying [`AsyncEntity`] of a resource.
+    pub fn entity(&self) -> AccessResult<AsyncEntity> {
+        AsyncWorld.resource_entity::<R>()
+    }
+
+    /// Get the underlying [`Entity`] of a resource.
+    pub fn id(&self) -> AccessResult<Entity> {
+        AsyncWorld.resource_entity::<R>().map(|x| x.id())
+    }
+}
+
+impl AsyncWorld {
+    /// Get the underlying [`AsyncEntity`] of a resource.
+    pub fn resource_entity<R: Resource>(&self) -> AccessResult<AsyncEntity> {
+        with_world_ref(|world| {
+            if let Some(id) = world.component_id::<R>() {
+                if let Some(entity) = world.resource_entities().get(id) {
+                    return Ok(AsyncEntity(entity));
+                }
+            }
+            Err(AccessError::ResourceNotFound {
+                name: type_name::<R>(),
+            })
+        })
     }
 }
