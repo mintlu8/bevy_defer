@@ -10,9 +10,9 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::name::Name;
-use bevy::ecs::observer::On;
+use bevy::ecs::observer::{IntoEntityObserver, On};
 use bevy::ecs::relationship::{Relationship, RelationshipTarget};
-use bevy::ecs::system::{EntityCommand, IntoObserverSystem};
+use bevy::ecs::system::EntityCommand;
 use bevy::ecs::world::{EntityRef, EntityWorldMut};
 use bevy::ecs::{bundle::Bundle, entity::Entity, world::World};
 use bevy::transform::components::{GlobalTransform, Transform};
@@ -195,10 +195,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
     /// Creates an `Observer` listening for events of type `E` targeting this entity.
     ///
     /// In order to trigger the callback the entity must also match the query when the event is fired.
-    pub fn observe<T: EntityEvent, B: Bundle, M>(
-        &self,
-        observer: impl IntoObserverSystem<T, B, M>,
-    ) -> AccessResult {
+    pub fn observe<M>(&self, observer: impl IntoEntityObserver<M>) -> AccessResult {
         with_world_mut(move |world: &mut World| {
             let entity = self.0.try_get_entity(world)?;
             world
@@ -471,7 +468,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
                 return "Invalid entity!".to_string();
             };
             if let Ok(i) = world.inspect_entity(entity) {
-                let v: Vec<_> = i.map(|x| x.name().shortname().to_string()).collect();
+                let v: Vec<_> = i.map(|(_, x)| x.name().shortname().to_string()).collect();
                 v.join(", ")
             } else {
                 format!("Entity {entity} missing!")
@@ -548,7 +545,7 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         let mut result = NameEntityMap(names.into_iter().map(|n| (n.into(), None)).collect());
         with_world_ref(|world| {
             let mut query_state = OwnedReadonlyQueryState::<(Entity, &Name), ()>::new(world);
-            for (entity, name) in query_state.iter_many(descendants) {
+            for (entity, name) in query_state.iter_many(descendants).matched() {
                 if let Some(item) = result.0.get_mut(name.as_str()) {
                     *item = Some(entity);
                 }

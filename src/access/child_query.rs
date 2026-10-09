@@ -151,7 +151,7 @@ where
     }
 
     pub fn for_each(&mut self, mut f: impl FnMut(D::Item<'_, '_>)) {
-        let mut iter = self.iter_mut();
+        let mut iter = self.iter_mut().matched();
         while let Some(item) = iter.fetch_next() {
             f(item)
         }

@@ -63,7 +63,7 @@ impl<E: VirtualEntity, F: QueryFilter + 'static, R: RelationshipTarget> VirtualE
             });
         };
         let mut query = OwnedReadonlyQueryState::<Entity, F>::new(world);
-        let mut q = query.iter_many(children.iter());
+        let mut q = query.iter_many(children.iter()).matched();
         match q.next() {
             Some(entity) => Ok(entity),
             None => Err(AccessError::TypedChildNotFound {

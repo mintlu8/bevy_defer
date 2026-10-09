@@ -2,6 +2,7 @@
 use bevy::prelude::*;
 use bevy::tasks::futures_lite::StreamExt;
 use bevy::ui::RelativeCursorPosition;
+use bevy::ui_widgets::Button;
 use bevy_defer::AsyncPlugin;
 use bevy_defer::{fetch, AsyncEntityCommandsExtension};
 
@@ -10,7 +11,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(AsyncPlugin::default_settings())
         .add_systems(Startup, setup)
-        .add_systems(Update, button_system)
+        //.add_systems(Update, button_system)
         .run();
 }
 
@@ -18,30 +19,30 @@ const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
-/// from the original
-fn button_system(
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, &mut BorderColor),
-        (Changed<Interaction>, With<Button>),
-    >,
-) {
-    for (interaction, mut color, mut border_color) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
-                *color = PRESSED_BUTTON.into();
-                border_color.set_all(Color::srgb(1., 0., 0.));
-            }
-            Interaction::Hovered => {
-                *color = HOVERED_BUTTON.into();
-                border_color.set_all(Color::WHITE);
-            }
-            Interaction::None => {
-                *color = NORMAL_BUTTON.into();
-                border_color.set_all(Color::BLACK);
-            }
-        }
-    }
-}
+// /// from the original
+// fn button_system(
+//     mut interaction_query: Query<
+//         (&Interaction, &mut BackgroundColor, &mut BorderColor),
+//         (Changed<Interaction>, With<Button>),
+//     >,
+// ) {
+//     for (interaction, mut color, mut border_color) in &mut interaction_query {
+//         match *interaction {
+//             Interaction::Pressed => {
+//                 *color = PRESSED_BUTTON.into();
+//                 border_color.set_all(Color::srgb(1., 0., 0.));
+//             }
+//             Interaction::Hovered => {
+//                 *color = HOVERED_BUTTON.into();
+//                 border_color.set_all(Color::WHITE);
+//             }
+//             Interaction::None => {
+//                 *color = NORMAL_BUTTON.into();
+//                 border_color.set_all(Color::BLACK);
+//             }
+//         }
+//     }
+// }
 
 fn setup(mut commands: Commands) {
     // ui camera
@@ -103,7 +104,7 @@ fn setup(mut commands: Commands) {
                 ))
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Click>>()?;
+                    let mut stream = btn.on::<PointerClick>()?;
                     while let Some(item) = stream.next().await {
                         let s =
                             format!("Clicked at {}", item.hit.position.unwrap_or_default().xz());
@@ -115,7 +116,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Press>>()?;
+                    let mut stream = btn.on::<PointerPress>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Mouse down at {}",
@@ -129,7 +130,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Over>>()?;
+                    let mut stream = btn.on::<PointerOver>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Hover entered at {}",
@@ -143,7 +144,7 @@ fn setup(mut commands: Commands) {
                 })
                 .spawn_task(move |entity| async move {
                     let btn = fetch!(#btn_entity);
-                    let mut stream = btn.on::<Pointer<Out>>()?;
+                    let mut stream = btn.on::<PointerOut>()?;
                     while let Some(item) = stream.next().await {
                         let s = format!(
                             "Hover exited at {}",
