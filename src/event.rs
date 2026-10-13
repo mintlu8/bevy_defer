@@ -131,7 +131,7 @@ impl AsyncWorld {
     }
 }
 
-/// Copy an event from an [`MessageReader`] to an [`EventChannel`].
+/// Copy a message from a [`MessageReader`] to an [`EventChannel`].
 ///
 /// This system also clears the [`EventChannel`] from the previous frame if unread
 /// to mimic the intended behavior of bevy's [`Message`].
