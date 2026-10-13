@@ -121,6 +121,14 @@ impl AsyncWorld {
             .resource::<EventChannel<E>>()
             .get_mut(|x| x.push_front(event))
     }
+
+
+    /// Remove all events in a [`EventChannel`].
+    pub fn drain_events<E: Send + Sync + 'static>(&self) -> AccessResult {
+        AsyncWorld
+            .resource::<EventChannel<E>>()
+            .get_mut(|x| x.clear())
+    }
 }
 
 /// Copy an event from an [`MessageReader`] to an [`EventChannel`].
