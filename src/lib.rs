@@ -413,7 +413,7 @@ impl AsyncExtension for App {
 
 /// Extension for [`App`] to add reactors.
 pub trait AppReactorExtension {
-    /// React to changes in an [`Message`] by duplicating events to [`EventChannel<E>`].
+    /// React to changes in a [`Message`] by duplicating them to [`EventChannel<E>`].
     ///
     /// Initializes the resource [`EventChannel<E>`].
     fn react_to_message<E: Message + Clone>(&mut self) -> &mut Self;
