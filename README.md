@@ -15,10 +15,10 @@ which is pretty powerful!
 
 * So who needs `bevy_defer`?
 
-`bevy_defer` is not for every use case as it is somewhat opposite to the ECS's
+`bevy_defer` is not for every use case as it is somewhat opposite to `ecs`s
 design goal. If your game is a lot of simple conditionals,
-the ECS likely suits your need just fine.
-But if you have a game that does a lot of sequential actions or uses a lot of
+`ecs` likely suits your need just fine.
+But if you have a game that does a lot of sequential actions or use a lot of
 complicated state machines, `bevy_defer`
 might help you make your life easier.
 
@@ -59,7 +59,7 @@ add their corresponding `react_to` functions.
 
 ```rust, ignore
 app.react_to_state::<PlayerAlive>();
-app.react_to_event::<PlayerAttack>();
+app.react_to_message::<PlayerAttack>();
 ```
 
 ### Spawning a Task
@@ -179,14 +179,14 @@ Once sync code sends data through the channel, it will
 wake and resume the corresponding task.
 
 Communicating from async to sync require more thought.
-This usually means mutating the world or sending an event
+This usually means mutating the world or writing a message
 in an async function,
 then a system can listen for that particular change in sync code.
 
 ```rust,ignore
 async {
-    fetch!(entity, IsJumping).set(|j| *j == true);
-    AsyncWold.send_event(Jump(entity))
+    fetch!(entity, IsJumping).get_mut(|j| *j = true);
+    AsyncWorld.write_message(Jump(entity))
 }
 
 pub fn jump_system(query: Query<Name, Changed<IsJumping>>) {
@@ -255,7 +255,8 @@ blocking tasks, so pay extra attention to this.
 | 0.16 | 0.14               |
 | 0.17 | 0.15               |
 | 0.18 | 0.17               |
-| 0.19 | 0.18-latest        |
+| 0.19 | 0.18-0.19          |
+| 0.20 | 0.20               |
 
 ## License
 
