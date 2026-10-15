@@ -1,10 +1,14 @@
-use crate::{access::AsyncEntity, AccessError, AccessResult, OwnedReadonlyQueryState};
+use crate::{
+    access::{AsyncEntity, AsyncResource},
+    AccessError, AccessResult, AsyncWorld, OwnedReadonlyQueryState,
+};
 use bevy::ecs::{
     entity::Entity,
     hierarchy::{ChildOf, Children},
     name::Name,
     query::QueryFilter,
     relationship::{Relationship, RelationshipTarget},
+    resource::Resource,
     world::World,
 };
 use std::{any::type_name, marker::PhantomData};
@@ -438,5 +442,37 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         name: &'t str,
     ) -> AsyncEntity<NamedDescendant<'t, E, R>> {
         AsyncEntity(NamedDescendant::new(self.0, name))
+    }
+}
+
+#[derive(Debug)]
+pub struct ResourceEntity<R: Resource>(PhantomData<R>);
+
+impl<R: Resource> VirtualEntity for ResourceEntity<R> {
+    fn try_get_entity(&self, world: &World) -> AccessResult<Entity> {
+        world
+            .resource_entity::<R>()
+            .ok_or(AccessError::ResourceNotFound {
+                name: type_name::<R>(),
+            })
+    }
+}
+
+impl<R: Resource> AsyncResource<R> {
+    /// Get the underlying [`AsyncEntity`] of a resource.
+    pub fn entity(&self) -> AsyncEntity<ResourceEntity<R>> {
+        AsyncWorld.resource_entity::<R>()
+    }
+
+    /// Get the underlying [`Entity`] of a resource.
+    pub fn id(&self) -> AccessResult<Entity> {
+        AsyncWorld.resource_entity::<R>().try_get_id()
+    }
+}
+
+impl AsyncWorld {
+    /// Get the underlying [`AsyncEntity`] of a resource.
+    pub fn resource_entity<R: Resource>(&self) -> AsyncEntity<ResourceEntity<R>> {
+        AsyncEntity(ResourceEntity(PhantomData))
     }
 }

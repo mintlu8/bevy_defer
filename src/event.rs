@@ -122,7 +122,6 @@ impl AsyncWorld {
             .get_mut(|x| x.push_front(event))
     }
 
-
     /// Remove all events in a [`EventChannel`].
     pub fn drain_events<E: Send + Sync + 'static>(&self) -> AccessResult {
         AsyncWorld

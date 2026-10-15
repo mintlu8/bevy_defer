@@ -192,6 +192,41 @@ impl<E: VirtualEntity> AsyncEntity<E> {
         })
     }
 
+    /// Inserts a component or bundle of components into the entity and all related entities,
+    /// traversing the relationship tracked in S in a breadth-first manner.
+    pub fn insert_recursive<R: RelationshipTarget>(
+        &self,
+        bundle: impl Bundle + Clone,
+    ) -> Result<AsyncEntity, AccessError> {
+        with_world_mut(move |world: &mut World| {
+            let entity = self.0.try_get_entity(world)?;
+            world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))
+                .map(|mut e| {
+                    e.insert_recursive::<R>(bundle);
+                })?;
+            Ok(AsyncEntity(entity))
+        })
+    }
+
+    /// Removes a component or bundle of components of type B from the entity and all related entities,
+    /// traversing the relationship tracked in S in a breadth-first manner.
+    pub fn remove_recursive<R: RelationshipTarget, B: Bundle>(
+        &self,
+    ) -> Result<AsyncEntity, AccessError> {
+        with_world_mut(move |world: &mut World| {
+            let entity = self.0.try_get_entity(world)?;
+            world
+                .get_entity_mut(entity)
+                .map_err(|_| AccessError::EntityNotFound(entity))
+                .map(|mut e| {
+                    e.remove_recursive::<R, B>();
+                })?;
+            Ok(AsyncEntity(entity))
+        })
+    }
+
     /// Creates an `Observer` listening for events of type `E` targeting this entity.
     ///
     /// In order to trigger the callback the entity must also match the query when the event is fired.

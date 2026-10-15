@@ -136,6 +136,13 @@ impl<T> Sender<T> {
     pub fn by_ref(self) -> RefSender<T> {
         RefSender(Some(self))
     }
+
+    pub fn send_when_dropped(self, value: T) -> SendWhenDropped<T> {
+        SendWhenDropped {
+            sender: self,
+            send: Some(value),
+        }
+    }
 }
 
 /// Sender for a `!Send` oneshot channel. Sending does not require ownership.
@@ -287,5 +294,18 @@ impl FusedFuture for InterpolateOut {
 impl ChannelOutOrCancel<AccessResult<()>> {
     pub(crate) fn into_interpolate_out(self) -> InterpolateOut {
         InterpolateOut(self.0)
+    }
+}
+
+pub struct SendWhenDropped<T> {
+    sender: Sender<T>,
+    send: Option<T>,
+}
+
+impl<T> Drop for SendWhenDropped<T> {
+    fn drop(&mut self) {
+        if let Some(v) = self.send.take() {
+            let _ = self.sender.0.send(v);
+        }
     }
 }
